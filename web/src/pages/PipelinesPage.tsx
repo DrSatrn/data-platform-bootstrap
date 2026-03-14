@@ -4,7 +4,7 @@
 import { usePipelines } from "../features/pipelines/usePipelines";
 
 export function PipelinesPage() {
-  const { data, error } = usePipelines();
+  const { data, error, pendingPipelineID, triggerPipeline } = usePipelines();
 
   if (error) {
     return <section className="panel">Pipelines error: {error}</section>;
@@ -22,7 +22,17 @@ export function PipelinesPage() {
                   <h3>{pipeline.name}</h3>
                   <p>{pipeline.description}</p>
                 </div>
-                <span className="badge">{pipeline.owner}</span>
+                <div className="inline-actions">
+                  <span className="badge">{pipeline.owner}</span>
+                  <button
+                    className="mini-button"
+                    disabled={pendingPipelineID === pipeline.id}
+                    onClick={() => void triggerPipeline(pipeline.id)}
+                    type="button"
+                  >
+                    {pendingPipelineID === pipeline.id ? "Queueing..." : "Run now"}
+                  </button>
+                </div>
               </div>
               <p className="muted">Jobs: {pipeline.jobs.map((job) => `${job.id} (${job.type})`).join(", ")}</p>
             </article>

@@ -160,6 +160,13 @@ textarea {
   align-items: flex-start;
 }
 
+.inline-actions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -168,6 +175,69 @@ textarea {
   color: #7b4316;
   padding: 6px 12px;
   font-size: 0.82rem;
+}
+
+.command-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.mini-button {
+  border: 1px solid rgba(114, 89, 63, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.terminal-form {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.terminal-input {
+  border: 1px solid rgba(114, 89, 63, 0.2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.terminal-submit {
+  justify-content: center;
+}
+
+.terminal-output {
+  border-radius: 18px;
+  background: #17120d;
+  color: #f5ead8;
+  padding: 18px;
+  min-height: 260px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.terminal-entry + .terminal-entry {
+  margin-top: 14px;
+}
+
+.terminal-prompt {
+  color: #e2b774;
+  margin: 0 0 6px;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.terminal-line {
+  margin: 0;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  white-space: pre-wrap;
+}
+
+.terminal-error {
+  color: #f7a37b;
 }
 
 .data-table {
@@ -190,6 +260,10 @@ textarea {
 
   .page-grid,
   .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-form {
     grid-template-columns: 1fr;
   }
 

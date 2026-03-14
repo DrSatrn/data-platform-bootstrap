@@ -16,7 +16,7 @@ fmt:
 lint:
 	cd backend && go test ./...
 	cd backend && go run ./cmd/platformctl validate-manifests
-	cd web && npm run test
+	cd web && npm run build
 
 test:
 	cd backend && go test ./...
@@ -39,4 +39,6 @@ down:
 	docker compose -f infra/compose/docker-compose.yml down
 
 smoke:
-	cd backend && go run ./cmd/platformctl validate-manifests
+	curl -fsS http://127.0.0.1:8080/healthz
+	cd backend && go run ./cmd/platformctl remote --token $${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token} trigger personal_finance_pipeline
+	cd backend && go run ./cmd/platformctl remote --token $${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token} status

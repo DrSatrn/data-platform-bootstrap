@@ -4,11 +4,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: platform
-      POSTGRES_PASSWORD: platform
+      POSTGRES_USER: platform_app
+      POSTGRES_PASSWORD: local_dev_password
       POSTGRES_DB: platform
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -16,12 +14,27 @@ services:
     image: golang:1.23-alpine
     command: ["sh", "-c", "go run ./cmd/platform-api"]
     working_dir: /workspace/backend
-    env_file:
-      - ../../.env.example
+    environment:
+      PLATFORM_ENV: development
+      PLATFORM_HTTP_ADDR: :8080
+      PLATFORM_WEB_ADDR: :3000
+      PLATFORM_API_BASE_URL: http://127.0.0.1:8080
+      PLATFORM_LOG_LEVEL: debug
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
+      PLATFORM_DATA_ROOT: /var/lib/platform/data
+      PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
+      PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_SCHEDULER_TICK: 15s
+      PLATFORM_WORKER_POLL: 5s
+      PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
       - ../../:/workspace
+      - ../../var:/var/lib/platform
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgres
 
@@ -29,10 +42,25 @@ services:
     image: golang:1.23-alpine
     command: ["sh", "-c", "go run ./cmd/platform-scheduler"]
     working_dir: /workspace/backend
-    env_file:
-      - ../../.env.example
+    environment:
+      PLATFORM_ENV: development
+      PLATFORM_HTTP_ADDR: :8080
+      PLATFORM_WEB_ADDR: :3000
+      PLATFORM_API_BASE_URL: http://127.0.0.1:8080
+      PLATFORM_LOG_LEVEL: debug
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
+      PLATFORM_DATA_ROOT: /var/lib/platform/data
+      PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
+      PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_SCHEDULER_TICK: 15s
+      PLATFORM_WORKER_POLL: 5s
+      PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
       - ../../:/workspace
+      - ../../var:/var/lib/platform
     depends_on:
       - postgres
 
@@ -40,10 +68,25 @@ services:
     image: golang:1.23-alpine
     command: ["sh", "-c", "go run ./cmd/platform-worker"]
     working_dir: /workspace/backend
-    env_file:
-      - ../../.env.example
+    environment:
+      PLATFORM_ENV: development
+      PLATFORM_HTTP_ADDR: :8080
+      PLATFORM_WEB_ADDR: :3000
+      PLATFORM_API_BASE_URL: http://127.0.0.1:8080
+      PLATFORM_LOG_LEVEL: debug
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
+      PLATFORM_DATA_ROOT: /var/lib/platform/data
+      PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
+      PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_SCHEDULER_TICK: 15s
+      PLATFORM_WORKER_POLL: 5s
+      PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
       - ../../:/workspace
+      - ../../var:/var/lib/platform
     depends_on:
       - postgres
 
@@ -54,18 +97,7 @@ services:
     volumes:
       - ../../:/workspace
     ports:
-      - "3000:3000"
-    depends_on:
-      - api
-
-  prometheus:
-    image: prom/prometheus:v3.1.0
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-    volumes:
-      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
-      - "9090:9090"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
 

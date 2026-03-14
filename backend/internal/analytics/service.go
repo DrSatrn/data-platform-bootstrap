@@ -1,11 +1,25 @@
 // Package analytics provides a deliberately constrained analytics-serving
-// surface. The current implementation returns manifest-backed sample responses
-// so the frontend and API contracts can be built before the DuckDB adapter is
-// fully wired in.
+// surface. This initial implementation computes curated finance metrics from
+// repo-managed sample data so the analytics layer is genuinely ours rather than
+// delegated to an external BI service.
 package analytics
 
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+)
+
 // Service owns curated analytics responses.
-type Service struct{}
+type Service struct {
+	sampleDataRoot string
+	dataRoot       string
+}
 
 // QueryResult is shaped for chart-friendly frontend consumption.
 type QueryResult struct {
@@ -14,18 +28,89 @@ type QueryResult struct {
 }
 
 // NewService creates an analytics service.
-func NewService() *Service {
-	return &Service{}
+func NewService(sampleDataRoot, dataRoot string) *Service {
+	return &Service{
+		sampleDataRoot: sampleDataRoot,
+		dataRoot:       dataRoot,
+	}
 }
 
-// SampleDashboard returns a starter dataset for the finance dashboard.
-func (s *Service) SampleDashboard() QueryResult {
+// SampleDashboard returns a curated dashboard result derived from sample data.
+func (s *Service) SampleDashboard() (QueryResult, error) {
+	artifactPath := filepath.Join(s.dataRoot, "mart", "mart_monthly_cashflow.json")
+	if bytes, err := os.ReadFile(artifactPath); err == nil {
+		var rows []map[string]any
+		if err := json.Unmarshal(bytes, &rows); err == nil && len(rows) > 0 {
+			return QueryResult{
+				Dataset: "metrics_monthly_cashflow",
+				Series:  rows,
+			}, nil
+		}
+	}
+
+	path := filepath.Join(s.sampleDataRoot, "personal_finance", "transactions.csv")
+	file, err := os.Open(path)
+	if err != nil {
+		return QueryResult{}, fmt.Errorf("open transactions sample: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return QueryResult{}, fmt.Errorf("read transactions sample: %w", err)
+	}
+
+	type summary struct {
+		income   float64
+		expenses float64
+	}
+
+	summaries := map[string]summary{}
+	for index, row := range rows {
+		if index == 0 || len(row) < 5 {
+			continue
+		}
+		month := ""
+		if len(row[1]) >= 7 {
+			month = row[1][:7]
+		}
+		amount, err := strconv.ParseFloat(strings.TrimSpace(row[4]), 64)
+		if err != nil {
+			return QueryResult{}, fmt.Errorf("parse amount on row %d: %w", index+1, err)
+		}
+		current := summaries[month]
+		if amount >= 0 {
+			current.income += amount
+		} else {
+			current.expenses += amount * -1
+		}
+		summaries[month] = current
+	}
+
+	months := make([]string, 0, len(summaries))
+	for month := range summaries {
+		months = append(months, month)
+	}
+	sort.Strings(months)
+
+	series := make([]map[string]any, 0, len(months))
+	for _, month := range months {
+		item := summaries[month]
+		savingsRate := 0.0
+		if item.income > 0 {
+			savingsRate = (item.income - item.expenses) / item.income
+		}
+		series = append(series, map[string]any{
+			"month":        month,
+			"income":       item.income,
+			"expenses":     item.expenses,
+			"savings_rate": savingsRate,
+		})
+	}
+
 	return QueryResult{
 		Dataset: "metrics_monthly_cashflow",
-		Series: []map[string]any{
-			{"month": "2026-01", "income": 7200, "expenses": 4100, "savings_rate": 0.43},
-			{"month": "2026-02", "income": 7200, "expenses": 4350, "savings_rate": 0.40},
-			{"month": "2026-03", "income": 7200, "expenses": 3980, "savings_rate": 0.45},
-		},
-	}
+		Series:  series,
+	}, nil
 }

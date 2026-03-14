@@ -4,6 +4,8 @@
 package orchestration
 
 import (
+	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -19,26 +21,42 @@ type PipelineLoader interface {
 
 // PipelineHandler serves the orchestration-focused API routes.
 type PipelineHandler struct {
-	loader PipelineLoader
-	store  Store
-	logger *slog.Logger
+	loader  PipelineLoader
+	store   Store
+	control *ControlService
+	logger  *slog.Logger
 }
 
 // NewPipelineHandler constructs the pipeline API surface.
-func NewPipelineHandler(loader PipelineLoader, store Store, logger *slog.Logger) http.Handler {
+func NewPipelineHandler(loader PipelineLoader, store Store, control *ControlService, logger *slog.Logger) http.Handler {
 	return &PipelineHandler{
-		loader: loader,
-		store:  store,
-		logger: logger,
+		loader:  loader,
+		store:   store,
+		control: control,
+		logger:  logger,
 	}
 }
 
 func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		h.handleTrigger(w, r)
+		return
+	}
+
 	pipelines, err := h.loader.LoadPipelines()
 	if err != nil {
 		h.logger.Error("failed to load pipelines", slog.String("error", err.Error()))
 		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 			"error": "failed to load pipelines",
+		})
+		return
+	}
+
+	runs, err := h.store.ListPipelineRuns()
+	if err != nil {
+		h.logger.Error("failed to load pipeline runs", slog.String("error", err.Error()))
+		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "failed to load pipeline runs",
 		})
 		return
 	}
@@ -52,7 +70,32 @@ func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
 		"pipelines":         pipelines,
-		"runs":              h.store.ListPipelineRuns(),
+		"runs":              runs,
 		"validation_errors": validationErrors,
+	})
+}
+
+func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		PipelineID string `json:"pipeline_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+			"error": "invalid trigger payload",
+		})
+		return
+	}
+
+	run, err := h.control.TriggerPipeline(context.Background(), payload.PipelineID, "manual_api")
+	if err != nil {
+		h.logger.Error("failed to trigger pipeline", slog.String("error", err.Error()))
+		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	shared.WriteJSON(w, http.StatusAccepted, map[string]any{
+		"run": run,
 	})
 }

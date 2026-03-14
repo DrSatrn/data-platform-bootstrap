@@ -1,9 +1,10 @@
 // SystemPage gathers platform diagnostics so operators can quickly understand
 // whether the stack is healthy and whether data trust signals need attention.
+import { AdminTerminal } from "../components/AdminTerminal";
 import { useSystemData } from "../features/system/useSystemData";
 
 export function SystemPage() {
-  const { health, quality, error } = useSystemData();
+  const { health, quality, overview, logs, error } = useSystemData();
 
   if (error) {
     return <section className="panel">System error: {error}</section>;
@@ -14,9 +15,17 @@ export function SystemPage() {
       <article className="card">
         <h2>Service Health</h2>
         <p className="muted">Environment: {health?.environment ?? "unknown"}</p>
-        <p className="muted">API: {health?.http_addr ?? "unknown"}</p>
-        <p className="muted">Web: {health?.web_addr ?? "unknown"}</p>
         <p>Status: {health?.status ?? "unknown"}</p>
+        <p className="muted">Known pipelines: {overview?.known_pipelines ?? 0}</p>
+        <p className="muted">Known assets: {overview?.known_assets ?? 0}</p>
+        <p className="muted">Run history: {overview?.run_history ?? 0}</p>
+      </article>
+      <article className="card">
+        <h2>Built-in Metrics</h2>
+        <p className="muted">Uptime: {overview?.telemetry.uptime_seconds ?? 0}s</p>
+        <p className="muted">Requests: {overview?.telemetry.total_requests ?? 0}</p>
+        <p className="muted">Errors: {overview?.telemetry.total_errors ?? 0}</p>
+        <p className="muted">Admin commands: {overview?.telemetry.total_commands ?? 0}</p>
       </article>
       <article className="card wide-card">
         <h2>Quality Signals</h2>
@@ -32,6 +41,21 @@ export function SystemPage() {
           ))}
         </div>
       </article>
+      <article className="card wide-card">
+        <h2>Recent Platform Logs</h2>
+        <div className="stack">
+          {(logs?.logs ?? []).slice(-8).map((entry, index) => (
+            <div className="subcard" key={`${entry.time}-${index}`}>
+              <div className="row-between">
+                <strong>{entry.level}</strong>
+                <span className="badge">{new Date(entry.time).toLocaleTimeString()}</span>
+              </div>
+              <p className="muted">{entry.message}</p>
+            </div>
+          ))}
+        </div>
+      </article>
+      <AdminTerminal />
     </section>
   );
 }

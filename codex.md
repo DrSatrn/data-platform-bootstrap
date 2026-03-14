@@ -1,3 +1,46 @@
+Fresh Context Onboarding
+
+This section is a rolling handoff for future fresh-context Codex sessions so a new agent can ramp up immediately without rediscovering project state.
+
+Current project identity
+	•	This repo is a local-first, self-hosted data orchestration and analytics platform for Apple Silicon and ARM64 Linux VMs.
+	•	The backend is Go, the frontend is React + TypeScript, and PostgreSQL is the only major external platform dependency we intend to rely on.
+	•	The platform must own as much of the control plane, metadata layer, analytics layer, reporting UI, docs generation, admin tooling, metrics, and diagnostics as is practical.
+
+What has already been built
+	•	Monorepo structure with backend, web, packages, infra, docs, and CI scaffolding.
+	•	Go runtime entrypoints for `platform-api`, `platform-scheduler`, `platform-worker`, and `platformctl`.
+	•	Manifest loader, pipeline validation, metadata/catalog API, reporting API, quality API, analytics API.
+	•	Built-in observability surface with in-memory telemetry, recent log buffer, system overview API, and request metrics.
+	•	Built-in admin terminal API and browser UI terminal in the System page.
+	•	`platformctl remote ...` CLI mode that talks to the running platform API.
+	•	Finance sample data, pipeline manifests, asset manifests, quality manifests, and dashboard manifest.
+	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API/admin terminal checks passed.
+
+What is still pending
+	•	True end-to-end pipeline execution path that materializes assets and records run history persistently across API and worker processes.
+	•	Persistent run state store instead of the current in-memory orchestration store.
+	•	A triggerable pipeline API and UI flow for manual runs.
+	•	Worker consumption of queued run requests and real execution of ingest/transform/quality/metric jobs.
+	•	Localhost runbook updates for full end-to-end verification after the execution path is wired.
+
+Important current architectural direction
+	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
+	•	Built-in operational surfaces should remain first-party wherever possible.
+	•	Public repo safety matters: keep placeholders only in tracked env/config files, avoid real secrets, avoid publishing local-only services broadly, and prefer loopback bindings by default.
+	•	Keep docs and top-of-file instructional comments up to date every time a file is modified.
+
+Rolling Workstep Log
+
+Latest completed workstep
+	•	Implemented a durable file-backed run store and file-backed queue shared by API and worker processes.
+	•	Implemented real worker execution for the personal-finance pipeline, including raw ingestion, mart materialization, quality artifacts, and metric publication.
+	•	Added manual run triggering through the Pipelines UI, admin terminal, and `platformctl remote`.
+	•	Verified a real localhost end-to-end run: queue, worker, run history, materialized artifacts, and analytics response all succeeded.
+
+Next workstep to execute
+	•	Wire PostgreSQL-backed control-plane repositories, add richer run detail and artifact inspection in the UI, and move the scheduler from catalog refresh into real scheduled queueing.
+
 Non-negotiable engineering goals
 
 This project must strongly prioritize the following:

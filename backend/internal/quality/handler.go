@@ -20,7 +20,15 @@ func NewHandler(service *Service) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	checks, err := h.service.ListStatuses()
+	if err != nil {
+		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": err.Error(),
+		})
+		return
+	}
+
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"checks": h.service.ListStatuses(),
+		"checks": checks,
 	})
 }

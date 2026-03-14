@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/streanor/data-platform/backend/internal/admin"
 	"github.com/streanor/data-platform/backend/internal/analytics"
 	"github.com/streanor/data-platform/backend/internal/config"
+	"github.com/streanor/data-platform/backend/internal/execution"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/observability"
@@ -19,6 +21,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/quality"
 	"github.com/streanor/data-platform/backend/internal/reporting"
 	"github.com/streanor/data-platform/backend/internal/scheduler"
+	"github.com/streanor/data-platform/backend/internal/shared"
 )
 
 // RunAPI starts the HTTP control-plane server.
@@ -28,8 +31,9 @@ func RunAPI(ctx context.Context) error {
 		return err
 	}
 
-	logger := observability.NewLogger(cfg.LogLevel)
-	router := newRouter(logger, cfg)
+	telemetry := observability.NewService()
+	logger := observability.NewLogger(cfg.LogLevel, telemetry)
+	router := newRouter(logger, cfg, telemetry)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -64,9 +68,12 @@ func RunScheduler(ctx context.Context) error {
 		return err
 	}
 
-	logger := observability.NewLogger(cfg.LogLevel)
+	logger := observability.NewLogger(cfg.LogLevel, nil)
 	loader := manifests.NewLoader(cfg.ManifestRoot)
-	store := orchestration.NewInMemoryStore()
+	store, err := orchestration.NewFileStore(cfg.DataRoot)
+	if err != nil {
+		return err
+	}
 	catalog := metadata.NewCatalog()
 	service := scheduler.NewService(cfg.SchedulerTick, loader, store, catalog, logger)
 
@@ -81,31 +88,61 @@ func RunWorker(ctx context.Context) error {
 		return err
 	}
 
-	logger := observability.NewLogger(cfg.LogLevel)
+	logger := observability.NewLogger(cfg.LogLevel, nil)
+	loader := manifests.NewLoader(cfg.ManifestRoot)
+	store, err := orchestration.NewFileStore(cfg.DataRoot)
+	if err != nil {
+		return err
+	}
+	queue, err := orchestration.NewQueue(cfg.DataRoot)
+	if err != nil {
+		return err
+	}
+	runner := execution.NewRunner(cfg, loader, store, logger)
+	worker := execution.NewWorker(queue, runner, logger, cfg.WorkerPoll)
 	logger.Info("starting worker loop", slog.Duration("poll", cfg.WorkerPoll))
-
-	<-ctx.Done()
-	logger.Info("worker shutdown complete")
-	return nil
+	return worker.Run(ctx)
 }
 
-func newRouter(logger *slog.Logger, cfg config.Settings) http.Handler {
+func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observability.Service) http.Handler {
 	loader := manifests.NewLoader(cfg.ManifestRoot)
-	store := orchestration.NewInMemoryStore()
+	store, err := orchestration.NewFileStore(cfg.DataRoot)
+	if err != nil {
+		logger.Error("failed to construct file store", slog.String("error", err.Error()))
+		return observability.RequestLoggingMiddleware(logger, telemetry, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": "failed to initialize run store",
+			})
+		}))
+	}
+	queue, err := orchestration.NewQueue(cfg.DataRoot)
+	if err != nil {
+		logger.Error("failed to construct queue", slog.String("error", err.Error()))
+		return observability.RequestLoggingMiddleware(logger, telemetry, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": "failed to initialize queue",
+			})
+		}))
+	}
 	catalog := metadata.NewCatalog()
-	qualityService := quality.NewService()
+	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot)
 	reportStore := reporting.NewMemoryStore()
-	analyticsService := analytics.NewService()
+	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot)
+	controlService := orchestration.NewControlService(loader, store, queue)
+	adminService := admin.NewService(cfg, loader, store, controlService, qualityService, reportStore, telemetry)
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
-	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, store, logger))
+	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, store, controlService, logger))
 	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
 	mux.Handle("/api/v1/reports", reporting.NewHandler(reportStore))
+	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, store))
+	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
+	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, adminService))
 
-	return observability.RequestLoggingMiddleware(logger, mux)
+	return observability.RequestLoggingMiddleware(logger, telemetry, mux)
 }
 
 // ExplainConfig returns a compact human-readable configuration summary that is
