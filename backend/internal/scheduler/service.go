@@ -108,7 +108,7 @@ func (s *Service) enqueueScheduledRuns(pipelines []orchestration.Pipeline) error
 			continue
 		}
 
-		slot, supported, err := currentScheduleSlot(now, pipeline.Schedule.Cron)
+		slot, supported, err := currentScheduleSlot(now, pipeline.Schedule)
 		if err != nil {
 			s.logger.Warn("failed to evaluate pipeline schedule", slog.String("pipeline_id", pipeline.ID), slog.String("error", err.Error()))
 			continue
@@ -174,48 +174,148 @@ func (s *Service) saveState(state map[string]time.Time) error {
 	return os.WriteFile(s.statePath, bytes, 0o644)
 }
 
-func currentScheduleSlot(now time.Time, cron string) (time.Time, bool, error) {
+func currentScheduleSlot(now time.Time, schedule orchestration.Schedule) (time.Time, bool, error) {
+	location := time.UTC
+	if schedule.Timezone != "" {
+		resolved, err := time.LoadLocation(schedule.Timezone)
+		if err != nil {
+			return time.Time{}, false, fmt.Errorf("load timezone %q: %w", schedule.Timezone, err)
+		}
+		location = resolved
+	}
+
+	minutes, err := parseCronField(fieldSpec{
+		value: cronFieldValue(schedule.Cron, 0),
+		min:   0,
+		max:   59,
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	hours, err := parseCronField(fieldSpec{
+		value: cronFieldValue(schedule.Cron, 1),
+		min:   0,
+		max:   23,
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	daysOfMonth, err := parseCronField(fieldSpec{
+		value: cronFieldValue(schedule.Cron, 2),
+		min:   1,
+		max:   31,
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	months, err := parseCronField(fieldSpec{
+		value: cronFieldValue(schedule.Cron, 3),
+		min:   1,
+		max:   12,
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	daysOfWeek, err := parseCronField(fieldSpec{
+		value:       cronFieldValue(schedule.Cron, 4),
+		min:         0,
+		max:         6,
+		allowSeven:  true,
+		convertZero: true,
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+
+	localNow := now.In(location).Truncate(time.Minute)
+	for attempts := 0; attempts < 60*24*32; attempts++ {
+		if matchesCron(localNow, minutes, hours, daysOfMonth, months, daysOfWeek) {
+			return localNow.UTC(), true, nil
+		}
+		localNow = localNow.Add(-1 * time.Minute)
+	}
+	return time.Time{}, false, nil
+}
+
+type fieldSpec struct {
+	value       string
+	min         int
+	max         int
+	allowSeven  bool
+	convertZero bool
+}
+
+type cronField map[int]struct{}
+
+func parseCronField(spec fieldSpec) (cronField, error) {
+	value := strings.TrimSpace(spec.value)
+	if value == "" {
+		return nil, fmt.Errorf("cron field cannot be empty")
+	}
+	if value == "*" {
+		field := cronField{}
+		for item := spec.min; item <= spec.max; item++ {
+			field[item] = struct{}{}
+		}
+		return field, nil
+	}
+
+	field := cronField{}
+	for _, part := range strings.Split(value, ",") {
+		part = strings.TrimSpace(part)
+		switch {
+		case strings.HasPrefix(part, "*/"):
+			step, err := strconv.Atoi(strings.TrimPrefix(part, "*/"))
+			if err != nil || step <= 0 {
+				return nil, fmt.Errorf("invalid cron step %q", part)
+			}
+			for item := spec.min; item <= spec.max; item += step {
+				field[normalizeCronValue(item, spec)] = struct{}{}
+			}
+		default:
+			parsed, err := strconv.Atoi(part)
+			if err != nil {
+				return nil, fmt.Errorf("invalid cron field %q", part)
+			}
+			if parsed < spec.min || (parsed > spec.max && !(spec.allowSeven && parsed == 7)) {
+				return nil, fmt.Errorf("cron field %q out of range", part)
+			}
+			field[normalizeCronValue(parsed, spec)] = struct{}{}
+		}
+	}
+	return field, nil
+}
+
+func normalizeCronValue(value int, spec fieldSpec) int {
+	if spec.allowSeven && spec.convertZero && value == 7 {
+		return 0
+	}
+	return value
+}
+
+func matchesCron(now time.Time, minutes, hours, daysOfMonth, months, daysOfWeek cronField) bool {
+	if _, ok := minutes[now.Minute()]; !ok {
+		return false
+	}
+	if _, ok := hours[now.Hour()]; !ok {
+		return false
+	}
+	if _, ok := daysOfMonth[now.Day()]; !ok {
+		return false
+	}
+	if _, ok := months[int(now.Month())]; !ok {
+		return false
+	}
+	if _, ok := daysOfWeek[int(now.Weekday())]; !ok {
+		return false
+	}
+	return true
+}
+
+func cronFieldValue(cron string, index int) string {
 	fields := strings.Fields(strings.TrimSpace(cron))
 	if len(fields) != 5 {
-		return time.Time{}, false, nil
+		return ""
 	}
-	if fields[2] != "*" || fields[3] != "*" || fields[4] != "*" {
-		return time.Time{}, false, nil
-	}
-
-	minute, err := strconv.Atoi(fields[0])
-	if err != nil || minute < 0 || minute > 59 {
-		return time.Time{}, false, fmt.Errorf("unsupported cron minute field %q", fields[0])
-	}
-
-	hourField := fields[1]
-	switch {
-	case hourField == "*":
-		slot := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), minute, 0, 0, time.UTC)
-		if slot.After(now) {
-			slot = slot.Add(-1 * time.Hour)
-		}
-		return slot, true, nil
-	case strings.HasPrefix(hourField, "*/"):
-		intervalHours, err := strconv.Atoi(strings.TrimPrefix(hourField, "*/"))
-		if err != nil || intervalHours <= 0 || intervalHours > 24 {
-			return time.Time{}, false, fmt.Errorf("unsupported cron hour interval %q", hourField)
-		}
-		hour := (now.Hour() / intervalHours) * intervalHours
-		slot := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, time.UTC)
-		if slot.After(now) {
-			slot = slot.Add(-1 * time.Duration(intervalHours) * time.Hour)
-		}
-		return slot, true, nil
-	default:
-		hour, err := strconv.Atoi(hourField)
-		if err != nil || hour < 0 || hour > 23 {
-			return time.Time{}, false, fmt.Errorf("unsupported cron hour field %q", hourField)
-		}
-		slot := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, time.UTC)
-		if slot.After(now) {
-			slot = slot.Add(-24 * time.Hour)
-		}
-		return slot, true, nil
-	}
+	return fields[index]
 }

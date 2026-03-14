@@ -29,14 +29,19 @@ func NewEngine(dbPath, sqlRoot string) *Engine {
 }
 
 // MaterializeRawTables loads landed raw artifacts into DuckDB tables.
-func (e *Engine) MaterializeRawTables(rawTransactionsPath, rawBalancesPath string) error {
+func (e *Engine) MaterializeRawTables(rawTransactionsPath, rawBalancesPath, rawBudgetRulesPath string) error {
 	if err := e.ExecFile(filepath.Join("bootstrap", "raw_transactions.sql"), map[string]string{
 		"RAW_TRANSACTIONS_PATH": quotedSQLString(rawTransactionsPath),
 	}); err != nil {
 		return err
 	}
-	return e.ExecFile(filepath.Join("bootstrap", "raw_account_balances.sql"), map[string]string{
+	if err := e.ExecFile(filepath.Join("bootstrap", "raw_account_balances.sql"), map[string]string{
 		"RAW_ACCOUNT_BALANCES_PATH": quotedSQLString(rawBalancesPath),
+	}); err != nil {
+		return err
+	}
+	return e.ExecFile(filepath.Join("bootstrap", "raw_budget_rules.sql"), map[string]string{
+		"RAW_BUDGET_RULES_PATH": quotedSQLString(rawBudgetRulesPath),
 	})
 }
 
@@ -57,13 +62,20 @@ func (e *Engine) RunMetric(metricID string) error {
 
 // QueryRows executes a read query and returns JSON-friendly row maps.
 func (e *Engine) QueryRows(query string) ([]map[string]any, error) {
+	return e.QueryRowsArgs(query)
+}
+
+// QueryRowsArgs executes a parameterized read query and returns JSON-friendly
+// row maps. The explicit args path lets the analytics API stay constrained
+// without resorting to unsafe SQL interpolation.
+func (e *Engine) QueryRowsArgs(query string, args ...any) ([]map[string]any, error) {
 	db, err := e.open()
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query duckdb rows: %w", err)
 	}

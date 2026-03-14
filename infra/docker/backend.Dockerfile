@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /workspace
 COPY --from=build /out/ /usr/local/bin/
 COPY packages/manifests /workspace/packages/manifests
+COPY packages/dashboards /workspace/packages/dashboards
 COPY packages/sample_data /workspace/packages/sample_data
 COPY packages/sql /workspace/packages/sql
 COPY infra/migrations /workspace/infra/migrations

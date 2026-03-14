@@ -116,7 +116,12 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	loader := manifests.NewLoader(cfg.ManifestRoot)
 	catalog := metadata.NewCatalog()
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
-	reportStore := reporting.NewMemoryStore()
+	var reportStore reporting.Store
+	reportStore, err := reporting.NewFileStore(cfg.DataRoot, cfg.DashboardRoot)
+	if err != nil {
+		logger.Warn("file-backed dashboard store unavailable, falling back to memory store", slog.String("reason", err.Error()))
+		reportStore = reporting.NewMemoryStore()
+	}
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
 	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, reportStore, persistence.artifacts, telemetry)

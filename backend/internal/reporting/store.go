@@ -1,19 +1,65 @@
-// Package reporting holds saved-report and dashboard models. The in-memory
-// store keeps the vertical slice usable before persistent reporting state lands
-// in PostgreSQL.
+// Package reporting owns saved dashboard definitions and the backend API
+// contract used by the frontend reporting experience. The store is intentionally
+// local-first: it persists dashboards under the platform data root and seeds
+// itself from repo-managed dashboard manifests so product behavior remains
+// versioned and inspectable.
 package reporting
 
-import "sync"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"sync"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Store describes the reporting persistence behavior needed by the API and
+// admin surfaces.
+type Store interface {
+	ListDashboards() ([]Dashboard, error)
+	SaveDashboard(Dashboard) error
+}
 
 // Dashboard summarizes a saved internal reporting view.
 type Dashboard struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Widgets     []string `json:"widgets"`
+	ID          string            `json:"id" yaml:"id"`
+	Name        string            `json:"name" yaml:"name"`
+	Description string            `json:"description" yaml:"description"`
+	Widgets     []DashboardWidget `json:"widgets" yaml:"widgets"`
+	UpdatedAt   time.Time         `json:"updated_at,omitempty"`
 }
 
-// MemoryStore stores dashboards in memory.
+// DashboardWidget defines one reporting element powered by a constrained
+// analytics query rather than arbitrary SQL.
+type DashboardWidget struct {
+	ID          string      `json:"id" yaml:"id"`
+	Name        string      `json:"name" yaml:"name"`
+	Type        string      `json:"type" yaml:"type"`
+	Description string      `json:"description,omitempty" yaml:"description"`
+	DatasetRef  string      `json:"dataset_ref,omitempty" yaml:"dataset_ref"`
+	MetricRef   string      `json:"metric_ref,omitempty" yaml:"metric_ref"`
+	ValueField  string      `json:"value_field,omitempty" yaml:"value_field"`
+	XAxis       string      `json:"x_axis,omitempty" yaml:"x_axis"`
+	YAxis       string      `json:"y_axis,omitempty" yaml:"y_axis"`
+	Limit       int         `json:"limit,omitempty" yaml:"limit"`
+	Filters     WidgetQuery `json:"filters,omitempty" yaml:"filters"`
+}
+
+// WidgetQuery captures the constrained filter contract shared with the
+// analytics service.
+type WidgetQuery struct {
+	FromMonth string `json:"from_month,omitempty" yaml:"from_month"`
+	ToMonth   string `json:"to_month,omitempty" yaml:"to_month"`
+	Category  string `json:"category,omitempty" yaml:"category"`
+}
+
+// MemoryStore keeps dashboards in memory when the filesystem path is
+// unavailable. It remains useful as a fallback in tests or unusual startup
+// failures.
 type MemoryStore struct {
 	mu         sync.RWMutex
 	dashboards []Dashboard
@@ -21,24 +67,212 @@ type MemoryStore struct {
 
 // NewMemoryStore creates a store with a default finance dashboard.
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{
-		dashboards: []Dashboard{
-			{
-				ID:          "finance-overview",
-				Name:        "Finance Overview",
-				Description: "Tracks savings rate, spend by category, and budget variance.",
-				Widgets:     []string{"kpi_savings_rate", "chart_cashflow", "chart_budget_variance"},
-			},
-		},
-	}
+	return &MemoryStore{dashboards: defaultDashboards()}
 }
 
 // ListDashboards returns a copy for callers.
-func (s *MemoryStore) ListDashboards() []Dashboard {
+func (s *MemoryStore) ListDashboards() ([]Dashboard, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	out := make([]Dashboard, len(s.dashboards))
 	copy(out, s.dashboards)
-	return out
+	return out, nil
+}
+
+// SaveDashboard upserts a dashboard in memory.
+func (s *MemoryStore) SaveDashboard(dashboard Dashboard) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dashboard.UpdatedAt = time.Now().UTC()
+	for index := range s.dashboards {
+		if s.dashboards[index].ID == dashboard.ID {
+			s.dashboards[index] = dashboard
+			return nil
+		}
+	}
+	s.dashboards = append(s.dashboards, dashboard)
+	return nil
+}
+
+// FileStore persists dashboards under the platform data root and seeds missing
+// state from repo-managed dashboard manifests.
+type FileStore struct {
+	mu            sync.RWMutex
+	path          string
+	dashboardRoot string
+}
+
+// NewFileStore constructs a filesystem-backed dashboard store.
+func NewFileStore(dataRoot, dashboardRoot string) (*FileStore, error) {
+	store := &FileStore{
+		path:          filepath.Join(dataRoot, "control_plane", "dashboards.json"),
+		dashboardRoot: dashboardRoot,
+	}
+	if err := store.ensureSeeded(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// ListDashboards returns saved dashboards, seeded from manifests on first run.
+func (s *FileStore) ListDashboards() ([]Dashboard, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.readDashboardsLocked()
+}
+
+// SaveDashboard upserts a dashboard and persists the full dashboard list.
+func (s *FileStore) SaveDashboard(dashboard Dashboard) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := validateDashboard(dashboard); err != nil {
+		return err
+	}
+	dashboard.UpdatedAt = time.Now().UTC()
+
+	dashboards, err := s.readDashboardsLocked()
+	if err != nil {
+		return err
+	}
+	for index := range dashboards {
+		if dashboards[index].ID == dashboard.ID {
+			dashboards[index] = dashboard
+			return s.writeDashboardsLocked(dashboards)
+		}
+	}
+	dashboards = append(dashboards, dashboard)
+	slices.SortFunc(dashboards, func(left, right Dashboard) int {
+		return compareStrings(left.Name, right.Name)
+	})
+	return s.writeDashboardsLocked(dashboards)
+}
+
+func (s *FileStore) ensureSeeded() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return fmt.Errorf("create dashboard store dir: %w", err)
+	}
+	bytes, err := os.ReadFile(s.path)
+	if err == nil && len(bytes) > 0 {
+		return nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read dashboard store: %w", err)
+	}
+
+	dashboards, err := s.loadSeedDashboards()
+	if err != nil {
+		return err
+	}
+	return s.writeDashboardsLocked(dashboards)
+}
+
+func (s *FileStore) loadSeedDashboards() ([]Dashboard, error) {
+	pattern := filepath.Join(s.dashboardRoot, "*.yaml")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("glob dashboard manifests: %w", err)
+	}
+	if len(matches) == 0 {
+		return defaultDashboards(), nil
+	}
+
+	dashboards := make([]Dashboard, 0, len(matches))
+	for _, match := range matches {
+		bytes, err := os.ReadFile(match)
+		if err != nil {
+			return nil, fmt.Errorf("read dashboard manifest %s: %w", match, err)
+		}
+		var dashboard Dashboard
+		if err := yaml.Unmarshal(bytes, &dashboard); err != nil {
+			return nil, fmt.Errorf("decode dashboard manifest %s: %w", match, err)
+		}
+		if err := validateDashboard(dashboard); err != nil {
+			return nil, fmt.Errorf("validate dashboard manifest %s: %w", match, err)
+		}
+		dashboards = append(dashboards, dashboard)
+	}
+	slices.SortFunc(dashboards, func(left, right Dashboard) int {
+		return compareStrings(left.Name, right.Name)
+	})
+	return dashboards, nil
+}
+
+func (s *FileStore) readDashboardsLocked() ([]Dashboard, error) {
+	bytes, err := os.ReadFile(s.path)
+	if err != nil {
+		return nil, fmt.Errorf("read dashboards file: %w", err)
+	}
+	var dashboards []Dashboard
+	if err := json.Unmarshal(bytes, &dashboards); err != nil {
+		return nil, fmt.Errorf("decode dashboards file: %w", err)
+	}
+	return dashboards, nil
+}
+
+func (s *FileStore) writeDashboardsLocked(dashboards []Dashboard) error {
+	bytes, err := json.MarshalIndent(dashboards, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode dashboards file: %w", err)
+	}
+	if err := os.WriteFile(s.path, bytes, 0o644); err != nil {
+		return fmt.Errorf("write dashboards file: %w", err)
+	}
+	return nil
+}
+
+func validateDashboard(dashboard Dashboard) error {
+	if dashboard.ID == "" {
+		return fmt.Errorf("dashboard id is required")
+	}
+	if dashboard.Name == "" {
+		return fmt.Errorf("dashboard name is required")
+	}
+	if len(dashboard.Widgets) == 0 {
+		return fmt.Errorf("dashboard %s must define at least one widget", dashboard.ID)
+	}
+	for _, widget := range dashboard.Widgets {
+		if widget.ID == "" {
+			return fmt.Errorf("dashboard %s contains a widget without an id", dashboard.ID)
+		}
+		if widget.Name == "" {
+			return fmt.Errorf("dashboard %s widget %s is missing a name", dashboard.ID, widget.ID)
+		}
+		if widget.DatasetRef == "" && widget.MetricRef == "" {
+			return fmt.Errorf("dashboard %s widget %s must reference a dataset or metric", dashboard.ID, widget.ID)
+		}
+	}
+	return nil
+}
+
+func defaultDashboards() []Dashboard {
+	return []Dashboard{
+		{
+			ID:          "finance_overview",
+			Name:        "Finance Overview",
+			Description: "Tracks savings rate, cashflow, category spend, and budget variance.",
+			Widgets: []DashboardWidget{
+				{ID: "savings_rate_kpi", Name: "Savings Rate", Type: "kpi", MetricRef: "metrics_savings_rate", ValueField: "savings_rate"},
+				{ID: "cashflow_table", Name: "Monthly Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},
+				{ID: "category_spend_table", Name: "Category Spend", Type: "table", DatasetRef: "mart_category_spend"},
+				{ID: "budget_variance_table", Name: "Budget Variance", Type: "table", DatasetRef: "mart_budget_vs_actual"},
+			},
+		},
+	}
+}
+
+func compareStrings(left, right string) int {
+	switch {
+	case left < right:
+		return -1
+	case left > right:
+		return 1
+	default:
+		return 0
+	}
 }

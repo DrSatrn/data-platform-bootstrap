@@ -5,10 +5,29 @@ name: Finance Overview
 description: Monitors savings rate, cashflow, and budget variance from curated datasets.
 widgets:
   - id: savings_rate_kpi
+    name: Savings Rate
     type: kpi
     metric_ref: metrics_savings_rate
+    value_field: savings_rate
+    description: Latest monthly savings rate published by the metrics layer.
+    limit: 12
   - id: cashflow_chart
-    type: line_chart
+    name: Monthly Cashflow
+    type: table
     dataset_ref: mart_monthly_cashflow
     x_axis: month
     y_axis: savings_rate
+    description: Monthly income, expenses, and savings trend.
+    limit: 12
+  - id: category_spend_table
+    name: Category Spend
+    type: table
+    dataset_ref: mart_category_spend
+    description: Monthly spend broken down by reporting category.
+    limit: 12
+  - id: budget_variance_table
+    name: Budget Variance
+    type: table
+    dataset_ref: mart_budget_vs_actual
+    description: Budget versus actual spend by category.
+    limit: 16

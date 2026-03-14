@@ -23,6 +23,7 @@ type Settings struct {
 	DataRoot          string
 	ArtifactRoot      string
 	ManifestRoot      string
+	DashboardRoot     string
 	SQLRoot           string
 	SampleDataRoot    string
 	MigrationsRoot    string
@@ -60,6 +61,7 @@ func Load() (Settings, error) {
 		DataRoot:          envOrDefault("PLATFORM_DATA_ROOT", "../var/data"),
 		ArtifactRoot:      envOrDefault("PLATFORM_ARTIFACT_ROOT", "../var/artifacts"),
 		ManifestRoot:      envOrDefault("PLATFORM_MANIFEST_ROOT", "../packages/manifests"),
+		DashboardRoot:     envOrDefault("PLATFORM_DASHBOARD_ROOT", "../packages/dashboards"),
 		SQLRoot:           envOrDefault("PLATFORM_SQL_ROOT", "../packages/sql"),
 		SampleDataRoot:    envOrDefault("PLATFORM_SAMPLE_DATA_ROOT", "../packages/sample_data"),
 		MigrationsRoot:    envOrDefault("PLATFORM_MIGRATIONS_ROOT", "../infra/migrations"),

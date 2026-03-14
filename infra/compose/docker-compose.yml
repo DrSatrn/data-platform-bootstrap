@@ -31,6 +31,7 @@ services:
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
@@ -60,6 +61,7 @@ services:
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
@@ -97,6 +99,7 @@ services:
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
@@ -127,6 +130,7 @@ services:
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations

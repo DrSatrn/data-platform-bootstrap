@@ -1,0 +1,37 @@
+# This asset manifest defines the curated budget-versus-actual mart that powers
+# variance reporting in the dashboard layer.
+id: mart_budget_vs_actual
+name: Budget Versus Actual Mart
+layer: mart
+description: Curated monthly budget variance by reporting category.
+owner: platform-team
+kind: table
+source_refs:
+  - mart_category_spend
+  - raw_budget_rules
+documentation_refs:
+  - doc.mart_budget_vs_actual
+freshness:
+  expected_within: 6h
+  warn_after: 10h
+columns:
+  - name: month
+    type: text
+    description: Calendar month in YYYY-MM format.
+    is_pii: false
+  - name: category
+    type: text
+    description: Reporting category name.
+    is_pii: false
+  - name: budget_amount
+    type: decimal
+    description: Planned monthly budget.
+    is_pii: false
+  - name: actual_spend
+    type: decimal
+    description: Observed monthly spend.
+    is_pii: false
+  - name: variance_amount
+    type: decimal
+    description: Observed spend minus planned budget.
+    is_pii: false

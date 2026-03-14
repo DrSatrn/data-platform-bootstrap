@@ -1,0 +1,22 @@
+[
+  {
+    "category": "Rent",
+    "monthly_budget": 2100
+  },
+  {
+    "category": "Groceries",
+    "monthly_budget": 300
+  },
+  {
+    "category": "Dining",
+    "monthly_budget": 180
+  },
+  {
+    "category": "Utilities",
+    "monthly_budget": 220
+  },
+  {
+    "category": "Uncategorized",
+    "monthly_budget": 0
+  }
+]

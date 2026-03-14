@@ -7,7 +7,7 @@ description: Ingests local finance data and publishes curated cashflow metrics.
 owner: platform-team
 tags:
   - personal-finance
-  - v1
+  - v2
 schedule:
   cron: "0 */6 * * *"
   timezone: Australia/Brisbane
@@ -37,11 +37,23 @@ jobs:
       - sample.account_balances_json
     outputs:
       - raw_account_balances
+  - id: ingest_budget_rules_json
+    name: Ingest Budget Rules JSON
+    type: ingest
+    depends_on:
+      - ingest_account_balances_json
+    retries: 1
+    timeout: 1m
+    command: python3 tasks/ingest_budget_rules.py
+    inputs:
+      - sample.budget_rules_json
+    outputs:
+      - raw_budget_rules
   - id: build_cashflow_mart
     name: Build Monthly Cashflow Mart
     type: transform_sql
     depends_on:
-      - ingest_account_balances_json
+      - ingest_budget_rules_json
     retries: 1
     timeout: 3m
     transform_ref: transform.monthly_cashflow
@@ -50,11 +62,36 @@ jobs:
       - raw_account_balances
     outputs:
       - mart_monthly_cashflow
+  - id: build_category_spend_mart
+    name: Build Category Spend Mart
+    type: transform_sql
+    depends_on:
+      - build_cashflow_mart
+    retries: 1
+    timeout: 2m
+    transform_ref: transform.category_spend
+    inputs:
+      - raw_transactions
+    outputs:
+      - mart_category_spend
+  - id: build_budget_vs_actual_mart
+    name: Build Budget Versus Actual Mart
+    type: transform_sql
+    depends_on:
+      - build_category_spend_mart
+    retries: 1
+    timeout: 2m
+    transform_ref: transform.budget_vs_actual
+    inputs:
+      - mart_category_spend
+      - raw_budget_rules
+    outputs:
+      - mart_budget_vs_actual
   - id: check_uncategorized_transactions
     name: Check Uncategorized Transactions
     type: quality_check
     depends_on:
-      - build_cashflow_mart
+      - build_budget_vs_actual_mart
     retries: 0
     timeout: 1m
     command: python3 tasks/check_uncategorized.py
@@ -71,5 +108,7 @@ jobs:
     timeout: 1m
     inputs:
       - mart_monthly_cashflow
+      - mart_budget_vs_actual
     outputs:
       - metrics_savings_rate
+      - metrics_category_variance

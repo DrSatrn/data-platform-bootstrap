@@ -1,0 +1,24 @@
+# This manifest describes the local budget-rule input used to calculate budget
+# variance in the curated finance marts.
+id: raw_budget_rules
+name: Raw Budget Rules
+layer: raw
+description: Landing table for monthly category budget rules.
+owner: platform-team
+kind: table
+source_refs:
+  - sample.budget_rules_json
+documentation_refs:
+  - doc.raw_budget_rules
+freshness:
+  expected_within: 24h
+  warn_after: 48h
+columns:
+  - name: category
+    type: text
+    description: Reporting category name.
+    is_pii: false
+  - name: monthly_budget
+    type: decimal
+    description: Planned spend budget for the category.
+    is_pii: false

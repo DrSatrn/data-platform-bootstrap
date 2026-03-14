@@ -49,21 +49,19 @@ wait_for_api() {
   return 1
 }
 
-wait_for_run_status() {
+wait_for_run_artifact() {
   run_id="$1"
-  status="$2"
+  expected_artifact="$2"
   attempts=0
   while [ "$attempts" -lt 30 ]; do
-    payload=$(curl -fsS "$API_URL/api/v1/pipelines")
-    single_line=$(printf "%s" "$payload" | tr -d '\n')
-    if printf "%s" "$single_line" | grep -q "\"id\":\"${run_id}\"" &&
-      printf "%s" "$single_line" | grep -q "\"id\":\"${run_id}\".*\"status\":\"${status}\""; then
+    payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$run_id")
+    if printf "%s" "$payload" | grep -q "\"${expected_artifact}\""; then
       return 0
     fi
     attempts=$((attempts + 1))
     sleep 1
   done
-  echo "Run ${run_id} did not reach status ${status} within 30 seconds" >&2
+  echo "Run ${run_id} did not materialize ${expected_artifact} within 30 seconds" >&2
   return 1
 }
 
@@ -96,6 +94,7 @@ fi
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
       PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+      PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
@@ -118,6 +117,7 @@ API_PID=$!
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
       PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+      PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
@@ -140,6 +140,7 @@ WORKER_PID=$!
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
       PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+      PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
@@ -165,10 +166,17 @@ if [ -z "$manual_run_id" ]; then
   exit 1
 fi
 
-wait_for_run_status "$manual_run_id" succeeded
+wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
 
 artifacts_payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id")
 printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_savings_rate.json"'
+printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_category_variance.json"'
+
+reports_payload=$(curl -fsS "$API_URL/api/v1/reports")
+printf "%s" "$reports_payload" | grep -q '"finance_overview"'
+
+budget_payload=$(curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual")
+printf "%s" "$budget_payload" | grep -q '"variance_amount"'
 
 admin_payload=$(curl -fsS -X POST "$API_URL/api/v1/admin/terminal/execute" \
   -H 'Content-Type: application/json' \
@@ -182,6 +190,7 @@ printf "%s" "$admin_payload" | grep -q '"success":true'
     PLATFORM_API_BASE_URL="$API_URL" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
     PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
     PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
     PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \

@@ -16,6 +16,7 @@ development and for the verified localhost smoke workflow.
 8. Verify that run artifacts appear under the local `var/` directory and that run status moves from `queued` to `running` to `succeeded`.
 9. Open the System page and verify the built-in metrics, recent logs, and admin terminal are responding.
 10. Inspect the finance dashboard and dataset views to confirm materialized outputs are being served.
+11. Confirm the dashboard surface is showing saved widgets for cashflow, category spend, and budget variance.
 
 ## Fastest Verified Path
 
@@ -45,4 +46,5 @@ runs, run snapshots, and artifact metadata, and DuckDB as the analytical
 execution layer for curated marts, metrics, and quality queries. The Compose
 stack also now packages the frontend as a built service image, runs migrations
 automatically through a one-shot container, and waits for health before the web
-service starts.
+service starts. Saved dashboard definitions are seeded from repo-managed
+dashboard manifests and persisted under the local data root.

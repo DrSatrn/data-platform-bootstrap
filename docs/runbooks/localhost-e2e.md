@@ -135,9 +135,13 @@ After the worker poll interval, the run should progress to `succeeded` and these
 - `control_plane/runs/<run_id>.json`
 - `raw/raw_transactions.csv`
 - `raw/raw_account_balances.json`
+- `raw/raw_budget_rules.json`
 - `mart/mart_monthly_cashflow.json`
+- `mart/mart_category_spend.json`
+- `mart/mart_budget_vs_actual.json`
 - `quality/check_uncategorized_transactions.json`
 - `metrics/metrics_savings_rate.json`
+- `metrics/metrics_category_variance.json`
 
 If you are using the default repo-local data root, these will appear under `var/`.
 
@@ -153,6 +157,8 @@ curl http://127.0.0.1:8080/api/v1/pipelines
 
 ```bash
 curl http://127.0.0.1:8080/api/v1/analytics
+curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+curl "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
 ```
 
 3. Inspect system overview:
@@ -177,6 +183,12 @@ curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>"
 
 ```bash
 curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetrics_savings_rate.json"
+```
+
+7. Inspect the saved dashboard definitions that drive the reporting UI:
+
+```bash
+curl "http://127.0.0.1:8080/api/v1/reports"
 ```
 
 ## Failure modes to check first

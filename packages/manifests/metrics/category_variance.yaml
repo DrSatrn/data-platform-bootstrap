@@ -1,0 +1,14 @@
+# This metric manifest defines a curated category-variance metric for the
+# reporting layer.
+id: metrics_category_variance
+name: Category Variance
+description: Measures per-category spend variance against monthly budget.
+owner: platform-team
+dataset_ref: mart_budget_vs_actual
+time_dimension: month
+dimensions:
+  - month
+  - category
+measures:
+  - variance_amount
+default_visualization: table

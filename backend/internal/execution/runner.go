@@ -162,6 +162,8 @@ func (r *Runner) runIngest(runID string, job orchestration.Job) error {
 		return r.copySampleFile(runID, "personal_finance/transactions.csv", filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"), "raw/raw_transactions.csv")
 	case "ingest_account_balances_json":
 		return r.copySampleFile(runID, "personal_finance/account_balances.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"), "raw/raw_account_balances.json")
+	case "ingest_budget_rules_json":
+		return r.copySampleFile(runID, "personal_finance/budget_rules.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_budget_rules.json"), "raw/raw_budget_rules.json")
 	default:
 		return fmt.Errorf("unknown ingest job %s", job.ID)
 	}
@@ -171,21 +173,14 @@ func (r *Runner) runMonthlyCashflowTransform(runID string, job orchestration.Job
 	if err := r.sql.MaterializeRawTables(
 		filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"),
 		filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"),
+		filepath.Join(r.cfg.DataRoot, "raw", "raw_budget_rules.json"),
 	); err != nil {
 		return fmt.Errorf("materialize raw duckdb tables: %w", err)
 	}
 	if err := r.sql.RunTransform(job.TransformRef); err != nil {
 		return err
 	}
-	rowsOut, err := r.sql.QueryRows(`
-		select month, income, expenses, savings_rate
-		from mart_monthly_cashflow
-		order by month
-	`)
-	if err != nil {
-		return fmt.Errorf("query monthly cashflow mart: %w", err)
-	}
-	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json"), "mart/mart_monthly_cashflow.json", rowsOut)
+	return r.writeTransformArtifact(runID, job.TransformRef)
 }
 
 func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
@@ -209,29 +204,16 @@ func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
 }
 
 func (r *Runner) runMetricsPublish(runID string, job orchestration.Job) error {
-	if err := r.sql.RunMetric("metrics_savings_rate"); err != nil {
-		return err
+	metricIDs := []string{"metrics_savings_rate", "metrics_category_variance"}
+	for _, metricID := range metricIDs {
+		if err := r.sql.RunMetric(metricID); err != nil {
+			return err
+		}
+		if err := r.writeMetricArtifact(runID, metricID); err != nil {
+			return err
+		}
 	}
-	rows, err := r.sql.QueryRows(`
-		select month, savings_rate
-		from metrics_savings_rate
-		order by month
-	`)
-	if err != nil {
-		return fmt.Errorf("query savings rate metric rows: %w", err)
-	}
-	if len(rows) == 0 {
-		return fmt.Errorf("metrics_savings_rate is empty")
-	}
-	latest := rows[len(rows)-1]
-	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "metrics", "metrics_savings_rate.json"), "metrics/metrics_savings_rate.json", map[string]any{
-		"metric_id":       "metrics_savings_rate",
-		"latest_month":    latest["month"],
-		"latest_value":    latest["savings_rate"],
-		"series":          rows,
-		"generated_at":    time.Now().UTC(),
-		"source_artifact": "duckdb:metrics_savings_rate",
-	})
+	return nil
 }
 
 func (r *Runner) copySampleFile(runID, relativeSource, target, runArtifactPath string) error {
@@ -354,4 +336,94 @@ func qualityStatus(count int) string {
 		return "passing"
 	}
 	return "warning"
+}
+
+func (r *Runner) writeTransformArtifact(runID, transformRef string) error {
+	var (
+		query        string
+		targetPath   string
+		artifactPath string
+	)
+
+	switch transformRef {
+	case "transform.monthly_cashflow":
+		query = `
+			select month, income, expenses, savings_rate
+			from mart_monthly_cashflow
+			order by month
+		`
+		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json")
+		artifactPath = "mart/mart_monthly_cashflow.json"
+	case "transform.category_spend":
+		query = `
+			select month, category, actual_spend
+			from mart_category_spend
+			order by month, category
+		`
+		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_category_spend.json")
+		artifactPath = "mart/mart_category_spend.json"
+	case "transform.budget_vs_actual":
+		query = `
+			select month, category, budget_amount, actual_spend, variance_amount
+			from mart_budget_vs_actual
+			order by month, category
+		`
+		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_budget_vs_actual.json")
+		artifactPath = "mart/mart_budget_vs_actual.json"
+	default:
+		return fmt.Errorf("unsupported transform reference %s", transformRef)
+	}
+
+	rowsOut, err := r.sql.QueryRows(query)
+	if err != nil {
+		return fmt.Errorf("query transform output for %s: %w", transformRef, err)
+	}
+	return r.writeJSONArtifact(runID, targetPath, artifactPath, rowsOut)
+}
+
+func (r *Runner) writeMetricArtifact(runID, metricID string) error {
+	var query string
+	switch metricID {
+	case "metrics_savings_rate":
+		query = `
+			select month, savings_rate
+			from metrics_savings_rate
+			order by month
+		`
+	case "metrics_category_variance":
+		query = `
+			select month, category, variance_amount
+			from metrics_category_variance
+			order by month, category
+		`
+	default:
+		return fmt.Errorf("unsupported metric %s", metricID)
+	}
+
+	rows, err := r.sql.QueryRows(query)
+	if err != nil {
+		return fmt.Errorf("query metric rows for %s: %w", metricID, err)
+	}
+	if len(rows) == 0 {
+		return fmt.Errorf("%s is empty", metricID)
+	}
+	latest := rows[len(rows)-1]
+	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "metrics", metricID+".json"), filepath.ToSlash(filepath.Join("metrics", metricID+".json")), map[string]any{
+		"metric_id":       metricID,
+		"latest_month":    latest["month"],
+		"latest_value":    latestValue(latest),
+		"series":          rows,
+		"generated_at":    time.Now().UTC(),
+		"source_artifact": "duckdb:" + metricID,
+	})
+}
+
+func latestValue(row map[string]any) any {
+	if value, present := row["savings_rate"]; present {
+		return value
+	}
+	if value, present := row["variance_amount"]; present {
+		return value
+	}
+	return nil
 }

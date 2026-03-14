@@ -33,7 +33,7 @@ type Service struct {
 	store     orchestration.Store
 	control   *orchestration.ControlService
 	quality   *quality.Service
-	reports   *reporting.MemoryStore
+	reports   reporting.Store
 	artifacts *storage.Service
 	telemetry *observability.Service
 }
@@ -45,7 +45,7 @@ func NewService(
 	store orchestration.Store,
 	control *orchestration.ControlService,
 	quality *quality.Service,
-	reports *reporting.MemoryStore,
+	reports reporting.Store,
 	artifacts *storage.Service,
 	telemetry *observability.Service,
 ) *Service {
@@ -149,7 +149,11 @@ func (s *Service) Execute(command string) Result {
 		}
 		result = Result{Command: command, Success: true, Output: lines}
 	case "dashboards":
-		dashboards := s.reports.ListDashboards()
+		dashboards, err := s.reports.ListDashboards()
+		if err != nil {
+			result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+			break
+		}
 		lines := make([]string, 0, len(dashboards))
 		for _, dashboard := range dashboards {
 			lines = append(lines, fmt.Sprintf("%s | widgets=%d", dashboard.Name, len(dashboard.Widgets)))

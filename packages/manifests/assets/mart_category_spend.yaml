@@ -1,0 +1,28 @@
+# This asset manifest defines the curated category-level spend mart used by the
+# richer reporting experience in v2.
+id: mart_category_spend
+name: Category Spend Mart
+layer: mart
+description: Curated monthly spend by reporting category.
+owner: platform-team
+kind: table
+source_refs:
+  - raw_transactions
+documentation_refs:
+  - doc.mart_category_spend
+freshness:
+  expected_within: 6h
+  warn_after: 10h
+columns:
+  - name: month
+    type: text
+    description: Calendar month in YYYY-MM format.
+    is_pii: false
+  - name: category
+    type: text
+    description: Reporting category name.
+    is_pii: false
+  - name: actual_spend
+    type: decimal
+    description: Total spend captured for the category in the month.
+    is_pii: false

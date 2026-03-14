@@ -5,6 +5,7 @@ package analytics
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -22,6 +23,21 @@ func NewHandler(service *Service) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dataset := r.URL.Query().Get("dataset")
 	metric := r.URL.Query().Get("metric")
+	options := QueryOptions{
+		FromMonth: r.URL.Query().Get("from_month"),
+		ToMonth:   r.URL.Query().Get("to_month"),
+		Category:  r.URL.Query().Get("category"),
+	}
+	if limit := r.URL.Query().Get("limit"); limit != "" {
+		parsed, err := strconv.Atoi(limit)
+		if err != nil || parsed < 0 {
+			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "limit must be a non-negative integer",
+			})
+			return
+		}
+		options.Limit = parsed
+	}
 
 	var (
 		result QueryResult
@@ -29,9 +45,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 	switch {
 	case metric != "":
-		result, err = h.service.QueryMetric(metric)
+		result, err = h.service.QueryMetric(metric, options)
 	case dataset != "":
-		result, err = h.service.QueryDataset(dataset)
+		result, err = h.service.QueryDataset(dataset, options)
 	default:
 		result, err = h.service.SampleDashboard()
 	}
@@ -44,5 +60,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
 		"dashboard": result,
+		"query":     result,
 	})
 }

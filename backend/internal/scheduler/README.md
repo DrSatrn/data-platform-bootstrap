@@ -6,6 +6,8 @@ The current implementation:
 
 - refreshes manifests and catalog state
 - persists scheduler enqueue state under the local data root
-- enqueues due runs for the subset of cron syntax currently used by the sample slice
+- evaluates due runs in the pipeline's declared timezone
+- supports the cron subset needed by the sample slice, including step fields and
+  day-of-week matching
 
 This keeps scheduled execution working locally without introducing an external queue or scheduler dependency.

@@ -37,21 +37,19 @@ wait_for_url() {
   return 1
 }
 
-wait_for_run_status() {
+wait_for_run_artifact() {
   run_id="$1"
-  status="$2"
+  expected_artifact="$2"
   attempts=0
   while [ "$attempts" -lt 60 ]; do
-    payload=$(curl -fsS "$API_URL/api/v1/pipelines")
-    compact=$(printf "%s" "$payload" | tr -d '\n')
-    if printf "%s" "$compact" | grep -q "\"id\":\"${run_id}\"" &&
-      printf "%s" "$compact" | grep -q "\"id\":\"${run_id}\".*\"status\":\"${status}\""; then
+    payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$run_id")
+    if printf "%s" "$payload" | grep -q "\"${expected_artifact}\""; then
       return 0
     fi
     attempts=$((attempts + 1))
     sleep 2
   done
-  echo "Run ${run_id} did not reach ${status}" >&2
+  echo "Run ${run_id} did not materialize ${expected_artifact}" >&2
   return 1
 }
 
@@ -71,12 +69,15 @@ if [ -z "$manual_run_id" ]; then
   exit 1
 fi
 
-wait_for_run_status "$manual_run_id" succeeded
+wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
 
 curl -fsS "$API_URL/api/v1/analytics?dataset=mart_monthly_cashflow" | grep -q '"month"'
+curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual" | grep -q '"variance_amount"'
 curl -fsS "$API_URL/api/v1/analytics?metric=metrics_savings_rate" | grep -q '"savings_rate"'
+curl -fsS "$API_URL/api/v1/analytics?metric=metrics_category_variance" | grep -q '"variance_amount"'
 curl -fsS "$API_URL/api/v1/quality" | grep -q '"checks"'
 curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
+curl -fsS "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
 curl -fsS "$WEB_URL" | grep -q 'Data Platform'
 
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl remote --server http://127.0.0.1:8080 status >/dev/null

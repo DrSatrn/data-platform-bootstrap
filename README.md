@@ -25,7 +25,11 @@ The implementation intentionally emphasizes teaching value. Code is organized ar
 
 ## Current Scope
 
-This initial implementation establishes the platform skeleton and first vertical slice around a personal-finance analytics domain. The first slice is designed to prove the architecture end to end: ingestion, orchestration, transformation, metadata registration, quality checks, analytics serving, and dashboard rendering.
+This implementation now covers a more polished v2-style finance slice. The
+platform proves the architecture end to end with ingestion, orchestration,
+transformation, metadata registration, quality checks, analytics serving,
+file-backed saved dashboards, and a richer reporting surface around cashflow,
+category spend, and budget variance.
 
 When PostgreSQL has been migrated and is reachable, the runtime now prefers a
 PostgreSQL-backed control plane for run snapshots, queue state, and artifact
@@ -44,6 +48,14 @@ is unavailable.
 
 Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.
 
+The finance slice now includes these curated outputs:
+
+- `mart_monthly_cashflow`
+- `mart_category_spend`
+- `mart_budget_vs_actual`
+- `metrics_savings_rate`
+- `metrics_category_variance`
+
 Because the DuckDB Go driver uses CGO, host builds need working Apple Silicon C
 tooling. On macOS that usually means Xcode Command Line Tools are installed.
 
@@ -56,6 +68,7 @@ The platform now includes first-party operational features owned by this reposit
 - a system overview API and admin diagnostics page
 - a browser-based admin terminal in the management portal
 - a `platformctl remote ...` command that connects to the running app from any local terminal
+- file-backed saved dashboards seeded from repo-managed dashboard manifests
 
 ## Local Bootstrap
 

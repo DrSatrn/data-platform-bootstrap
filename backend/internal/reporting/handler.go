@@ -4,6 +4,7 @@
 package reporting
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/streanor/data-platform/backend/internal/shared"
@@ -11,16 +12,48 @@ import (
 
 // Handler serves reporting endpoints.
 type Handler struct {
-	store *MemoryStore
+	store Store
 }
 
 // NewHandler constructs the reporting handler.
-func NewHandler(store *MemoryStore) http.Handler {
+func NewHandler(store Store) http.Handler {
 	return &Handler{store: store}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"dashboards": h.store.ListDashboards(),
-	})
+	switch r.Method {
+	case http.MethodGet:
+		dashboards, err := h.store.ListDashboards()
+		if err != nil {
+			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": err.Error(),
+			})
+			return
+		}
+		shared.WriteJSON(w, http.StatusOK, map[string]any{
+			"dashboards": dashboards,
+		})
+	case http.MethodPost:
+		var dashboard Dashboard
+		if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "invalid dashboard payload",
+			})
+			return
+		}
+		if err := h.store.SaveDashboard(dashboard); err != nil {
+			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+				"error": err.Error(),
+			})
+			return
+		}
+		shared.WriteJSON(w, http.StatusCreated, map[string]any{
+			"dashboard": dashboard,
+		})
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		shared.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{
+			"error": "method not allowed",
+		})
+	}
 }

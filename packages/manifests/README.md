@@ -5,3 +5,9 @@ This directory contains the declarative platform configuration that defines pipe
 Analytical SQL now lives alongside these manifests under `packages/sql` so the
 platform can keep declarative metadata and executable SQL versioned together
 without overloading one directory with mixed concerns.
+
+The finance slice now uses manifests to define:
+
+- raw inputs for transactions, balances, and budget rules
+- curated marts for monthly cashflow, category spend, and budget variance
+- metrics for savings rate and category variance
