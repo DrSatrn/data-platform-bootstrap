@@ -23,6 +23,7 @@ type Settings struct {
 	DataRoot          string
 	ArtifactRoot      string
 	ManifestRoot      string
+	SQLRoot           string
 	SampleDataRoot    string
 	MigrationsRoot    string
 	AdminToken        string
@@ -59,6 +60,7 @@ func Load() (Settings, error) {
 		DataRoot:          envOrDefault("PLATFORM_DATA_ROOT", "../var/data"),
 		ArtifactRoot:      envOrDefault("PLATFORM_ARTIFACT_ROOT", "../var/artifacts"),
 		ManifestRoot:      envOrDefault("PLATFORM_MANIFEST_ROOT", "../packages/manifests"),
+		SQLRoot:           envOrDefault("PLATFORM_SQL_ROOT", "../packages/sql"),
 		SampleDataRoot:    envOrDefault("PLATFORM_SAMPLE_DATA_ROOT", "../packages/sample_data"),
 		MigrationsRoot:    envOrDefault("PLATFORM_MIGRATIONS_ROOT", "../infra/migrations"),
 		AdminToken:        envOrDefault("PLATFORM_ADMIN_TOKEN", ""),

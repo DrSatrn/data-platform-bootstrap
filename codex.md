@@ -18,14 +18,15 @@ What has already been built
 	•	Durable file-backed queue and run store shared by API, worker, and scheduler processes.
 	•	Real worker execution for the personal-finance slice, including raw ingestion, mart materialization, quality artifacts, metrics publication, and run-scoped artifact mirroring.
 	•	PostgreSQL-backed control-plane repositories for run snapshots, queue state, and artifact metadata, plus the migration command surface.
+	•	DuckDB-backed SQL execution for raw landing-table loads, curated mart materialization, metric materialization, and quality queries, all version-controlled under `packages/sql`.
 	•	Artifact inspection API plus Pipelines UI artifact browsing.
-	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, and Compose-backed PostgreSQL checks passed.
+	•	Packaged Compose deployment with a built frontend service image, one-shot migrations, health-gated startup, and a repo-owned `compose_smoke.sh` workflow that validates the hosted UI plus the API, worker, scheduler, analytics, quality, artifacts, and CLI paths.
+	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
-	•	Replace the sample-data analytics execution path with DuckDB-backed transforms and curated query execution.
 	•	Deepen scheduler coverage beyond the current cron subset and start honoring manifest timezone semantics explicitly.
-	•	Add stronger smoke automation for Compose-backed Postgres migration coverage and web availability checks.
 	•	Normalize more control-plane metadata into first-class PostgreSQL tables beyond the current pragmatic snapshot and queue repositories.
+	•	Expand the analytical layer beyond the first finance slice with richer curated query contracts, freshness surfaces, and more than one transform/metric family.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -36,13 +37,14 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Promoted PostgreSQL from optional mirror to the preferred control-plane path for run snapshots, queue state, and artifact metadata, while preserving the filesystem-backed fallback for offline local development.
-	•	Added transactional PostgreSQL queue claiming, PostgreSQL-backed artifact metadata indexing, and runtime wiring so API, scheduler, worker, and artifact APIs all share the same control-plane source when bootstrapped.
-	•	Fixed the Compose runtime toolchain mismatch by upgrading service images to Go 1.24.
-	•	Validated the live Compose-backed stack: migrations applied, API/worker/scheduler/web started, services logged `postgres control plane enabled`, the scheduler queued a run, the worker completed it, API/admin/CLI surfaces responded, and PostgreSQL tables contained the expected run, queue, and artifact rows.
+	•	Replaced the Compose web runtime with a packaged service image that serves the built React app through the repo’s own lightweight `server.mjs` host instead of a Vite dev server.
+	•	Added a one-shot `migrate` Compose service plus health-gated startup ordering so `docker compose up -d --build` now behaves like a real bootstrap path rather than a manual sequence of steps.
+	•	Added a packaged deployment smoke script that boots Compose, waits for health, validates the hosted web UI, triggers a real pipeline run, checks analytics, quality, artifacts, and proves the remote CLI path.
+	•	Aligned CI with the real runtime toolchain by moving it to Go 1.24, installing DuckDB build prerequisites, using `npm ci`, and adding a Compose smoke job on ARM runners.
+	•	Updated the README, runbooks, script docs, and web docs so the documented bootstrap path matches the actual packaged service runtime.
 
 Next workstep to execute
-	•	Move the analytics execution path from sample-data file transforms toward DuckDB-backed curated execution and begin tightening scheduler semantics around manifest timezones and broader cron support.
+	•	Broaden the analytical product surface: add more curated datasets and metrics, expose richer analytics query contracts for the reporting UI, tighten scheduler semantics around manifest timezones and broader cron support, and start persisting reporting/dashboard state beyond the in-memory store.
 
 Non-negotiable engineering goals
 

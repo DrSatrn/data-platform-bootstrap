@@ -1,7 +1,7 @@
 // Package analytics provides a deliberately constrained analytics-serving
-// surface. This initial implementation computes curated finance metrics from
-// repo-managed sample data so the analytics layer is genuinely ours rather than
-// delegated to an external BI service.
+// surface. The service prefers DuckDB-backed curated datasets and falls back to
+// materialized artifacts or sample data only when the analytical database is
+// not yet ready.
 package analytics
 
 import (
@@ -13,12 +13,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/streanor/data-platform/backend/internal/transforms"
 )
 
 // Service owns curated analytics responses.
 type Service struct {
 	sampleDataRoot string
 	dataRoot       string
+	sql            *transforms.Engine
 }
 
 // QueryResult is shaped for chart-friendly frontend consumption.
@@ -28,15 +31,72 @@ type QueryResult struct {
 }
 
 // NewService creates an analytics service.
-func NewService(sampleDataRoot, dataRoot string) *Service {
+func NewService(sampleDataRoot, dataRoot, duckDBPath, sqlRoot string) *Service {
 	return &Service{
 		sampleDataRoot: sampleDataRoot,
 		dataRoot:       dataRoot,
+		sql:            transforms.NewEngine(duckDBPath, sqlRoot),
 	}
 }
 
-// SampleDashboard returns a curated dashboard result derived from sample data.
+// QueryDataset returns one curated dataset by identifier.
+func (s *Service) QueryDataset(dataset string) (QueryResult, error) {
+	switch dataset {
+	case "", "mart_monthly_cashflow":
+		return s.SampleDashboard()
+	case "metrics_savings_rate":
+		return s.QueryMetric(dataset)
+	default:
+		return QueryResult{}, fmt.Errorf("unknown curated dataset %q", dataset)
+	}
+}
+
+// QueryMetric returns one curated metric dataset by identifier.
+func (s *Service) QueryMetric(metricID string) (QueryResult, error) {
+	if metricID != "metrics_savings_rate" {
+		return QueryResult{}, fmt.Errorf("unknown metric %q", metricID)
+	}
+
+	if rows, err := s.sql.QueryRows(`
+		select month, savings_rate
+		from metrics_savings_rate
+		order by month
+	`); err == nil && len(rows) > 0 {
+		return QueryResult{
+			Dataset: metricID,
+			Series:  rows,
+		}, nil
+	}
+
+	artifactPath := filepath.Join(s.dataRoot, "metrics", "metrics_savings_rate.json")
+	if bytes, err := os.ReadFile(artifactPath); err == nil {
+		var artifact struct {
+			Series []map[string]any `json:"series"`
+		}
+		if err := json.Unmarshal(bytes, &artifact); err == nil && len(artifact.Series) > 0 {
+			return QueryResult{
+				Dataset: metricID,
+				Series:  artifact.Series,
+			}, nil
+		}
+	}
+
+	return QueryResult{}, fmt.Errorf("metric %q is not available yet", metricID)
+}
+
+// SampleDashboard returns the curated cashflow dashboard dataset.
 func (s *Service) SampleDashboard() (QueryResult, error) {
+	if rows, err := s.sql.QueryRows(`
+		select month, income, expenses, savings_rate
+		from mart_monthly_cashflow
+		order by month
+	`); err == nil && len(rows) > 0 {
+		return QueryResult{
+			Dataset: "metrics_monthly_cashflow",
+			Series:  rows,
+		}, nil
+	}
+
 	artifactPath := filepath.Join(s.dataRoot, "mart", "mart_monthly_cashflow.json")
 	if bytes, err := os.ReadFile(artifactPath); err == nil {
 		var rows []map[string]any

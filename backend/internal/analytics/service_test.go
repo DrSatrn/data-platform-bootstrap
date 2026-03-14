@@ -23,7 +23,7 @@ func TestSampleDashboardBuildsMonthlySeries(t *testing.T) {
 		t.Fatalf("write transactions sample: %v", err)
 	}
 
-	service := NewService(root, filepath.Join(root, "materialized"))
+	service := NewService(root, filepath.Join(root, "materialized"), filepath.Join(root, "duckdb", "platform.duckdb"), filepath.Join(root, "sql"))
 	result, err := service.SampleDashboard()
 	if err != nil {
 		t.Fatalf("build dashboard: %v", err)

@@ -20,7 +20,7 @@ The implementation intentionally emphasizes teaching value. Code is organized ar
 - Data execution helpers: Python subprocess hooks where needed
 - Frontend: React + TypeScript
 - Control-plane state: PostgreSQL
-- Analytical execution: DuckDB behind an adapter boundary
+- Analytical execution: DuckDB behind a repo-owned SQL execution adapter
 - Local runtime: Docker Compose with ARM64-friendly defaults
 
 ## Current Scope
@@ -40,6 +40,13 @@ is unavailable.
 - The admin terminal is a platform command surface, not arbitrary shell access.
 - If you rotate local tokens or database credentials, keep them in untracked local env files.
 
+## Analytical SQL
+
+Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.
+
+Because the DuckDB Go driver uses CGO, host builds need working Apple Silicon C
+tooling. On macOS that usually means Xcode Command Line Tools are installed.
+
 ## Built-In Operations Surface
 
 The platform now includes first-party operational features owned by this repository:
@@ -53,36 +60,34 @@ The platform now includes first-party operational features owned by this reposit
 ## Local Bootstrap
 
 1. Copy `.env.example` to `.env` and replace placeholder credentials and the admin token.
-2. Apply database migrations when PostgreSQL is available:
-
-```bash
-cd backend
-go run ./cmd/platformctl migrate
-```
-
-3. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
-4. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
-5. Start `platform-scheduler` if you want scheduled queueing enabled.
-6. Open the web UI on `http://127.0.0.1:3000`.
-7. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
-8. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
+2. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
+3. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
+4. Start `platform-scheduler` if you want scheduled queueing enabled.
+5. Open the web UI on `http://127.0.0.1:3000`.
+6. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
+7. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
 
 ## Compose Bootstrap
 
 The Compose path is now a validated local runtime on Apple Silicon with Go 1.24
-service images:
+service images built from the repo Dockerfiles. The stack includes a one-shot
+migration service, a packaged web service instead of a Vite dev server, and
+health-gated startup ordering:
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d postgres
-docker compose -f infra/compose/docker-compose.yml run --rm api sh -c 'go run ./cmd/platformctl migrate'
-docker compose -f infra/compose/docker-compose.yml up -d api worker scheduler web
+make bootstrap
 ```
 
-After the first module install and image pull, the platform should be available
-on:
+Or, without `make`:
+
+```bash
+docker compose -f infra/compose/docker-compose.yml up -d --build
+```
+
+After the stack is healthy, the platform should be available on:
 
 - `http://127.0.0.1:8080` for the API
-- `http://127.0.0.1:3000` for the web UI
+- `http://127.0.0.1:3000` for the packaged web UI
 - `platformctl remote ...` against `http://127.0.0.1:8080`
 
 ## Verified Localhost Smoke Path
@@ -101,6 +106,17 @@ root under `/tmp`. It keeps that runtime root after success so you can inspect
 logs and artifacts. Set `PLATFORM_SMOKE_KEEP=0` if you want automatic cleanup.
 If `127.0.0.1:18080` is already in use, rerun with
 `PLATFORM_SMOKE_PORT=<unused-port> make smoke`.
+
+## Verified Compose Smoke Path
+
+The repo also includes a packaged-deployment smoke workflow that boots Docker
+Compose, waits for migrations and health, validates the hosted web UI, and
+drives a real pipeline run through the API, worker, scheduler, analytics,
+quality, artifacts, and CLI layers:
+
+```bash
+make compose-smoke
+```
 
 ## Localhost Safety Defaults
 

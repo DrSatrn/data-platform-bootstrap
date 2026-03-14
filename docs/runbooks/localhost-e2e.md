@@ -18,6 +18,7 @@ Prove that the platform can:
 
 - Go installed locally
 - Node and npm installed locally
+- host C/C++ build tools available for the DuckDB Go driver
 - Docker or OrbStack available for local PostgreSQL if you want the full stack profile
 - a local `.env` file created from `.env.example` with placeholder credentials replaced
 
@@ -38,6 +39,17 @@ If the default smoke port is already occupied, choose another loopback port:
 ```bash
 PLATFORM_SMOKE_PORT=18081 make smoke
 ```
+
+## Packaged deployment check
+
+Use the Compose smoke workflow when you want to validate the production-style
+local deployment rather than host-run binaries:
+
+```bash
+make compose-smoke
+```
+
+That workflow confirms the hosted web UI is reachable, not just the API.
 
 ## Recommended local startup
 
@@ -69,6 +81,16 @@ npm run dev
 cd backend
 go run ./cmd/platformctl migrate
 ```
+
+For the Compose-backed service image path:
+
+```bash
+make bootstrap
+```
+
+That path now starts PostgreSQL, runs migrations automatically through the
+`migrate` service, waits for API health, and serves the frontend through the
+packaged platform web service rather than a Vite dev server.
 
 ## Health checks
 
@@ -170,6 +192,6 @@ curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetr
 - Smoke script fails early:
   Inspect the printed `logs_root` path under `/tmp` and review `api.log`,
   `worker.log`, and `scheduler.log` first.
-- Compose services stay on module-download logs for a while:
-  The first containerized boot may need time to pull images and download Go
-  modules before health checks succeed.
+- Compose services take a while to become healthy:
+  The first packaged boot may need time to build images before health checks
+  succeed.

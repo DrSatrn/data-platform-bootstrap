@@ -8,7 +8,8 @@ development and for the verified localhost smoke workflow.
 1. Review `codex.md` for repo-specific guidance.
 2. Copy `.env.example` to `.env` and adjust local paths if needed.
 3. Apply database migrations if PostgreSQL is running with `go run ./cmd/platformctl migrate`.
-4. Build the backend and web runtimes.
+4. Build the backend and web runtimes. Confirm host C/C++ build tools are
+   installed because the DuckDB driver is CGO-backed.
 5. Start the Compose stack or run `platform-api`, `platform-worker`, `platform-scheduler`, and the web app locally.
 6. Confirm the API health endpoint responds and the worker is polling.
 7. Queue a manual pipeline run from the Pipelines page or with `platformctl remote --token <token> trigger personal_finance_pipeline`.
@@ -36,10 +37,12 @@ When you want the service stack running continuously instead of an isolated
 smoke run, use the validated Compose flow:
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d postgres
-docker compose -f infra/compose/docker-compose.yml run --rm api sh -c 'go run ./cmd/platformctl migrate'
-docker compose -f infra/compose/docker-compose.yml up -d api worker scheduler web
+make bootstrap
 ```
 
 This path now uses PostgreSQL as the primary control-plane store for queued
-runs, run snapshots, and artifact metadata.
+runs, run snapshots, and artifact metadata, and DuckDB as the analytical
+execution layer for curated marts, metrics, and quality queries. The Compose
+stack also now packages the frontend as a built service image, runs migrations
+automatically through a one-shot container, and waits for health before the web
+service starts.

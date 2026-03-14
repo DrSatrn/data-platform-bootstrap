@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - name: Install DuckDB build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23.0"
+          go-version: "1.24.0"
       - name: Run backend tests
         working-directory: backend
         run: |
@@ -28,7 +30,7 @@ jobs:
           node-version: "22"
       - name: Install frontend dependencies
         working-directory: web
-        run: npm install
+        run: npm ci
       - name: Build frontend
         working-directory: web
         run: npm run build
@@ -37,9 +39,26 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - name: Install DuckDB build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23.0"
+          go-version: "1.24.0"
       - name: Validate manifest loading
         working-directory: backend
         run: go run ./cmd/platformctl validate-manifests
+
+  compose-smoke:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install DuckDB build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run packaged compose smoke test
+        run: make compose-smoke

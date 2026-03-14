@@ -22,7 +22,7 @@ func TestListStatusesComputesDuplicateAndUncategorizedCounts(t *testing.T) {
 		t.Fatalf("write transactions sample: %v", err)
 	}
 
-	service := NewService(root, filepath.Join(root, "materialized"))
+	service := NewService(root, filepath.Join(root, "materialized"), filepath.Join(root, "duckdb", "platform.duckdb"), filepath.Join(root, "sql"))
 	statuses, err := service.ListStatuses()
 	if err != nil {
 		t.Fatalf("list statuses: %v", err)

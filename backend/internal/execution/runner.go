@@ -5,14 +5,12 @@ package execution
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +19,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/storage"
+	"github.com/streanor/data-platform/backend/internal/transforms"
 )
 
 // Runner executes one queued pipeline run.
@@ -29,6 +28,7 @@ type Runner struct {
 	loader manifests.Loader
 	store  orchestration.Store
 	files  *storage.Service
+	sql    *transforms.Engine
 	logger *slog.Logger
 }
 
@@ -39,6 +39,7 @@ func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration
 		loader: loader,
 		store:  store,
 		files:  files,
+		sql:    transforms.NewEngine(cfg.DuckDBPath, cfg.SQLRoot),
 		logger: logger,
 	}
 }
@@ -144,10 +145,14 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 		jobRun.Status = orchestration.RunStatusFailed
 		jobRun.Error = err.Error()
 		r.appendEvent(run, "error", "job failed", map[string]string{"job_id": job.ID, "error": err.Error()})
-	} else {
-		jobRun.Status = orchestration.RunStatusSucceeded
-		r.appendEvent(run, "info", "job succeeded", map[string]string{"job_id": job.ID})
+		if saveErr := r.store.SavePipelineRun(*run); saveErr != nil {
+			return saveErr
+		}
+		return err
 	}
+
+	jobRun.Status = orchestration.RunStatusSucceeded
+	r.appendEvent(run, "info", "job succeeded", map[string]string{"job_id": job.ID})
 	return r.store.SavePipelineRun(*run)
 }
 
@@ -163,113 +168,60 @@ func (r *Runner) runIngest(runID string, job orchestration.Job) error {
 }
 
 func (r *Runner) runMonthlyCashflowTransform(runID string, job orchestration.Job) error {
-	source := filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv")
-	file, err := os.Open(source)
+	if err := r.sql.MaterializeRawTables(
+		filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"),
+		filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"),
+	); err != nil {
+		return fmt.Errorf("materialize raw duckdb tables: %w", err)
+	}
+	if err := r.sql.RunTransform(job.TransformRef); err != nil {
+		return err
+	}
+	rowsOut, err := r.sql.QueryRows(`
+		select month, income, expenses, savings_rate
+		from mart_monthly_cashflow
+		order by month
+	`)
 	if err != nil {
-		return fmt.Errorf("open raw transactions: %w", err)
+		return fmt.Errorf("query monthly cashflow mart: %w", err)
 	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	rows, err := reader.ReadAll()
-	if err != nil {
-		return fmt.Errorf("read raw transactions: %w", err)
-	}
-
-	type summary struct {
-		Income      float64 `json:"income"`
-		Expenses    float64 `json:"expenses"`
-		SavingsRate float64 `json:"savings_rate"`
-	}
-
-	summaries := map[string]summary{}
-	for index, row := range rows {
-		if index == 0 || len(row) < 5 {
-			continue
-		}
-		month := row[1][:7]
-		amount, err := strconv.ParseFloat(strings.TrimSpace(row[4]), 64)
-		if err != nil {
-			return fmt.Errorf("parse transaction amount: %w", err)
-		}
-		current := summaries[month]
-		if amount >= 0 {
-			current.Income += amount
-		} else {
-			current.Expenses += amount * -1
-		}
-		summaries[month] = current
-	}
-
-	months := make([]string, 0, len(summaries))
-	for month := range summaries {
-		months = append(months, month)
-	}
-	sort.Strings(months)
-
-	rowsOut := make([]map[string]any, 0, len(months))
-	for _, month := range months {
-		current := summaries[month]
-		if current.Income > 0 {
-			current.SavingsRate = (current.Income - current.Expenses) / current.Income
-		}
-		rowsOut = append(rowsOut, map[string]any{
-			"month":        month,
-			"income":       current.Income,
-			"expenses":     current.Expenses,
-			"savings_rate": current.SavingsRate,
-		})
-	}
-
 	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json"), "mart/mart_monthly_cashflow.json", rowsOut)
 }
 
 func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
-	source := filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv")
-	file, err := os.Open(source)
+	queryPath := filepath.Join("quality", job.ID+".sql")
+	rows, err := r.sql.QueryRowsFromFile(queryPath, nil)
 	if err != nil {
-		return fmt.Errorf("open raw transactions for quality check: %w", err)
+		return fmt.Errorf("run quality sql for %s: %w", job.ID, err)
 	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	rows, err := reader.ReadAll()
-	if err != nil {
-		return fmt.Errorf("read raw transactions for quality check: %w", err)
+	if len(rows) == 0 {
+		return fmt.Errorf("quality query %s returned no rows", job.ID)
 	}
 
-	uncategorized := 0
-	for index, row := range rows {
-		if index == 0 || len(row) < 4 {
-			continue
-		}
-		if strings.TrimSpace(row[3]) == "" {
-			uncategorized++
-		}
-	}
-
+	key, count := qualityResult(job.ID, rows[0])
 	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "quality", job.ID+".json"), filepath.ToSlash(filepath.Join("quality", job.ID+".json")), map[string]any{
 		"check_id":        job.ID,
-		"status":          qualityStatus(uncategorized),
-		"uncategorized":   uncategorized,
+		"status":          qualityStatus(count),
+		key:               count,
 		"evaluated_at":    time.Now().UTC(),
-		"source_artifact": source,
+		"source_artifact": "duckdb:" + queryPath,
 	})
 }
 
 func (r *Runner) runMetricsPublish(runID string, job orchestration.Job) error {
-	source := filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json")
-	bytes, err := os.ReadFile(source)
-	if err != nil {
-		return fmt.Errorf("read mart artifact: %w", err)
+	if err := r.sql.RunMetric("metrics_savings_rate"); err != nil {
+		return err
 	}
-
-	var rows []map[string]any
-	if err := json.Unmarshal(bytes, &rows); err != nil {
-		return fmt.Errorf("decode mart artifact: %w", err)
+	rows, err := r.sql.QueryRows(`
+		select month, savings_rate
+		from metrics_savings_rate
+		order by month
+	`)
+	if err != nil {
+		return fmt.Errorf("query savings rate metric rows: %w", err)
 	}
 	if len(rows) == 0 {
-		return fmt.Errorf("mart artifact is empty")
+		return fmt.Errorf("metrics_savings_rate is empty")
 	}
 	latest := rows[len(rows)-1]
 	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "metrics", "metrics_savings_rate.json"), "metrics/metrics_savings_rate.json", map[string]any{
@@ -278,7 +230,7 @@ func (r *Runner) runMetricsPublish(runID string, job orchestration.Job) error {
 		"latest_value":    latest["savings_rate"],
 		"series":          rows,
 		"generated_at":    time.Now().UTC(),
-		"source_artifact": source,
+		"source_artifact": "duckdb:metrics_savings_rate",
 	})
 }
 
@@ -367,8 +319,38 @@ func depsSatisfied(job orchestration.Job, completed map[string]bool) bool {
 	return true
 }
 
-func qualityStatus(uncategorized int) string {
-	if uncategorized == 0 {
+func qualityResult(jobID string, row map[string]any) (string, int) {
+	key := "count"
+	switch jobID {
+	case "check_uncategorized_transactions":
+		key = "uncategorized_count"
+	case "check_duplicate_transactions":
+		key = "duplicate_count"
+	}
+	return key, intFromRow(row[key])
+}
+
+func intFromRow(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func qualityStatus(count int) string {
+	if count == 0 {
 		return "passing"
 	}
 	return "warning"

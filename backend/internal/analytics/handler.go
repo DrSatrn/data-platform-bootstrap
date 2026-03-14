@@ -20,7 +20,21 @@ func NewHandler(service *Service) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	dashboard, err := h.service.SampleDashboard()
+	dataset := r.URL.Query().Get("dataset")
+	metric := r.URL.Query().Get("metric")
+
+	var (
+		result QueryResult
+		err    error
+	)
+	switch {
+	case metric != "":
+		result, err = h.service.QueryMetric(metric)
+	case dataset != "":
+		result, err = h.service.QueryDataset(dataset)
+	default:
+		result, err = h.service.SampleDashboard()
+	}
 	if err != nil {
 		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 			"error": err.Error(),
@@ -29,6 +43,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"dashboard": dashboard,
+		"dashboard": result,
 	})
 }

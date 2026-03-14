@@ -4,11 +4,12 @@
 
 SHELL := /bin/sh
 
-.PHONY: doctor fmt lint test build backend-build web-build up down smoke
+.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap
 
 doctor:
 	@echo "Review codex.md before first build."
 	@echo "Verify Go, Node, Docker/OrbStack, and ARM64-compatible container images."
+	@echo "Verify host C/C++ build tools are installed because the DuckDB Go driver uses CGO."
 
 fmt:
 	cd backend && gofmt -w $$(find . -name '*.go' -print)
@@ -40,3 +41,9 @@ down:
 
 smoke:
 	sh infra/scripts/localhost_smoke.sh
+
+compose-smoke:
+	sh infra/scripts/compose_smoke.sh
+
+bootstrap:
+	docker compose -f infra/compose/docker-compose.yml up -d --build

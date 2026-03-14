@@ -115,9 +115,9 @@ func RunWorker(ctx context.Context) error {
 func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observability.Service, persistence runtimePersistence) http.Handler {
 	loader := manifests.NewLoader(cfg.ManifestRoot)
 	catalog := metadata.NewCatalog()
-	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot)
+	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	reportStore := reporting.NewMemoryStore()
-	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot)
+	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
 	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, reportStore, persistence.artifacts, telemetry)
 

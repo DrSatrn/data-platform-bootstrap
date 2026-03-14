@@ -5,104 +5,159 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: platform_app
-      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_PASSWORD: ${PLATFORM_POSTGRES_PASSWORD:-local_dev_password}
       POSTGRES_DB: platform
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_app -d platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  api:
-    image: golang:1.24-alpine
-    command: ["sh", "-c", "go run ./cmd/platform-api"]
-    working_dir: /workspace/backend
+  migrate:
+    build:
+      context: ../../
+      dockerfile: infra/docker/backend.Dockerfile
+    command: ["/usr/local/bin/platformctl", "migrate"]
     environment:
       PLATFORM_ENV: development
       PLATFORM_HTTP_ADDR: :8080
       PLATFORM_WEB_ADDR: :3000
       PLATFORM_API_BASE_URL: http://127.0.0.1:8080
       PLATFORM_LOG_LEVEL: debug
-      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:${PLATFORM_POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/platform?sslmode=disable
       PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
-      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
-      - ../../:/workspace
+      - ../../var:/var/lib/platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ../../
+      dockerfile: infra/docker/backend.Dockerfile
+    command: ["/usr/local/bin/platform-api"]
+    environment:
+      PLATFORM_ENV: development
+      PLATFORM_HTTP_ADDR: :8080
+      PLATFORM_WEB_ADDR: :3000
+      PLATFORM_API_BASE_URL: http://127.0.0.1:8080
+      PLATFORM_LOG_LEVEL: debug
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:${PLATFORM_POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/platform?sslmode=disable
+      PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
+      PLATFORM_DATA_ROOT: /var/lib/platform/data
+      PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
+      PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SQL_ROOT: /workspace/packages/sql
+      PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
+      PLATFORM_SCHEDULER_TICK: 15s
+      PLATFORM_WORKER_POLL: 5s
+      PLATFORM_MAX_CONCURRENT_JOBS: 4
+    volumes:
       - ../../var:/var/lib/platform
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
-      - postgres
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/platformctl", "remote", "--server", "http://127.0.0.1:8080", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   scheduler:
-    image: golang:1.24-alpine
-    command: ["sh", "-c", "go run ./cmd/platform-scheduler"]
-    working_dir: /workspace/backend
+    build:
+      context: ../../
+      dockerfile: infra/docker/backend.Dockerfile
+    command: ["/usr/local/bin/platform-scheduler"]
     environment:
       PLATFORM_ENV: development
       PLATFORM_HTTP_ADDR: :8080
       PLATFORM_WEB_ADDR: :3000
       PLATFORM_API_BASE_URL: http://127.0.0.1:8080
       PLATFORM_LOG_LEVEL: debug
-      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:${PLATFORM_POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/platform?sslmode=disable
       PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
-      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
-      - ../../:/workspace
       - ../../var:/var/lib/platform
     depends_on:
-      - postgres
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   worker:
-    image: golang:1.24-alpine
-    command: ["sh", "-c", "go run ./cmd/platform-worker"]
-    working_dir: /workspace/backend
+    build:
+      context: ../../
+      dockerfile: infra/docker/backend.Dockerfile
+    command: ["/usr/local/bin/platform-worker"]
     environment:
       PLATFORM_ENV: development
       PLATFORM_HTTP_ADDR: :8080
       PLATFORM_WEB_ADDR: :3000
       PLATFORM_API_BASE_URL: http://127.0.0.1:8080
       PLATFORM_LOG_LEVEL: debug
-      PLATFORM_POSTGRES_DSN: postgres://platform_app:local_dev_password@postgres:5432/platform?sslmode=disable
+      PLATFORM_POSTGRES_DSN: postgres://platform_app:${PLATFORM_POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/platform?sslmode=disable
       PLATFORM_DUCKDB_PATH: /var/lib/platform/duckdb/platform.duckdb
       PLATFORM_DATA_ROOT: /var/lib/platform/data
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
+      PLATFORM_SQL_ROOT: /workspace/packages/sql
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
-      PLATFORM_ADMIN_TOKEN: local-dev-admin-token
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
     volumes:
-      - ../../:/workspace
       - ../../var:/var/lib/platform
     depends_on:
-      - postgres
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   web:
-    image: node:22-alpine
-    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
-    working_dir: /workspace/web
-    volumes:
-      - ../../:/workspace
+    build:
+      context: ../../
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      PLATFORM_API_PROXY_TARGET: http://api:8080
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then((response)=>{if(!response.ok)process.exit(1);}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:
