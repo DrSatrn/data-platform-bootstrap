@@ -11,7 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   api:
-    image: golang:1.23-alpine
+    image: golang:1.24-alpine
     command: ["sh", "-c", "go run ./cmd/platform-api"]
     working_dir: /workspace/backend
     environment:
@@ -40,7 +40,7 @@ services:
       - postgres
 
   scheduler:
-    image: golang:1.23-alpine
+    image: golang:1.24-alpine
     command: ["sh", "-c", "go run ./cmd/platform-scheduler"]
     working_dir: /workspace/backend
     environment:
@@ -67,7 +67,7 @@ services:
       - postgres
 
   worker:
-    image: golang:1.23-alpine
+    image: golang:1.24-alpine
     command: ["sh", "-c", "go run ./cmd/platform-worker"]
     working_dir: /workspace/backend
     environment:

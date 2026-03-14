@@ -13,11 +13,11 @@ import (
 type ControlService struct {
 	loader PipelineLoader
 	store  Store
-	queue  *Queue
+	queue  RunQueue
 }
 
 // NewControlService constructs a control-plane service.
-func NewControlService(loader PipelineLoader, store Store, queue *Queue) *ControlService {
+func NewControlService(loader PipelineLoader, store Store, queue RunQueue) *ControlService {
 	return &ControlService{
 		loader: loader,
 		store:  store,

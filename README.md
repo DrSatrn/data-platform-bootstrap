@@ -27,6 +27,11 @@ The implementation intentionally emphasizes teaching value. Code is organized ar
 
 This initial implementation establishes the platform skeleton and first vertical slice around a personal-finance analytics domain. The first slice is designed to prove the architecture end to end: ingestion, orchestration, transformation, metadata registration, quality checks, analytics serving, and dashboard rendering.
 
+When PostgreSQL has been migrated and is reachable, the runtime now prefers a
+PostgreSQL-backed control plane for run snapshots, queue state, and artifact
+metadata. The filesystem path remains the local-first fallback when PostgreSQL
+is unavailable.
+
 ## Public Repo Safety
 
 - No real secrets, IPs, tokens, or host-specific credentials should ever be committed here.
@@ -61,6 +66,24 @@ go run ./cmd/platformctl migrate
 6. Open the web UI on `http://127.0.0.1:3000`.
 7. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
 8. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
+
+## Compose Bootstrap
+
+The Compose path is now a validated local runtime on Apple Silicon with Go 1.24
+service images:
+
+```bash
+docker compose -f infra/compose/docker-compose.yml up -d postgres
+docker compose -f infra/compose/docker-compose.yml run --rm api sh -c 'go run ./cmd/platformctl migrate'
+docker compose -f infra/compose/docker-compose.yml up -d api worker scheduler web
+```
+
+After the first module install and image pull, the platform should be available
+on:
+
+- `http://127.0.0.1:8080` for the API
+- `http://127.0.0.1:3000` for the web UI
+- `platformctl remote ...` against `http://127.0.0.1:8080`
 
 ## Verified Localhost Smoke Path
 

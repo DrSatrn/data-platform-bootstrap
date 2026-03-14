@@ -6,6 +6,10 @@ Current responsibilities:
 
 - opening PostgreSQL connections through the Go standard database APIs
 - applying repo-managed SQL migrations through `platformctl migrate`
-- mirroring pipeline run snapshots into PostgreSQL when the required tables exist
+- serving as the primary control-plane repository for run snapshots, queue
+  state, and artifact metadata when the required tables exist
+- falling back cleanly to the filesystem-backed control plane when PostgreSQL is
+  unavailable or migrations have not been applied
 
-The file-backed local control plane still remains the primary read/write source for localhost execution. PostgreSQL is currently a hardening mirror, not yet the primary orchestration repository.
+The runtime now prefers PostgreSQL when bootstrapped, while keeping the
+filesystem-backed path available as a deliberate local-first fallback.

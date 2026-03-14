@@ -4,6 +4,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -17,4 +18,12 @@ func Open(dsn string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}
 	return db, nil
+}
+
+func tableExists(ctx context.Context, conn *sql.DB, tableName string) (bool, error) {
+	var present bool
+	if err := conn.QueryRowContext(ctx, `select to_regclass($1) is not null`, "public."+tableName).Scan(&present); err != nil {
+		return false, fmt.Errorf("check %s table: %w", tableName, err)
+	}
+	return present, nil
 }

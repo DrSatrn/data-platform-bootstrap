@@ -20,6 +20,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
+	"github.com/streanor/data-platform/backend/internal/storage"
 )
 
 // Runner executes one queued pipeline run.
@@ -27,15 +28,17 @@ type Runner struct {
 	cfg    config.Settings
 	loader manifests.Loader
 	store  orchestration.Store
+	files  *storage.Service
 	logger *slog.Logger
 }
 
 // NewRunner constructs an execution runner.
-func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration.Store, logger *slog.Logger) *Runner {
+func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration.Store, files *storage.Service, logger *slog.Logger) *Runner {
 	return &Runner{
 		cfg:    cfg,
 		loader: loader,
 		store:  store,
+		files:  files,
 		logger: logger,
 	}
 }
@@ -326,7 +329,13 @@ func (r *Runner) writeRunScopedArtifact(runID, relativePath string, bytes []byte
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create run artifact dir for %s: %w", path, err)
 	}
-	return os.WriteFile(path, bytes, 0o644)
+	if err := os.WriteFile(path, bytes, 0o644); err != nil {
+		return err
+	}
+	if r.files == nil {
+		return nil
+	}
+	return r.files.RecordRunArtifact(runID, relativePath)
 }
 
 func (r *Runner) appendEvent(run *orchestration.PipelineRun, level, message string, fields map[string]string) {

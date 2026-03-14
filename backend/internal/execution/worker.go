@@ -14,14 +14,14 @@ import (
 
 // Worker polls for queued runs and executes them.
 type Worker struct {
-	queue  *orchestration.Queue
+	queue  orchestration.RunQueue
 	runner *Runner
 	logger *slog.Logger
 	poll   time.Duration
 }
 
 // NewWorker constructs a local queue worker.
-func NewWorker(queue *orchestration.Queue, runner *Runner, logger *slog.Logger, poll time.Duration) *Worker {
+func NewWorker(queue orchestration.RunQueue, runner *Runner, logger *slog.Logger, poll time.Duration) *Worker {
 	return &Worker{
 		queue:  queue,
 		runner: runner,

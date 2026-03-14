@@ -20,6 +20,15 @@ type RunRequest struct {
 	RequestedAt time.Time `json:"requested_at"`
 }
 
+// RunQueue defines the durable queue behavior shared by the API, scheduler,
+// and worker. Keeping the interface narrow makes it straightforward to support
+// both local filesystem and PostgreSQL-backed control-plane queues.
+type RunQueue interface {
+	Enqueue(RunRequest) error
+	ClaimNext() (*ClaimedRequest, error)
+	Complete(*ClaimedRequest) error
+}
+
 // Queue owns pending and in-flight run request files.
 type Queue struct {
 	root      string
@@ -30,7 +39,7 @@ type Queue struct {
 // ClaimedRequest represents a request file claimed by a worker.
 type ClaimedRequest struct {
 	Request RunRequest
-	path    string
+	Receipt string
 }
 
 // NewQueue constructs a durable local queue.
@@ -73,8 +82,8 @@ func (q *Queue) Complete(claimed *ClaimedRequest) error {
 	if claimed == nil {
 		return nil
 	}
-	if err := os.Remove(claimed.path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("remove claimed request %s: %w", claimed.path, err)
+	if err := os.Remove(claimed.Receipt); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove claimed request %s: %w", claimed.Receipt, err)
 	}
 	return nil
 }
@@ -109,7 +118,7 @@ func (q *Queue) claimFromDir(dir string, moveToActive bool) (*ClaimedRequest, er
 		if err := json.Unmarshal(bytes, &request); err != nil {
 			return nil, fmt.Errorf("decode claimed request %s: %w", target, err)
 		}
-		return &ClaimedRequest{Request: request, path: target}, nil
+		return &ClaimedRequest{Request: request, Receipt: target}, nil
 	}
 	return nil, nil
 }

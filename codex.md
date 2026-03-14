@@ -17,16 +17,15 @@ What has already been built
 	•	Finance sample data, pipeline manifests, asset manifests, quality manifests, and dashboard manifest.
 	•	Durable file-backed queue and run store shared by API, worker, and scheduler processes.
 	•	Real worker execution for the personal-finance slice, including raw ingestion, mart materialization, quality artifacts, metrics publication, and run-scoped artifact mirroring.
-	•	Optional PostgreSQL run snapshot mirror and migration command surface.
+	•	PostgreSQL-backed control-plane repositories for run snapshots, queue state, and artifact metadata, plus the migration command surface.
 	•	Artifact inspection API plus Pipelines UI artifact browsing.
-	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, and CLI checks passed.
+	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, and Compose-backed PostgreSQL checks passed.
 
 What is still pending
-	•	Make PostgreSQL a true primary control-plane repository instead of a write-only optional mirror.
-	•	Persist artifact metadata to PostgreSQL alongside run snapshots.
 	•	Replace the sample-data analytics execution path with DuckDB-backed transforms and curated query execution.
 	•	Deepen scheduler coverage beyond the current cron subset and start honoring manifest timezone semantics explicitly.
-	•	Add stronger smoke automation for Compose-backed Postgres migration coverage.
+	•	Add stronger smoke automation for Compose-backed Postgres migration coverage and web availability checks.
+	•	Normalize more control-plane metadata into first-class PostgreSQL tables beyond the current pragmatic snapshot and queue repositories.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -37,13 +36,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added an optional PostgreSQL run snapshot mirror, migration command wiring, and run-scoped artifact inspection surfaces in the API, admin terminal, CLI, and Pipelines UI.
-	•	Verified a real localhost end-to-end run on loopback with API, worker, and scheduler running against isolated `/tmp` runtime roots.
-	•	Verified both scheduled and manual runs reaching `succeeded`, run artifacts being listed and downloaded over the API, admin-terminal artifact listing succeeding, and `platformctl remote "artifacts <run_id>"` succeeding against the live API.
-	•	Added a repo-owned localhost smoke script, added a fail-fast port guard so it does not silently attach to an already-running API, wired `make smoke` to that path, and validated `PLATFORM_SMOKE_PORT=18083 make smoke` successfully.
+	•	Promoted PostgreSQL from optional mirror to the preferred control-plane path for run snapshots, queue state, and artifact metadata, while preserving the filesystem-backed fallback for offline local development.
+	•	Added transactional PostgreSQL queue claiming, PostgreSQL-backed artifact metadata indexing, and runtime wiring so API, scheduler, worker, and artifact APIs all share the same control-plane source when bootstrapped.
+	•	Fixed the Compose runtime toolchain mismatch by upgrading service images to Go 1.24.
+	•	Validated the live Compose-backed stack: migrations applied, API/worker/scheduler/web started, services logged `postgres control plane enabled`, the scheduler queued a run, the worker completed it, API/admin/CLI surfaces responded, and PostgreSQL tables contained the expected run, queue, and artifact rows.
 
 Next workstep to execute
-	•	Promote PostgreSQL from optional mirror to primary control-plane persistence for runs, queue state, and artifact metadata while keeping the local-first filesystem path as a safe fallback for offline development.
+	•	Move the analytics execution path from sample-data file transforms toward DuckDB-backed curated execution and begin tightening scheduler semantics around manifest timezones and broader cron support.
 
 Non-negotiable engineering goals
 

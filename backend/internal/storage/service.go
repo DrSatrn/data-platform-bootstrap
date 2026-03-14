@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+// MetadataIndex persists lightweight artifact metadata outside the filesystem
+// so the control plane can list outputs efficiently when PostgreSQL is
+// available.
+type MetadataIndex interface {
+	ListRunArtifacts(runID string) ([]Artifact, error)
+	RecordArtifact(Artifact) error
+}
+
 // Artifact describes one run-scoped materialized file.
 type Artifact struct {
 	RunID        string    `json:"run_id"`
@@ -23,16 +31,23 @@ type Artifact struct {
 // Service exposes artifact discovery and reading rooted under the local
 // artifact directory.
 type Service struct {
-	root string
+	root  string
+	index MetadataIndex
 }
 
 // NewService constructs an artifact inspection service.
-func NewService(root string) *Service {
-	return &Service{root: root}
+func NewService(root string, index MetadataIndex) *Service {
+	return &Service{root: root, index: index}
 }
 
 // ListRunArtifacts returns all files for a run-scoped artifact directory.
 func (s *Service) ListRunArtifacts(runID string) ([]Artifact, error) {
+	if s.index != nil {
+		artifacts, err := s.index.ListRunArtifacts(runID)
+		if err == nil && len(artifacts) > 0 {
+			return artifacts, nil
+		}
+	}
 	runRoot := filepath.Join(s.root, "runs", runID)
 	entries := []Artifact{}
 	err := filepath.Walk(runRoot, func(path string, info os.FileInfo, err error) error {
@@ -62,6 +77,26 @@ func (s *Service) ListRunArtifacts(runID string) ([]Artifact, error) {
 		return nil, fmt.Errorf("list run artifacts for %s: %w", runID, err)
 	}
 	return entries, nil
+}
+
+// RecordRunArtifact captures metadata for a materialized run artifact after the
+// file has been written to disk.
+func (s *Service) RecordRunArtifact(runID, relativePath string) error {
+	if s.index == nil {
+		return nil
+	}
+	target := filepath.Join(s.root, "runs", runID, filepath.FromSlash(relativePath))
+	info, err := os.Stat(target)
+	if err != nil {
+		return fmt.Errorf("stat run artifact %s/%s: %w", runID, relativePath, err)
+	}
+	return s.index.RecordArtifact(Artifact{
+		RunID:        runID,
+		RelativePath: relativePath,
+		SizeBytes:    info.Size(),
+		ModifiedAt:   info.ModTime().UTC(),
+		ContentType:  detectContentType(relativePath),
+	})
 }
 
 // ReadRunArtifact returns the bytes for a run-scoped artifact after validating

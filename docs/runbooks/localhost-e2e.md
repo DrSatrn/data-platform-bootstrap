@@ -11,6 +11,7 @@ Prove that the platform can:
 - queue the run durably
 - execute the run in the worker
 - materialize local data artifacts
+- persist run snapshots, queue state, and artifact metadata in PostgreSQL when bootstrapped
 - expose updated run history and analytics through the API and UI
 
 ## Prerequisites
@@ -169,3 +170,6 @@ curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetr
 - Smoke script fails early:
   Inspect the printed `logs_root` path under `/tmp` and review `api.log`,
   `worker.log`, and `scheduler.log` first.
+- Compose services stay on module-download logs for a while:
+  The first containerized boot may need time to pull images and download Go
+  modules before health checks succeed.

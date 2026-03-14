@@ -29,3 +29,17 @@ That workflow starts API, worker, and scheduler against an isolated `/tmp`
 runtime root, verifies scheduled and manual runs, checks run artifacts, calls
 the admin terminal API, and proves the `platformctl remote` CLI against the
 live localhost API.
+
+## Compose Path
+
+When you want the service stack running continuously instead of an isolated
+smoke run, use the validated Compose flow:
+
+```bash
+docker compose -f infra/compose/docker-compose.yml up -d postgres
+docker compose -f infra/compose/docker-compose.yml run --rm api sh -c 'go run ./cmd/platformctl migrate'
+docker compose -f infra/compose/docker-compose.yml up -d api worker scheduler web
+```
+
+This path now uses PostgreSQL as the primary control-plane store for queued
+runs, run snapshots, and artifact metadata.

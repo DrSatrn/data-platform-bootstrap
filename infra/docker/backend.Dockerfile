@@ -1,7 +1,7 @@
 # This Dockerfile packages the Go backend for ARM64-friendly local and
 # self-hosted deployment. It intentionally keeps the image simple so it remains
 # easy to inspect and adjust while the platform is still evolving quickly.
-FROM golang:1.23-alpine AS build
+FROM golang:1.24-alpine AS build
 
 WORKDIR /workspace/backend
 COPY backend/go.mod ./
