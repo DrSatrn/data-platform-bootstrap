@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,13 +15,14 @@ import (
 	"strings"
 
 	"github.com/streanor/data-platform/backend/internal/config"
+	"github.com/streanor/data-platform/backend/internal/db"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: platformctl validate-manifests | remote [--server URL] [--token TOKEN] <command>")
+		fmt.Println("usage: platformctl validate-manifests | migrate | remote [--server URL] [--token TOKEN] <command>")
 		os.Exit(1)
 	}
 
@@ -31,6 +33,12 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("manifest validation passed")
+	case "migrate":
+		if err := migrate(); err != nil {
+			fmt.Fprintf(os.Stderr, "migration failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("migrations applied")
 	case "remote":
 		if err := runRemote(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "remote command failed: %v\n", err)
@@ -62,6 +70,24 @@ func validateManifests() error {
 
 	_, err = loader.LoadAssets()
 	return err
+}
+
+func migrate() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	conn, err := db.Open(cfg.PostgresDSN)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+	if err := db.ApplyMigrations(ctx, conn, cfg.MigrationsRoot); err != nil {
+		return err
+	}
+	return nil
 }
 
 func runRemote(args []string) error {

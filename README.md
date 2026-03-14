@@ -48,11 +48,44 @@ The platform now includes first-party operational features owned by this reposit
 ## Local Bootstrap
 
 1. Copy `.env.example` to `.env` and replace placeholder credentials and the admin token.
-2. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
-3. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
-4. Open the web UI on `http://127.0.0.1:3000`.
-5. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
-6. Use `platformctl remote --token <token> status` or `platformctl remote --token <token> trigger personal_finance_pipeline` from any local terminal.
+2. Apply database migrations when PostgreSQL is available:
+
+```bash
+cd backend
+go run ./cmd/platformctl migrate
+```
+
+3. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
+4. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
+5. Start `platform-scheduler` if you want scheduled queueing enabled.
+6. Open the web UI on `http://127.0.0.1:3000`.
+7. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
+8. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
+
+## Verified Localhost Smoke Path
+
+The repo now includes a first-party localhost smoke script that starts an
+isolated API, worker, and scheduler stack on loopback, drives a scheduled run
+plus a manual run, verifies run-scoped artifacts, exercises the admin terminal
+API, and proves the `platformctl remote` CLI path.
+
+```bash
+make smoke
+```
+
+By default the smoke run uses `http://127.0.0.1:18080` and a temporary runtime
+root under `/tmp`. It keeps that runtime root after success so you can inspect
+logs and artifacts. Set `PLATFORM_SMOKE_KEEP=0` if you want automatic cleanup.
+If `127.0.0.1:18080` is already in use, rerun with
+`PLATFORM_SMOKE_PORT=<unused-port> make smoke`.
+
+## Localhost Safety Defaults
+
+- API and web bindings are loopback-first by default.
+- PostgreSQL is not published externally by Compose.
+- Example tokens and passwords are placeholders only.
+- The smoke script uses a temporary root under `/tmp` instead of mutating the
+  normal repo-local `var/` tree.
 
 ## Important Constraint
 

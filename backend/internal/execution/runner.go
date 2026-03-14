@@ -124,13 +124,13 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	var err error
 	switch job.Type {
 	case orchestration.JobTypeIngest:
-		err = r.runIngest(job)
+		err = r.runIngest(run.ID, job)
 	case orchestration.JobTypeTransformSQL:
-		err = r.runMonthlyCashflowTransform(job)
+		err = r.runMonthlyCashflowTransform(run.ID, job)
 	case orchestration.JobTypeQualityCheck:
-		err = r.runQualityCheck(job)
+		err = r.runQualityCheck(run.ID, job)
 	case orchestration.JobTypePublishMetric:
-		err = r.runMetricsPublish(job)
+		err = r.runMetricsPublish(run.ID, job)
 	default:
 		err = fmt.Errorf("unsupported job type %s", job.Type)
 	}
@@ -148,18 +148,18 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	return r.store.SavePipelineRun(*run)
 }
 
-func (r *Runner) runIngest(job orchestration.Job) error {
+func (r *Runner) runIngest(runID string, job orchestration.Job) error {
 	switch job.ID {
 	case "ingest_transactions_csv":
-		return r.copySampleFile("personal_finance/transactions.csv", filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"))
+		return r.copySampleFile(runID, "personal_finance/transactions.csv", filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"), "raw/raw_transactions.csv")
 	case "ingest_account_balances_json":
-		return r.copySampleFile("personal_finance/account_balances.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"))
+		return r.copySampleFile(runID, "personal_finance/account_balances.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"), "raw/raw_account_balances.json")
 	default:
 		return fmt.Errorf("unknown ingest job %s", job.ID)
 	}
 }
 
-func (r *Runner) runMonthlyCashflowTransform(job orchestration.Job) error {
+func (r *Runner) runMonthlyCashflowTransform(runID string, job orchestration.Job) error {
 	source := filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv")
 	file, err := os.Open(source)
 	if err != nil {
@@ -218,10 +218,10 @@ func (r *Runner) runMonthlyCashflowTransform(job orchestration.Job) error {
 		})
 	}
 
-	return r.writeJSONArtifact(filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json"), rowsOut)
+	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json"), "mart/mart_monthly_cashflow.json", rowsOut)
 }
 
-func (r *Runner) runQualityCheck(job orchestration.Job) error {
+func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
 	source := filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv")
 	file, err := os.Open(source)
 	if err != nil {
@@ -245,7 +245,7 @@ func (r *Runner) runQualityCheck(job orchestration.Job) error {
 		}
 	}
 
-	return r.writeJSONArtifact(filepath.Join(r.cfg.DataRoot, "quality", job.ID+".json"), map[string]any{
+	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "quality", job.ID+".json"), filepath.ToSlash(filepath.Join("quality", job.ID+".json")), map[string]any{
 		"check_id":        job.ID,
 		"status":          qualityStatus(uncategorized),
 		"uncategorized":   uncategorized,
@@ -254,7 +254,7 @@ func (r *Runner) runQualityCheck(job orchestration.Job) error {
 	})
 }
 
-func (r *Runner) runMetricsPublish(job orchestration.Job) error {
+func (r *Runner) runMetricsPublish(runID string, job orchestration.Job) error {
 	source := filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json")
 	bytes, err := os.ReadFile(source)
 	if err != nil {
@@ -269,7 +269,7 @@ func (r *Runner) runMetricsPublish(job orchestration.Job) error {
 		return fmt.Errorf("mart artifact is empty")
 	}
 	latest := rows[len(rows)-1]
-	return r.writeJSONArtifact(filepath.Join(r.cfg.DataRoot, "metrics", "metrics_savings_rate.json"), map[string]any{
+	return r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, "metrics", "metrics_savings_rate.json"), "metrics/metrics_savings_rate.json", map[string]any{
 		"metric_id":       "metrics_savings_rate",
 		"latest_month":    latest["month"],
 		"latest_value":    latest["savings_rate"],
@@ -279,7 +279,7 @@ func (r *Runner) runMetricsPublish(job orchestration.Job) error {
 	})
 }
 
-func (r *Runner) copySampleFile(relativeSource string, target string) error {
+func (r *Runner) copySampleFile(runID, relativeSource, target, runArtifactPath string) error {
 	source := filepath.Join(r.cfg.SampleDataRoot, relativeSource)
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("create target dir for %s: %w", target, err)
@@ -300,16 +300,31 @@ func (r *Runner) copySampleFile(relativeSource string, target string) error {
 	if _, err := io.Copy(output, input); err != nil {
 		return fmt.Errorf("copy %s to %s: %w", source, target, err)
 	}
-	return nil
+	bytes, err := os.ReadFile(target)
+	if err != nil {
+		return fmt.Errorf("read copied target %s for run artifact mirror: %w", target, err)
+	}
+	return r.writeRunScopedArtifact(runID, runArtifactPath, bytes)
 }
 
-func (r *Runner) writeJSONArtifact(path string, payload any) error {
+func (r *Runner) writeJSONArtifact(runID, path, runArtifactPath string, payload any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create artifact dir for %s: %w", path, err)
 	}
 	bytes, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode artifact %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, bytes, 0o644); err != nil {
+		return err
+	}
+	return r.writeRunScopedArtifact(runID, runArtifactPath, bytes)
+}
+
+func (r *Runner) writeRunScopedArtifact(runID, relativePath string, bytes []byte) error {
+	path := filepath.Join(r.cfg.ArtifactRoot, "runs", runID, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create run artifact dir for %s: %w", path, err)
 	}
 	return os.WriteFile(path, bytes, 0o644)
 }

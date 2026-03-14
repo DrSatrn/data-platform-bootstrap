@@ -14,7 +14,15 @@ type Pipeline = {
 
 type PipelinePayload = {
   pipelines: Pipeline[];
-  runs: Array<{ id: string; status: string; pipeline_id: string }>;
+  runs: Array<{
+    id: string;
+    status: string;
+    pipeline_id: string;
+    trigger: string;
+    updated_at: string;
+    job_runs: Array<{ job_id: string; status: string }>;
+    events: Array<{ time: string; message: string; level: string }>;
+  }>;
 };
 
 export function usePipelines() {

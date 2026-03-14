@@ -26,6 +26,7 @@ services:
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: local-dev-admin-token
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
@@ -54,6 +55,7 @@ services:
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: local-dev-admin-token
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
@@ -80,6 +82,7 @@ services:
       PLATFORM_ARTIFACT_ROOT: /var/lib/platform/artifacts
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
+      PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: local-dev-admin-token
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s

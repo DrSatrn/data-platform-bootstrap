@@ -15,14 +15,18 @@ What has already been built
 	•	Built-in admin terminal API and browser UI terminal in the System page.
 	•	`platformctl remote ...` CLI mode that talks to the running platform API.
 	•	Finance sample data, pipeline manifests, asset manifests, quality manifests, and dashboard manifest.
-	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API/admin terminal checks passed.
+	•	Durable file-backed queue and run store shared by API, worker, and scheduler processes.
+	•	Real worker execution for the personal-finance slice, including raw ingestion, mart materialization, quality artifacts, metrics publication, and run-scoped artifact mirroring.
+	•	Optional PostgreSQL run snapshot mirror and migration command surface.
+	•	Artifact inspection API plus Pipelines UI artifact browsing.
+	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, and CLI checks passed.
 
 What is still pending
-	•	True end-to-end pipeline execution path that materializes assets and records run history persistently across API and worker processes.
-	•	Persistent run state store instead of the current in-memory orchestration store.
-	•	A triggerable pipeline API and UI flow for manual runs.
-	•	Worker consumption of queued run requests and real execution of ingest/transform/quality/metric jobs.
-	•	Localhost runbook updates for full end-to-end verification after the execution path is wired.
+	•	Make PostgreSQL a true primary control-plane repository instead of a write-only optional mirror.
+	•	Persist artifact metadata to PostgreSQL alongside run snapshots.
+	•	Replace the sample-data analytics execution path with DuckDB-backed transforms and curated query execution.
+	•	Deepen scheduler coverage beyond the current cron subset and start honoring manifest timezone semantics explicitly.
+	•	Add stronger smoke automation for Compose-backed Postgres migration coverage.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -33,13 +37,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Implemented a durable file-backed run store and file-backed queue shared by API and worker processes.
-	•	Implemented real worker execution for the personal-finance pipeline, including raw ingestion, mart materialization, quality artifacts, and metric publication.
-	•	Added manual run triggering through the Pipelines UI, admin terminal, and `platformctl remote`.
-	•	Verified a real localhost end-to-end run: queue, worker, run history, materialized artifacts, and analytics response all succeeded.
+	•	Added an optional PostgreSQL run snapshot mirror, migration command wiring, and run-scoped artifact inspection surfaces in the API, admin terminal, CLI, and Pipelines UI.
+	•	Verified a real localhost end-to-end run on loopback with API, worker, and scheduler running against isolated `/tmp` runtime roots.
+	•	Verified both scheduled and manual runs reaching `succeeded`, run artifacts being listed and downloaded over the API, admin-terminal artifact listing succeeding, and `platformctl remote "artifacts <run_id>"` succeeding against the live API.
+	•	Added a repo-owned localhost smoke script, added a fail-fast port guard so it does not silently attach to an already-running API, wired `make smoke` to that path, and validated `PLATFORM_SMOKE_PORT=18083 make smoke` successfully.
 
 Next workstep to execute
-	•	Wire PostgreSQL-backed control-plane repositories, add richer run detail and artifact inspection in the UI, and move the scheduler from catalog refresh into real scheduled queueing.
+	•	Promote PostgreSQL from optional mirror to primary control-plane persistence for runs, queue state, and artifact metadata while keeping the local-first filesystem path as a safe fallback for offline development.
 
 Non-negotiable engineering goals
 

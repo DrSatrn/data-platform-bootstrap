@@ -16,6 +16,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/quality"
 	"github.com/streanor/data-platform/backend/internal/reporting"
+	"github.com/streanor/data-platform/backend/internal/storage"
 )
 
 // Result is the structured response returned by admin commands.
@@ -33,6 +34,7 @@ type Service struct {
 	control   *orchestration.ControlService
 	quality   *quality.Service
 	reports   *reporting.MemoryStore
+	artifacts *storage.Service
 	telemetry *observability.Service
 }
 
@@ -44,6 +46,7 @@ func NewService(
 	control *orchestration.ControlService,
 	quality *quality.Service,
 	reports *reporting.MemoryStore,
+	artifacts *storage.Service,
 	telemetry *observability.Service,
 ) *Service {
 	return &Service{
@@ -53,6 +56,7 @@ func NewService(
 		control:   control,
 		quality:   quality,
 		reports:   reports,
+		artifacts: artifacts,
 		telemetry: telemetry,
 	}
 }
@@ -83,6 +87,7 @@ func (s *Service) Execute(command string) Result {
 			"metrics",
 			"logs [limit]",
 			"trigger <pipeline_id>",
+			"artifacts <run_id>",
 		}}
 	case "status":
 		snapshot := s.telemetry.Snapshot(map[string]string{"environment": s.cfg.Environment})
@@ -196,6 +201,25 @@ func (s *Service) Execute(command string) Result {
 		lines := make([]string, 0, limit)
 		for _, entry := range logs[len(logs)-limit:] {
 			lines = append(lines, fmt.Sprintf("%s | %s | %s", entry.Time.Format("15:04:05"), entry.Level, entry.Message))
+		}
+		result = Result{Command: command, Success: true, Output: lines}
+	case "artifacts":
+		if len(args) == 0 {
+			result = Result{Command: command, Success: false, Output: []string{"usage: artifacts <run_id>"}}
+			break
+		}
+		artifacts, err := s.artifacts.ListRunArtifacts(args[0])
+		if err != nil {
+			result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+			break
+		}
+		if len(artifacts) == 0 {
+			result = Result{Command: command, Success: true, Output: []string{"no artifacts found for run"}}
+			break
+		}
+		lines := make([]string, 0, len(artifacts))
+		for _, artifact := range artifacts {
+			lines = append(lines, fmt.Sprintf("%s | %d bytes", artifact.RelativePath, artifact.SizeBytes))
 		}
 		result = Result{Command: command, Success: true, Output: lines}
 	default:

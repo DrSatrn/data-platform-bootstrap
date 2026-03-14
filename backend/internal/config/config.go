@@ -24,6 +24,7 @@ type Settings struct {
 	ArtifactRoot      string
 	ManifestRoot      string
 	SampleDataRoot    string
+	MigrationsRoot    string
 	AdminToken        string
 	SchedulerTick     time.Duration
 	WorkerPoll        time.Duration
@@ -59,6 +60,7 @@ func Load() (Settings, error) {
 		ArtifactRoot:      envOrDefault("PLATFORM_ARTIFACT_ROOT", "../var/artifacts"),
 		ManifestRoot:      envOrDefault("PLATFORM_MANIFEST_ROOT", "../packages/manifests"),
 		SampleDataRoot:    envOrDefault("PLATFORM_SAMPLE_DATA_ROOT", "../packages/sample_data"),
+		MigrationsRoot:    envOrDefault("PLATFORM_MIGRATIONS_ROOT", "../infra/migrations"),
 		AdminToken:        envOrDefault("PLATFORM_ADMIN_TOKEN", ""),
 		SchedulerTick:     schedulerTick,
 		WorkerPoll:        workerPoll,

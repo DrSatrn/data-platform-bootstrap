@@ -192,6 +192,12 @@ textarea {
   cursor: pointer;
 }
 
+.artifact-link {
+  color: #9f5317;
+  text-decoration: none;
+  font-weight: 600;
+}
+
 .terminal-form {
   display: grid;
   grid-template-columns: 220px 1fr auto;

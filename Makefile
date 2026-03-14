@@ -39,6 +39,4 @@ down:
 	docker compose -f infra/compose/docker-compose.yml down
 
 smoke:
-	curl -fsS http://127.0.0.1:8080/healthz
-	cd backend && go run ./cmd/platformctl remote --token $${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token} trigger personal_finance_pipeline
-	cd backend && go run ./cmd/platformctl remote --token $${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token} status
+	sh infra/scripts/localhost_smoke.sh

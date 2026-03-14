@@ -20,6 +20,24 @@ Prove that the platform can:
 - Docker or OrbStack available for local PostgreSQL if you want the full stack profile
 - a local `.env` file created from `.env.example` with placeholder credentials replaced
 
+## Fastest repeatable check
+
+Use the repo-owned smoke script when you want the quickest verified path:
+
+```bash
+make smoke
+```
+
+That workflow starts API, worker, and scheduler on loopback, triggers a manual
+run after confirming the scheduler path, verifies the artifact API, exercises
+the admin terminal, and proves the `platformctl remote` CLI.
+
+If the default smoke port is already occupied, choose another loopback port:
+
+```bash
+PLATFORM_SMOKE_PORT=18081 make smoke
+```
+
 ## Recommended local startup
 
 1. Start the API:
@@ -42,6 +60,13 @@ PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-worker
 cd web
 npm install
 npm run dev
+```
+
+4. Optional but recommended: apply migrations if PostgreSQL is running:
+
+```bash
+cd backend
+go run ./cmd/platformctl migrate
 ```
 
 ## Health checks
@@ -119,6 +144,18 @@ curl http://127.0.0.1:8080/api/v1/system/overview
 curl http://127.0.0.1:8080/api/v1/system/logs
 ```
 
+5. Inspect run artifacts for a specific run:
+
+```bash
+curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>"
+```
+
+6. Inspect artifact contents for a specific file:
+
+```bash
+curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetrics_savings_rate.json"
+```
+
 ## Failure modes to check first
 
 - API running but no execution:
@@ -129,3 +166,6 @@ curl http://127.0.0.1:8080/api/v1/system/logs
   Refresh the Pipelines or System page after the worker finishes a run.
 - Admin CLI cannot connect:
   Confirm `PLATFORM_API_BASE_URL` and `PLATFORM_ADMIN_TOKEN` match the running API configuration.
+- Smoke script fails early:
+  Inspect the printed `logs_root` path under `/tmp` and review `api.log`,
+  `worker.log`, and `scheduler.log` first.
