@@ -1,0 +1,23 @@
+# This gitignore keeps generated artifacts, local runtime state, and build outputs
+# out of version control while preserving the source-managed manifests and docs.
+
+.DS_Store
+.env
+dist/
+node_modules/
+coverage/
+.cache/
+
+backend/bin/
+backend/.cache/
+backend/.testcache/
+
+var/
+tmp/
+artifacts/
+data/
+logs/
+
+duckdb/
+*.db
+*.duckdb

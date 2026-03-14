@@ -1,0 +1,9 @@
+# This quality manifest describes a high-signal integrity check for transaction
+# ingestion.
+id: check_duplicate_transactions
+name: Duplicate Transactions
+description: Ensures no duplicate transaction IDs exist in the raw transaction landing table.
+severity: high
+asset_ref: raw_transactions
+type: uniqueness
+column_ref: transaction_id

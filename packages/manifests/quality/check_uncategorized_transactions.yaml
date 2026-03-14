@@ -1,0 +1,12 @@
+# This quality manifest tracks whether categorization coverage is slipping in
+# curated reporting data.
+id: check_uncategorized_transactions
+name: Uncategorized Transactions
+description: Flags recent transactions without a valid reporting category.
+severity: medium
+asset_ref: raw_transactions
+type: threshold
+column_ref: category
+threshold:
+  operator: lte
+  value: 5

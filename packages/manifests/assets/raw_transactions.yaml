@@ -1,0 +1,38 @@
+# This asset manifest defines the raw transaction landing dataset for the first
+# finance slice.
+id: raw_transactions
+name: Raw Transactions
+layer: raw
+description: Landing table for imported transaction records from CSV sources.
+owner: platform-team
+kind: table
+source_refs:
+  - sample.transactions_csv
+quality_check_refs:
+  - check_duplicate_transactions
+documentation_refs:
+  - doc.raw_transactions
+freshness:
+  expected_within: 6h
+  warn_after: 8h
+columns:
+  - name: transaction_id
+    type: text
+    description: Stable identifier for the transaction.
+    is_pii: false
+  - name: occurred_at
+    type: timestamp
+    description: Timestamp when the transaction posted.
+    is_pii: false
+  - name: account_name
+    type: text
+    description: Logical account used for the transaction.
+    is_pii: false
+  - name: category
+    type: text
+    description: User-facing transaction category.
+    is_pii: false
+  - name: amount
+    type: decimal
+    description: Signed transaction amount in AUD.
+    is_pii: false

@@ -1,0 +1,5 @@
+# This owner manifest identifies the default owner used by the first slice.
+id: platform-team
+display_name: Platform Team
+email: platform@example.local
+team: Data Platform

@@ -1,0 +1,12 @@
+[
+  {
+    "account_id": "acct_everyday",
+    "captured_at": "2026-03-11T09:30:00Z",
+    "balance": 6380.25
+  },
+  {
+    "account_id": "acct_credit",
+    "captured_at": "2026-03-11T09:30:00Z",
+    "balance": -940.10
+  }
+]

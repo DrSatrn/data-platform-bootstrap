@@ -1,0 +1,13 @@
+# This metric manifest defines a curated savings-rate metric for the reporting
+# layer.
+id: metrics_savings_rate
+name: Savings Rate
+description: Measures the ratio of net monthly savings to total income.
+owner: platform-team
+dataset_ref: mart_monthly_cashflow
+time_dimension: month
+dimensions:
+  - month
+measures:
+  - savings_rate
+default_visualization: line

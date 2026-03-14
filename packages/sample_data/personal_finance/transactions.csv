@@ -1,0 +1,9 @@
+transaction_id,occurred_at,account_name,category,amount
+tx_001,2026-01-03T09:00:00Z,Everyday Account,Salary,7200
+tx_002,2026-01-04T07:45:00Z,Everyday Account,Rent,-2100
+tx_003,2026-01-07T12:30:00Z,Credit Card,Groceries,-220
+tx_004,2026-02-03T09:00:00Z,Everyday Account,Salary,7200
+tx_005,2026-02-05T18:20:00Z,Credit Card,Dining,-145
+tx_006,2026-03-03T09:00:00Z,Everyday Account,Salary,7200
+tx_007,2026-03-06T11:00:00Z,Everyday Account,Utilities,-160
+tx_008,2026-03-11T08:15:00Z,Credit Card,, -85

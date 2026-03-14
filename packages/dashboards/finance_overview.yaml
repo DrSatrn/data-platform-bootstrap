@@ -1,0 +1,14 @@
+# This dashboard manifest defines the starter reporting experience for the
+# personal-finance vertical slice.
+id: finance_overview
+name: Finance Overview
+description: Monitors savings rate, cashflow, and budget variance from curated datasets.
+widgets:
+  - id: savings_rate_kpi
+    type: kpi
+    metric_ref: metrics_savings_rate
+  - id: cashflow_chart
+    type: line_chart
+    dataset_ref: mart_monthly_cashflow
+    x_axis: month
+    y_axis: savings_rate

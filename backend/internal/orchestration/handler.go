@@ -1,0 +1,58 @@
+// This file exposes the HTTP surface for pipeline listing and sample run
+// inspection. The handler currently reads manifests directly so the first slice
+// is immediately useful even before persistent orchestration storage is added.
+package orchestration
+
+import (
+	"log/slog"
+	"net/http"
+
+	"github.com/streanor/data-platform/backend/internal/shared"
+)
+
+// PipelineLoader defines the manifest-loading behavior the orchestration API
+// depends on. Declaring the interface locally prevents an import cycle between
+// the orchestration domain and the manifest adapter.
+type PipelineLoader interface {
+	LoadPipelines() ([]Pipeline, error)
+}
+
+// PipelineHandler serves the orchestration-focused API routes.
+type PipelineHandler struct {
+	loader PipelineLoader
+	store  Store
+	logger *slog.Logger
+}
+
+// NewPipelineHandler constructs the pipeline API surface.
+func NewPipelineHandler(loader PipelineLoader, store Store, logger *slog.Logger) http.Handler {
+	return &PipelineHandler{
+		loader: loader,
+		store:  store,
+		logger: logger,
+	}
+}
+
+func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	pipelines, err := h.loader.LoadPipelines()
+	if err != nil {
+		h.logger.Error("failed to load pipelines", slog.String("error", err.Error()))
+		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "failed to load pipelines",
+		})
+		return
+	}
+
+	validationErrors := make(map[string]string)
+	for _, pipeline := range pipelines {
+		if err := ValidatePipeline(pipeline); err != nil {
+			validationErrors[pipeline.ID] = err.Error()
+		}
+	}
+
+	shared.WriteJSON(w, http.StatusOK, map[string]any{
+		"pipelines":         pipelines,
+		"runs":              h.store.ListPipelineRuns(),
+		"validation_errors": validationErrors,
+	})
+}

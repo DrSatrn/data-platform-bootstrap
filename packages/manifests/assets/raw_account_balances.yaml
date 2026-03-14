@@ -1,0 +1,30 @@
+# This manifest describes the raw account balance landing asset sourced from a
+# local JSON file.
+id: raw_account_balances
+name: Raw Account Balances
+layer: raw
+description: Landing table for the latest account balance snapshots.
+owner: platform-team
+kind: table
+source_refs:
+  - sample.account_balances_json
+quality_check_refs:
+  - check_balance_snapshot_recency
+documentation_refs:
+  - doc.raw_account_balances
+freshness:
+  expected_within: 6h
+  warn_after: 8h
+columns:
+  - name: account_id
+    type: text
+    description: Stable account identifier.
+    is_pii: false
+  - name: captured_at
+    type: timestamp
+    description: Snapshot capture time.
+    is_pii: false
+  - name: balance
+    type: decimal
+    description: Latest known balance in AUD.
+    is_pii: false

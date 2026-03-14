@@ -1,0 +1,73 @@
+# This Compose file defines the local platform stack with ARM64-friendly images
+# and explicit service responsibilities.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+      POSTGRES_DB: platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    image: golang:1.23-alpine
+    command: ["sh", "-c", "go run ./cmd/platform-api"]
+    working_dir: /workspace/backend
+    env_file:
+      - ../../.env.example
+    volumes:
+      - ../../:/workspace
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  scheduler:
+    image: golang:1.23-alpine
+    command: ["sh", "-c", "go run ./cmd/platform-scheduler"]
+    working_dir: /workspace/backend
+    env_file:
+      - ../../.env.example
+    volumes:
+      - ../../:/workspace
+    depends_on:
+      - postgres
+
+  worker:
+    image: golang:1.23-alpine
+    command: ["sh", "-c", "go run ./cmd/platform-worker"]
+    working_dir: /workspace/backend
+    env_file:
+      - ../../.env.example
+    volumes:
+      - ../../:/workspace
+    depends_on:
+      - postgres
+
+  web:
+    image: node:22-alpine
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+    working_dir: /workspace/web
+    volumes:
+      - ../../:/workspace
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

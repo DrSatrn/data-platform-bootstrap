@@ -1,0 +1,199 @@
+/*
+  This stylesheet defines the core visual language for the platform UI. The
+  palette and layout aim for a purposeful internal-tool feel rather than a
+  generic dashboard template.
+*/
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(255, 214, 165, 0.75), transparent 28%),
+    linear-gradient(180deg, #f4efe4 0%, #ece7dc 100%);
+  color: #1f1a14;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  padding: 28px;
+  background: rgba(31, 26, 20, 0.94);
+  color: #f6f1e8;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.content {
+  padding: 32px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: #e2b774;
+}
+
+.lede,
+.muted {
+  color: #62574b;
+}
+
+.sidebar .lede {
+  color: rgba(246, 241, 232, 0.78);
+}
+
+.nav {
+  display: grid;
+  gap: 12px;
+}
+
+.nav-button {
+  border: 0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.nav-button:hover,
+.nav-button.active {
+  background: #d78632;
+  color: #201711;
+  transform: translateX(4px);
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.card,
+.subcard,
+.panel {
+  border-radius: 22px;
+  background: rgba(255, 251, 245, 0.84);
+  box-shadow: 0 14px 34px rgba(44, 33, 19, 0.08);
+  border: 1px solid rgba(114, 89, 63, 0.15);
+}
+
+.card,
+.panel {
+  padding: 24px;
+}
+
+.subcard {
+  padding: 16px;
+}
+
+.hero {
+  background: linear-gradient(135deg, rgba(242, 184, 94, 0.28), rgba(207, 143, 66, 0.08));
+}
+
+.wide-card {
+  grid-column: span 2;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  min-height: 136px;
+}
+
+.stat-label {
+  color: #6b5f52;
+}
+
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  margin-top: 20px;
+}
+
+.tone-good {
+  border-color: rgba(52, 140, 87, 0.2);
+}
+
+.tone-warn {
+  border-color: rgba(204, 112, 68, 0.2);
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(216, 134, 50, 0.14);
+  color: #7b4316;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(114, 89, 63, 0.16);
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .page-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-card {
+    grid-column: span 1;
+  }
+}
