@@ -15,3 +15,9 @@ Current rules:
   inspect and debug.
 - Python tasks may write platform-owned files under the configured data root,
   but they must report those outputs explicitly back to Go.
+
+Current runtime-owned Python entrypoints:
+
+- `tasks/enrich_transactions.py` for staging enrichment during worker runs
+- `tasks/profile_asset.py` for on-demand dataset profiling requested by the
+  metadata API and Datasets page

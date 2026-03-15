@@ -22,6 +22,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/observability"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
+	"github.com/streanor/data-platform/backend/internal/python"
 	"github.com/streanor/data-platform/backend/internal/quality"
 	"github.com/streanor/data-platform/backend/internal/reporting"
 	"github.com/streanor/data-platform/backend/internal/scheduler"
@@ -129,6 +130,7 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
+	profileService := metadata.NewProfileService(loader, metadata.NewPythonProfiler(python.NewRunner(cfg)), cfg.DataRoot)
 	var queueSnapshots backup.QueueSnapshotter
 	if snapshotter, ok := persistence.queue.(backup.QueueSnapshotter); ok {
 		queueSnapshots = snapshotter
@@ -141,12 +143,13 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
 	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit))
 	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata))
+	mux.Handle("/api/v1/catalog/profile", metadata.NewProfileHandler(profileService))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
 	mux.Handle("/api/v1/metrics", analytics.NewMetricCatalogHandler(loader, analyticsService))
 	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService, persistence.audit))
 	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
-	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store))
+	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService))
 	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
 	mux.Handle("/api/v1/system/audit", audit.NewHandler(persistence.audit))
 	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService, persistence.audit))

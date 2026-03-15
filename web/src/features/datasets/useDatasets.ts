@@ -33,6 +33,26 @@ export type Asset = {
   columns: Array<{ name: string; type: string; description: string; is_pii?: boolean }>;
 };
 
+export type AssetProfile = {
+  asset_id: string;
+  path: string;
+  format: string;
+  row_count: number;
+  file_bytes: number;
+  generated_at: string;
+  observed_at?: string;
+  profile_state: string;
+  columns: Array<{
+    name: string;
+    observed_type: string;
+    null_count: number;
+    unique_count: number;
+    sample_values: string[];
+    min_value?: string;
+    max_value?: string;
+  }>;
+};
+
 type DatasetPayload = {
   assets: Asset[];
   summary: {
@@ -56,6 +76,9 @@ export function useDatasets() {
   const [data, setData] = useState<DatasetPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetID, setSelectedAssetID] = useState<string | null>(null);
+  const [profile, setProfile] = useState<AssetProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     fetchJSON<DatasetPayload>("/api/v1/catalog")
@@ -71,5 +94,22 @@ export function useDatasets() {
     [data, selectedAssetID]
   );
 
-  return { data, error, selectedAssetID, selectedAsset, setSelectedAssetID };
+  useEffect(() => {
+    if (!selectedAssetID) {
+      setProfile(null);
+      return;
+    }
+
+    setProfileLoading(true);
+    setProfileError(null);
+    fetchJSON<AssetProfile>(`/api/v1/catalog/profile?asset_id=${encodeURIComponent(selectedAssetID)}`)
+      .then((payload) => setProfile(payload))
+      .catch((err) => {
+        setProfile(null);
+        setProfileError(err instanceof Error ? err.message : "Unknown dataset profile error");
+      })
+      .finally(() => setProfileLoading(false));
+  }, [selectedAssetID]);
+
+  return { data, error, profile, profileError, profileLoading, selectedAssetID, selectedAsset, setSelectedAssetID };
 }

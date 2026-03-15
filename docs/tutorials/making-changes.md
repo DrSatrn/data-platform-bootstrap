@@ -111,6 +111,7 @@ Current implementation reference:
 
 - [runtime.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/python/runtime.go)
 - [enrich_transactions.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/enrich_transactions.py)
+- [profile_asset.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/profile_asset.py)
 
 ## How To Change The Frontend Safely
 

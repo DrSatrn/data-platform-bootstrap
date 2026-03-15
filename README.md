@@ -136,7 +136,8 @@ tooling. On macOS that usually means Xcode Command Line Tools are installed.
 The worker now also supports bounded Python subprocess tasks behind the Go
 control plane. The current finance slice uses Python to enrich raw
 transactions into the staging layer before the intermediate and mart layers are
-built.
+built, and the metadata catalog now uses a second bounded Python utility to
+profile materialized assets for the Datasets page.
 
 ## Built-In Operations Surface
 
@@ -145,12 +146,15 @@ The platform now includes first-party operational features owned by this reposit
 - in-process telemetry for request metrics and command history
 - in-process recent log buffer surfaced through the API
 - a system overview API and admin diagnostics page
+- run throughput, failure, queue, and backup inventory summaries surfaced in the System page
 - a browser-based admin terminal in the management portal
 - a `platformctl remote ...` command that connects to the running app from any local terminal
 - saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
 - browser-based dashboard management with create, duplicate, edit, delete, reorder, and live widget preview flows
 - first-party line and bar chart widgets rendered without external BI or charting products
 - a semantic metrics browser page backed by repo-managed metric manifests
+- Python-backed dataset profile cards in the Datasets page so operators can
+  inspect row counts, observed types, null counts, ranges, and sample values
 
 ## Local Bootstrap
 
@@ -162,7 +166,7 @@ The platform now includes first-party operational features owned by this reposit
 6. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
 7. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
 8. Use the Datasets page to inspect freshness states and the Dashboard page to manage saved dashboards directly from the browser.
-9. Use the Datasets page catalog/detail split view to inspect ownership, source refs, quality refs, docs refs, and column-level metadata for a selected asset.
+9. Use the Datasets page catalog/detail split view to inspect ownership, source refs, quality refs, docs refs, column-level metadata, and runtime profile summaries for a selected asset.
 10. Use the Metrics page to browse semantic metrics, dimensions, measures, and preview responses.
 
 ## Compose Bootstrap

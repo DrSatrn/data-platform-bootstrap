@@ -130,6 +130,12 @@ List semantic metrics:
 curl http://127.0.0.1:8080/api/v1/metrics
 ```
 
+Fetch a runtime dataset profile:
+
+```sh
+curl "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+```
+
 Trigger a pipeline:
 
 ```sh
@@ -163,6 +169,7 @@ make backup
 - check `http://127.0.0.1:8080/healthz`
 - check the System page
 - check `platformctl remote status`
+- confirm queue, run, and backup summary cards look sane in the System page
 
 ### Confirm manifests are still valid
 
@@ -223,6 +230,13 @@ Python runtime issues:
 
 - [runtime.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/python/runtime.go)
 - [enrich_transactions.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/enrich_transactions.py)
+- [profile_asset.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/profile_asset.py)
+
+Dataset profiling issues:
+
+- [profile.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/metadata/profile.go)
+- [profile_handler.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/metadata/profile_handler.go)
+- [DatasetsPage.tsx](/Users/streanor/Documents/Playground/data-platform/web/src/pages/DatasetsPage.tsx)
 
 ## Safe Change Rules
 

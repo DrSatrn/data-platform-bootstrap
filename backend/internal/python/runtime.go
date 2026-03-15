@@ -116,6 +116,51 @@ func (r *Runner) Run(ctx context.Context, pipelineID string, job orchestration.J
 	return result, nil
 }
 
+// RunUtility executes a repo-owned Python utility script that is not tied to a
+// pipeline job. Metadata profiling uses this path so Go can keep the control
+// plane while delegating data-shape inspection to Python.
+func (r *Runner) RunUtility(ctx context.Context, scriptPath string, request any, result any, env map[string]string) error {
+	requestBytes, err := json.MarshalIndent(request, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode python utility request: %w", err)
+	}
+
+	tempDir, err := os.MkdirTemp("", "platform-python-utility-")
+	if err != nil {
+		return fmt.Errorf("create python utility temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	requestPath := filepath.Join(tempDir, "request.json")
+	resultPath := filepath.Join(tempDir, "result.json")
+	if err := os.WriteFile(requestPath, requestBytes, 0o644); err != nil {
+		return fmt.Errorf("write python utility request: %w", err)
+	}
+
+	command := exec.CommandContext(ctx, r.binary, r.resolveScriptPath(scriptPath))
+	command.Dir = r.taskRoot
+	command.Env = append(os.Environ(),
+		"PLATFORM_TASK_REQUEST_PATH="+requestPath,
+		"PLATFORM_TASK_RESULT_PATH="+resultPath,
+	)
+	for key, value := range env {
+		command.Env = append(command.Env, key+"="+value)
+	}
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("python utility %s failed: %w\n%s", scriptPath, err, strings.TrimSpace(string(output)))
+	}
+
+	resultBytes, err := os.ReadFile(resultPath)
+	if err != nil {
+		return fmt.Errorf("read python utility result for %s: %w", scriptPath, err)
+	}
+	if err := json.Unmarshal(resultBytes, result); err != nil {
+		return fmt.Errorf("decode python utility result for %s: %w", scriptPath, err)
+	}
+	return nil
+}
+
 func (r *Runner) resolveScriptPath(path string) string {
 	if filepath.IsAbs(path) {
 		return path

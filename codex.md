@@ -54,12 +54,10 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added a bounded Python task runtime under `backend/internal/python` so the Go worker can launch explicit Python subprocess tasks through a JSON request/result contract.
-	•	Added a real Python enrichment task at `packages/python/tasks/enrich_transactions.py`.
-	•	Expanded the finance slice to include `staging_transactions_enriched` and `intermediate_category_monthly_rollup`, so the implemented stack now exercises `raw`, `staging`, `intermediate`, `mart`, and `metrics`.
-	•	Added a semantic metric registry endpoint at `/api/v1/metrics`.
-	•	Added a new React Metrics page backed by repo-managed metric manifests and filtered preview queries.
-	•	Extended both smoke workflows to assert the Python staging artifact, intermediate artifact, and metrics registry endpoint.
+	•	Added Python-backed dataset profiling behind the Go metadata API with cached profile snapshots under the local data root.
+	•	Exposed `/api/v1/catalog/profile` so the Datasets page can request runtime row counts, observed types, null counts, ranges, and sample values for the selected asset.
+	•	Extended the React Datasets page into a richer metadata workbench with runtime profile summaries and observed column-level detail.
+	•	Added profile-service cache tests and updated the operator/runtime manuals to document the new profiling flow.
 
 Next workstep to execute
 	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.

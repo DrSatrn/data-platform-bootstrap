@@ -19,6 +19,29 @@ type OverviewPayload = {
   known_pipelines: number;
   known_assets: number;
   run_history: number;
+  run_summary: {
+    total_runs: number;
+    queued_runs: number;
+    running_runs: number;
+    succeeded_runs: number;
+    failed_runs: number;
+    completed_last_24_hours: number;
+    failed_last_24_hours: number;
+    average_duration_seconds: number;
+    latest_failure_run_id?: string;
+    latest_failure_message?: string;
+  };
+  queue_summary: {
+    queued: number;
+    active: number;
+    completed: number;
+    total: number;
+  };
+  backup_summary: {
+    bundle_count: number;
+    latest_bundle_path?: string;
+    latest_bundle_bytes?: number;
+  };
   telemetry: {
     uptime_seconds: number;
     total_requests: number;

@@ -55,6 +55,9 @@ Writes:
 - audit events
 - dashboard changes
 - metadata projection when the catalog path is exercised
+- system overview summaries derived from runs, queue state, and backup inventory
+- cached dataset profile snapshots under `data/profiles/` when the catalog UI
+  requests runtime profiling
 
 ### `platform-scheduler`
 
@@ -268,9 +271,12 @@ Do not move orchestration, queueing, scheduling, or API ownership into Python.
 Current implemented Python usage:
 
 - `packages/python/tasks/enrich_transactions.py`
+- `packages/python/tasks/profile_asset.py`
 
 That task enriches landed transaction data into the staging layer and reports
-its outputs back to Go through the JSON request/result contract.
+its outputs back to Go through the JSON request/result contract. The profile
+utility inspects current materialized assets and feeds the Datasets page with
+row counts, observed types, ranges, and sample values.
 
 ## Current Queue Position
 

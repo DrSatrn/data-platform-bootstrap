@@ -66,15 +66,13 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Added a bounded Python task runtime behind the Go worker in
-  `backend/internal/python`.
-- Added a real Python staging enrichment task in
-  `packages/python/tasks/enrich_transactions.py`.
-- Expanded the finance slice to include `staging_transactions_enriched` and
-  `intermediate_category_monthly_rollup`.
-- Added a semantic metric registry endpoint and a React Metrics page.
-- Extended both smoke workflows to validate the Python staging artifact, the
-  intermediate artifact, and the metric registry endpoint.
+- Added Python-backed dataset profiling behind the Go metadata API with cached
+  profile artifacts under the data root.
+- Exposed runtime dataset profiles through `/api/v1/catalog/profile`.
+- Surfaced row counts, observed column types, null counts, ranges, and sample
+  values in the React Datasets page.
+- Added profile-service cache tests and updated the operator/runtime manuals for
+  the new profiling path.
 
 ## Deferred / Prompt-Requiring Tests
 

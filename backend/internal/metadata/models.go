@@ -89,6 +89,34 @@ type Summary struct {
 	LineageEdges         int            `json:"lineage_edges"`
 }
 
+// AssetProfile captures runtime-observed shape information about a materialized
+// asset. The profile intentionally focuses on operator-facing trust signals
+// rather than exhaustive statistics so the UI remains fast and readable.
+type AssetProfile struct {
+	AssetID      string          `json:"asset_id"`
+	Path         string          `json:"path"`
+	Format       string          `json:"format"`
+	RowCount     int             `json:"row_count"`
+	FileBytes    int64           `json:"file_bytes"`
+	GeneratedAt  string          `json:"generated_at"`
+	ObservedAt   string          `json:"observed_at,omitempty"`
+	ProfileState string          `json:"profile_state"`
+	Columns      []ColumnProfile `json:"columns"`
+}
+
+// ColumnProfile summarizes the observed values for one column in a materialized
+// asset. Values are stored as strings to keep the JSON format simple across CSV
+// and JSON-backed assets.
+type ColumnProfile struct {
+	Name         string   `json:"name"`
+	ObservedType string   `json:"observed_type"`
+	NullCount    int      `json:"null_count"`
+	UniqueCount  int      `json:"unique_count"`
+	SampleValues []string `json:"sample_values"`
+	MinValue     string   `json:"min_value,omitempty"`
+	MaxValue     string   `json:"max_value,omitempty"`
+}
+
 // Store defines the persistence behavior for the synchronized metadata catalog.
 type Store interface {
 	SyncAssets([]DataAsset) error

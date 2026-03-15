@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/shared"
@@ -67,7 +66,7 @@ func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CatalogHandler) freshnessStatus(asset DataAsset) Status {
-	path := assetMaterializationPath(h.dataRoot, asset.ID)
+	path := MaterializationPath(h.dataRoot, asset.ID)
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -119,22 +118,5 @@ func (h *CatalogHandler) freshnessStatus(asset DataAsset) Status {
 			LagSeconds:  int64(lag.Seconds()),
 			Message:     "Asset is within its expected freshness window.",
 		}
-	}
-}
-
-func assetMaterializationPath(dataRoot, assetID string) string {
-	switch {
-	case assetID == "raw_transactions":
-		return filepath.Join(dataRoot, "raw", "raw_transactions.csv")
-	case assetID == "raw_account_balances":
-		return filepath.Join(dataRoot, "raw", "raw_account_balances.json")
-	case assetID == "raw_budget_rules":
-		return filepath.Join(dataRoot, "raw", "raw_budget_rules.json")
-	case len(assetID) > 5 && assetID[:5] == "mart_":
-		return filepath.Join(dataRoot, "mart", assetID+".json")
-	case len(assetID) > 8 && assetID[:8] == "metrics_":
-		return filepath.Join(dataRoot, "metrics", assetID+".json")
-	default:
-		return filepath.Join(dataRoot, assetID+".json")
 	}
 }

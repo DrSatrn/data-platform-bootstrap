@@ -42,11 +42,47 @@ export function SystemPage() {
         <p className="muted">Stale assets: {freshnessStates.stale ?? 0}</p>
       </article>
       <article className="card">
+        <h2>Run Throughput</h2>
+        <p className="muted">Total runs: {overview?.run_summary.total_runs ?? 0}</p>
+        <p className="muted">Succeeded: {overview?.run_summary.succeeded_runs ?? 0}</p>
+        <p className="muted">Failed: {overview?.run_summary.failed_runs ?? 0}</p>
+        <p className="muted">Completed in 24h: {overview?.run_summary.completed_last_24_hours ?? 0}</p>
+        <p className="muted">Failures in 24h: {overview?.run_summary.failed_last_24_hours ?? 0}</p>
+        <p className="muted">Average duration: {overview?.run_summary.average_duration_seconds ?? 0}s</p>
+      </article>
+      <article className="card">
+        <h2>Queue And Recovery</h2>
+        <p className="muted">Queued: {overview?.queue_summary.queued ?? 0}</p>
+        <p className="muted">Active: {overview?.queue_summary.active ?? 0}</p>
+        <p className="muted">Completed: {overview?.queue_summary.completed ?? 0}</p>
+        <p className="muted">Backups: {overview?.backup_summary.bundle_count ?? 0}</p>
+        <p className="muted">Latest bundle bytes: {overview?.backup_summary.latest_bundle_bytes ?? 0}</p>
+      </article>
+      <article className="card">
         <h2>Catalog Trust</h2>
         <p className="muted">Missing docs: {catalog?.summary.assets_missing_docs ?? 0}</p>
         <p className="muted">Missing quality: {catalog?.summary.assets_missing_quality ?? 0}</p>
         <p className="muted">Assets with PII: {catalog?.summary.assets_containing_pii ?? 0}</p>
         <p className="muted">Lineage edges: {catalog?.summary.lineage_edges ?? 0}</p>
+      </article>
+      <article className="card wide-card">
+        <h2>Failure Watch</h2>
+        {overview?.run_summary.latest_failure_run_id ? (
+          <div className="subcard">
+            <div className="row-between">
+              <strong>{overview.run_summary.latest_failure_run_id}</strong>
+              <span className="badge">latest failure</span>
+            </div>
+            <p className="muted">{overview.run_summary.latest_failure_message || "No failure message captured."}</p>
+          </div>
+        ) : (
+          <p className="muted">No failed runs are currently recorded in run history.</p>
+        )}
+        {overview?.backup_summary.latest_bundle_path ? (
+          <p className="muted">Latest backup: {overview.backup_summary.latest_bundle_path}</p>
+        ) : (
+          <p className="muted">No backup bundles recorded yet.</p>
+        )}
       </article>
       <article className="card wide-card">
         <h2>Quality Signals</h2>
