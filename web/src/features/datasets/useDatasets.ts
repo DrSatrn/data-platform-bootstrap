@@ -1,15 +1,25 @@
 // This hook loads dataset catalog metadata for the datasets page.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { fetchJSON } from "../../lib/api";
 
-type Asset = {
+export type Asset = {
   id: string;
   name: string;
   layer: string;
+  kind: string;
   description: string;
   owner: string;
-  columns: Array<{ name: string; type: string }>;
+  source_refs: string[];
+  quality_check_refs: string[];
+  documentation_refs: string[];
+  freshness_status: {
+    state: string;
+    last_updated?: string;
+    lag_seconds?: number;
+    message: string;
+  };
+  columns: Array<{ name: string; type: string; description: string; is_pii?: boolean }>;
 };
 
 type DatasetPayload = {
@@ -19,12 +29,21 @@ type DatasetPayload = {
 export function useDatasets() {
   const [data, setData] = useState<DatasetPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAssetID, setSelectedAssetID] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJSON<DatasetPayload>("/api/v1/catalog")
-      .then(setData)
+      .then((payload) => {
+        setData(payload);
+        setSelectedAssetID((current) => current ?? payload.assets[0]?.id ?? null);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown datasets error"));
   }, []);
 
-  return { data, error };
+  const selectedAsset = useMemo(
+    () => data?.assets.find((asset) => asset.id === selectedAssetID) ?? data?.assets[0] ?? null,
+    [data, selectedAssetID]
+  );
+
+  return { data, error, selectedAssetID, selectedAsset, setSelectedAssetID };
 }

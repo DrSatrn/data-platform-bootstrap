@@ -29,6 +29,7 @@ type runtimePersistence struct {
 	store     orchestration.Store
 	queue     orchestration.RunQueue
 	artifacts *storage.Service
+	reports   reporting.Store
 }
 
 // RunAPI starts the HTTP control-plane server.
@@ -116,23 +117,17 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	loader := manifests.NewLoader(cfg.ManifestRoot)
 	catalog := metadata.NewCatalog()
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
-	var reportStore reporting.Store
-	reportStore, err := reporting.NewFileStore(cfg.DataRoot, cfg.DashboardRoot)
-	if err != nil {
-		logger.Warn("file-backed dashboard store unavailable, falling back to memory store", slog.String("reason", err.Error()))
-		reportStore = reporting.NewMemoryStore()
-	}
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
-	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, reportStore, persistence.artifacts, telemetry)
+	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, persistence.reports, persistence.artifacts, telemetry)
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
 	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger))
-	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog))
+	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
-	mux.Handle("/api/v1/reports", reporting.NewHandler(reportStore))
+	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports))
 	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
 	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store))
 	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
@@ -151,6 +146,17 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 		return runtimePersistence{}, err
 	}
 	fileArtifacts := storage.NewService(cfg.ArtifactRoot, nil)
+	fileReports, err := reporting.NewFileStore(cfg.DataRoot, cfg.DashboardRoot)
+	if err != nil {
+		logger.Warn("file-backed dashboard store unavailable, falling back to memory store", slog.String("reason", err.Error()))
+		fileReports = nil
+	}
+	var reportStore reporting.Store
+	if fileReports != nil {
+		reportStore = fileReports
+	} else {
+		reportStore = reporting.NewMemoryStore()
+	}
 
 	controlPlane, err := db.NewControlPlane(ctx, cfg.PostgresDSN)
 	if err != nil {
@@ -159,14 +165,21 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			store:     fileStore,
 			queue:     fileQueue,
 			artifacts: fileArtifacts,
+			reports:   reportStore,
 		}, nil
 	}
 
 	logger.Info("postgres control plane enabled")
+	if fileReports != nil {
+		reportStore = reporting.NewMultiStore(controlPlane.Dashboards, fileReports)
+	} else {
+		reportStore = controlPlane.Dashboards
+	}
 	return runtimePersistence{
 		store:     orchestration.NewMultiStore(controlPlane.RunStore, fileStore),
 		queue:     controlPlane.RunQueue,
 		artifacts: storage.NewService(cfg.ArtifactRoot, controlPlane.ArtifactIdx),
+		reports:   reportStore,
 	}, nil
 }
 

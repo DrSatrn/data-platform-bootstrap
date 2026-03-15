@@ -25,3 +25,19 @@ export async function postJSON<TResponse, TRequest>(path: string, payload: TRequ
 
   return (await response.json()) as TResponse;
 }
+
+export async function deleteJSON<TResponse>(path: string, token?: string): Promise<TResponse> {
+  const response = await fetch(path, {
+    method: "DELETE",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed for ${path}: ${response.status}`);
+  }
+
+  return (await response.json()) as TResponse;
+}

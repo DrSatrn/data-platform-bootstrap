@@ -21,9 +21,13 @@ What has already been built
 	•	DuckDB-backed SQL execution for raw landing-table loads, curated mart materialization, metric materialization, and quality queries, all version-controlled under `packages/sql`.
 	•	Artifact inspection API plus Pipelines UI artifact browsing.
 	•	File-backed saved dashboard store seeded from repo-managed dashboard manifests, with the dashboard UI now hydrating widgets through the reporting API plus constrained analytics queries.
+	•	Browser-based dashboard lifecycle flows for create, duplicate, edit, delete, widget reordering, and live widget preview.
+	•	First-party reporting widgets now include KPI, table, line-chart, and bar-chart rendering without relying on external BI or charting products.
 	•	The finance slice now includes curated category spend and budget-variance marts plus a category-variance metric, not just the original monthly cashflow and savings-rate outputs.
 	•	Scheduler cron evaluation now honors declared pipeline timezones and supports the cron subset needed by the current sample slice, including step fields and day-of-week matching.
 	•	Packaged Compose deployment with a built frontend service image, one-shot migrations, health-gated startup, and a repo-owned `compose_smoke.sh` workflow that validates the hosted UI plus the API, worker, scheduler, analytics, quality, artifacts, and CLI paths.
+	•	Catalog assets now expose runtime freshness state derived from local materialization timestamps, and the Datasets/System pages surface those freshness signals directly.
+	•	The Datasets page now acts as a catalog/detail workbench, exposing owner, source refs, quality refs, docs refs, and richer column metadata for the selected asset.
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
@@ -41,14 +45,15 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added file-backed saved dashboards seeded from `packages/dashboards`, then rewired the dashboard UI so it hydrates widgets through the reporting API and constrained analytics queries instead of hardcoded page logic.
-	•	Expanded the finance slice with budget rules input, new curated marts for category spend and budget-versus-actual, and a new category-variance metric, all materialized through version-controlled DuckDB SQL.
-	•	Updated the worker to ingest budget rules, materialize the richer marts, publish the new metric artifacts, and expose those outputs through the artifacts API.
-	•	Made scheduler cron evaluation timezone-aware and added tests for timezone and day-of-week matching.
-	•	Strengthened both localhost and Compose smoke workflows so they now verify the richer v2 analytics outputs and saved dashboard/reporting surfaces.
+	•	Completed browser-based dashboard management: create, duplicate, edit, delete, add/remove/reorder widgets, and save through `/api/v1/reports`.
+	•	Expanded the reporting surface with first-party line-chart and bar-chart widgets rendered in the frontend without third-party chart packages.
+	•	Promoted reporting persistence toward the preferred control plane by mirroring saved dashboards into PostgreSQL through the reporting store boundary while retaining the local-first file store.
+	•	Added runtime freshness enrichment for catalog assets and surfaced freshness status in the Datasets and System pages.
+	•	Upgraded the Datasets page from a flat list into a catalog/detail inspection surface for owner, lineage-adjacent refs, docs refs, and column metadata.
+	•	Added backend tests covering metadata freshness classification and reporting delete persistence.
 
 Next workstep to execute
-	•	Move from API-level dashboard persistence to full UI editing flows, normalize more reporting/control-plane metadata into PostgreSQL, and broaden the product beyond the finance slice with additional domains or connector families.
+	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, and broader control-plane normalization in PostgreSQL.
 
 Session Close Handoff
 
@@ -58,54 +63,38 @@ session-close handoff, not just a rolling summary.
 Current state at session end
 	•	The platform is in a v2-ready state for the personal-finance slice and is fully runnable both through host-run binaries and the packaged Docker Compose deployment.
 	•	The backend supports API, worker, scheduler, admin terminal, artifact inspection, constrained analytics serving, quality status, reporting APIs, and `platformctl`.
-	•	The frontend now renders the dashboard from saved dashboard definitions plus constrained analytics queries rather than hardcoded page-specific data loading.
-	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards` and persisted locally under the platform data root through the file-backed reporting store.
+	•	The frontend now renders the dashboard from saved dashboard definitions plus constrained analytics queries rather than hardcoded page-specific data loading, and operators can manage those dashboards directly from the browser.
+	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, persisted locally under the platform data root through the file-backed reporting store, and mirrored into PostgreSQL when the DB-backed reporting store is active.
+	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
+	•	The metadata/catalog API now enriches assets with runtime freshness state, and that state is surfaced in the Datasets and System pages.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
 
-Files changed in the final workstep
-	•	Reporting persistence and API:
+Files changed in the latest workstep
+	•	Reporting store and API:
 		•	`backend/internal/reporting/store.go`
 		•	`backend/internal/reporting/handler.go`
 		•	`backend/internal/reporting/store_test.go`
-	•	Runtime and config wiring:
-		•	`backend/internal/app/runtime.go`
-		•	`backend/internal/config/config.go`
-		•	`.env.example`
-		•	`infra/compose/docker-compose.yml`
-		•	`infra/docker/backend.Dockerfile`
-	•	Analytics and execution:
-		•	`backend/internal/analytics/service.go`
-		•	`backend/internal/analytics/handler.go`
-		•	`backend/internal/analytics/service_test.go`
-		•	`backend/internal/execution/runner.go`
-		•	`backend/internal/transforms/engine.go`
-	•	Scheduler:
-		•	`backend/internal/scheduler/service.go`
-		•	`backend/internal/scheduler/service_test.go`
-	•	Frontend dashboard surface:
+		•	`backend/internal/reporting/README.md`
+	•	DB-backed reporting persistence:
+		•	`backend/internal/db/dashboard_store.go`
+		•	`backend/internal/db/README.md`
+	•	Metadata freshness testing:
+		•	`backend/internal/metadata/handler_test.go`
+	•	Frontend reporting and API client:
+		•	`web/src/lib/api.ts`
 		•	`web/src/features/dashboard/useDashboardData.ts`
 		•	`web/src/pages/DashboardPage.tsx`
-	•	New manifests, SQL, and sample data:
-		•	`packages/sample_data/personal_finance/budget_rules.json`
-		•	`packages/sql/bootstrap/raw_budget_rules.sql`
-		•	`packages/sql/transforms/category_spend.sql`
-		•	`packages/sql/transforms/budget_vs_actual.sql`
-		•	`packages/sql/metrics/metrics_category_variance.sql`
-		•	`packages/manifests/assets/raw_budget_rules.yaml`
-		•	`packages/manifests/assets/mart_category_spend.yaml`
-		•	`packages/manifests/assets/mart_budget_vs_actual.yaml`
-		•	`packages/manifests/metrics/category_variance.yaml`
-		•	`packages/manifests/pipelines/personal_finance_pipeline.yaml`
-		•	`packages/dashboards/finance_overview.yaml`
-	•	Smoke and docs:
-		•	`infra/scripts/localhost_smoke.sh`
-		•	`infra/scripts/compose_smoke.sh`
+		•	`web/src/features/datasets/useDatasets.ts`
+		•	`web/src/pages/DatasetsPage.tsx`
+		•	`web/src/styles/global.css`
+	•	Docs and planning:
 		•	`README.md`
 		•	`docs/runbooks/bootstrap.md`
 		•	`docs/runbooks/localhost-e2e.md`
-		•	package READMEs for analytics, reporting, scheduler, manifests, and sample data
+		•	`plan.md`
+		•	`codex.md`
 
 Validated at end of session
 	•	`go test ./...` passed
@@ -113,19 +102,14 @@ Validated at end of session
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18084 sh infra/scripts/localhost_smoke.sh`
+		•	`PLATFORM_SMOKE_PORT=18085 sh infra/scripts/localhost_smoke.sh`
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
-	•	The smoke runs now verify the richer v2 outputs, including:
-		•	saved dashboard definitions from `/api/v1/reports`
-		•	`mart_budget_vs_actual`
-		•	`metrics_category_variance`
-		•	run-scoped artifacts for the new marts and metrics
 
 Important fixes made during this session
-	•	A compile-time runtime wiring issue was fixed by making the dashboard store use the `reporting.Store` interface before selecting file-backed or in-memory implementations.
-	•	A scheduler test expectation was corrected after verifying the timezone-aware day-of-week behavior was correct and the assertion was wrong.
-	•	Both smoke scripts were fixed so they no longer infer success by naive run-status matching across the full pipeline list; they now wait for the expected run-scoped artifact to exist, which is a much safer completion signal.
+	•	The reporting store contract now supports delete semantics so browser-based dashboard lifecycle management stays aligned across memory, file-backed, and PostgreSQL-backed persistence implementations.
+	•	Widget editing now keeps dataset and metric sources mutually exclusive so constrained analytics queries do not silently prefer one source over the other.
+	•	Chart rendering now handles negative values correctly by computing a dynamic baseline instead of assuming all series are positive.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -139,19 +123,16 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is UI-level dashboard editing and save flows.
-	•	The backend/reporting boundary is now ready for that work:
-		•	`/api/v1/reports` can list and save dashboards
-		•	the file-backed reporting store persists saved dashboards already
-		•	the dashboard page already hydrates widgets from saved definitions
-	•	That means the next agent can focus on:
-		•	adding dashboard-editing UI
-		•	saving changes through the reporting API
-		•	deciding whether to keep file-backed reporting persistence or promote it into PostgreSQL
+	•	The cleanest next increment is richer reporting product depth rather than basic dashboard CRUD.
+	•	The next agent can focus on:
+		•	dashboard presets/sharing workflows
+		•	richer widget-specific controls and layout behavior
+		•	dataset drill-down/detail pages using the existing catalog and analytics APIs
+		•	deeper PostgreSQL normalization for reporting and metadata state
 
 Biggest remaining gaps
-	•	There is still no UI for editing dashboards; persistence exists, but editing is API-level only.
-	•	Reporting persistence is file-backed, not yet PostgreSQL-backed.
+	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
+	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
@@ -160,11 +141,11 @@ Read these first in the next session
 	•	`README.md`
 	•	`backend/internal/app/runtime.go`
 	•	`backend/internal/reporting/store.go`
+	•	`backend/internal/db/dashboard_store.go`
 	•	`backend/internal/analytics/service.go`
-	•	`backend/internal/execution/runner.go`
-	•	`backend/internal/scheduler/service.go`
-	•	`packages/manifests/pipelines/personal_finance_pipeline.yaml`
-	•	`packages/dashboards/finance_overview.yaml`
+	•	`backend/internal/metadata/handler.go`
+	•	`web/src/features/dashboard/useDashboardData.ts`
+	•	`web/src/pages/DashboardPage.tsx`
 	•	`docs/runbooks/localhost-e2e.md`
 
 Non-negotiable engineering goals

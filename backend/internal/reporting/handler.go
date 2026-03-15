@@ -50,8 +50,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		shared.WriteJSON(w, http.StatusCreated, map[string]any{
 			"dashboard": dashboard,
 		})
+	case http.MethodDelete:
+		dashboardID := r.URL.Query().Get("id")
+		if dashboardID == "" {
+			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
+				"error": "dashboard id is required",
+			})
+			return
+		}
+		if err := h.store.DeleteDashboard(dashboardID); err != nil {
+			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": err.Error(),
+			})
+			return
+		}
+		shared.WriteJSON(w, http.StatusOK, map[string]any{
+			"deleted": dashboardID,
+		})
 	default:
-		w.Header().Set("Allow", "GET, POST")
+		w.Header().Set("Allow", "GET, POST, DELETE")
 		shared.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{
 			"error": "method not allowed",
 		})

@@ -33,11 +33,21 @@ type LogsPayload = {
   logs: Array<{ time: string; level: string; message: string }>;
 };
 
+type CatalogPayload = {
+  assets: Array<{
+    id: string;
+    freshness_status: {
+      state: string;
+    };
+  }>;
+};
+
 export function useSystemData() {
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [quality, setQuality] = useState<QualityPayload | null>(null);
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
   const [logs, setLogs] = useState<LogsPayload | null>(null);
+  const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,16 +55,18 @@ export function useSystemData() {
       fetchJSON<HealthPayload>("/healthz"),
       fetchJSON<QualityPayload>("/api/v1/quality"),
       fetchJSON<OverviewPayload>("/api/v1/system/overview"),
-      fetchJSON<LogsPayload>("/api/v1/system/logs")
+      fetchJSON<LogsPayload>("/api/v1/system/logs"),
+      fetchJSON<CatalogPayload>("/api/v1/catalog")
     ])
-      .then(([nextHealth, nextQuality, nextOverview, nextLogs]) => {
+      .then(([nextHealth, nextQuality, nextOverview, nextLogs, nextCatalog]) => {
         setHealth(nextHealth);
         setQuality(nextQuality);
         setOverview(nextOverview);
         setLogs(nextLogs);
+        setCatalog(nextCatalog);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown system error"));
   }, []);
 
-  return { health, quality, overview, logs, error };
+  return { health, quality, overview, logs, catalog, error };
 }

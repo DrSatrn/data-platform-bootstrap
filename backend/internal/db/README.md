@@ -7,7 +7,7 @@ Current responsibilities:
 - opening PostgreSQL connections through the Go standard database APIs
 - applying repo-managed SQL migrations through `platformctl migrate`
 - serving as the primary control-plane repository for run snapshots, queue
-  state, and artifact metadata when the required tables exist
+  state, artifact metadata, and saved dashboards when the required tables exist
 - falling back cleanly to the filesystem-backed control plane when PostgreSQL is
   unavailable or migrations have not been applied
 

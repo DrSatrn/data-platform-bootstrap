@@ -167,6 +167,28 @@ textarea {
   flex-wrap: wrap;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0 20px;
+}
+
+.widget-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.wide-field {
+  grid-column: span 2;
+}
+
+.compact-input {
+  min-width: 220px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -259,13 +281,65 @@ textarea {
   border-bottom: 1px solid rgba(114, 89, 63, 0.16);
 }
 
+.chart-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.chart-surface {
+  width: 100%;
+  min-height: 240px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(250, 244, 235, 0.95), rgba(244, 235, 221, 0.92));
+  border: 1px solid rgba(114, 89, 63, 0.14);
+}
+
+.chart-axis {
+  stroke: rgba(92, 75, 57, 0.45);
+  stroke-width: 2;
+}
+
+.chart-line {
+  fill: none;
+  stroke: #c46a1b;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-dot {
+  fill: #8f4315;
+}
+
+.chart-bar {
+  fill: rgba(196, 106, 27, 0.86);
+}
+
+.chart-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.chart-legend-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(114, 89, 63, 0.1);
+}
+
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;
   }
 
   .page-grid,
-  .stats-grid {
+  .stats-grid,
+  .form-grid,
+  .widget-editor-grid {
     grid-template-columns: 1fr;
   }
 
@@ -273,7 +347,8 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .wide-card {
+  .wide-card,
+  .wide-field {
     grid-column: span 1;
   }
 }

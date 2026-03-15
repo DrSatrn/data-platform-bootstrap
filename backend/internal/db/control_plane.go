@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/streanor/data-platform/backend/internal/reporting"
 )
 
 // ControlPlane bundles the PostgreSQL-backed repositories required by the API,
@@ -16,6 +18,7 @@ type ControlPlane struct {
 	RunStore    *RunStore
 	RunQueue    *RunQueue
 	ArtifactIdx *ArtifactIndex
+	Dashboards  reporting.Store
 }
 
 // NewControlPlane opens PostgreSQL and verifies the required control-plane
@@ -30,7 +33,7 @@ func NewControlPlane(ctx context.Context, dsn string) (*ControlPlane, error) {
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
-	requiredTables := []string{"run_snapshots", "queue_requests", "artifact_snapshots"}
+	requiredTables := []string{"run_snapshots", "queue_requests", "artifact_snapshots", "dashboards"}
 	for _, tableName := range requiredTables {
 		present, err := tableExists(ctx, conn, tableName)
 		if err != nil {
@@ -48,5 +51,6 @@ func NewControlPlane(ctx context.Context, dsn string) (*ControlPlane, error) {
 		RunStore:    NewRunStoreFromConn(conn),
 		RunQueue:    NewRunQueueFromConn(conn),
 		ArtifactIdx: NewArtifactIndexFromConn(conn),
+		Dashboards:  NewDashboardStoreFromConn(conn),
 	}, nil
 }

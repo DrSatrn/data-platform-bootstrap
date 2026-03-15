@@ -85,3 +85,40 @@ func TestFileStoreSaveDashboardPersists(t *testing.T) {
 		t.Fatalf("expected saved dashboard to persist")
 	}
 }
+
+func TestFileStoreDeleteDashboardRemovesEntry(t *testing.T) {
+	root := t.TempDir()
+	dashboardRoot := filepath.Join(root, "dashboards")
+	if err := os.MkdirAll(dashboardRoot, 0o755); err != nil {
+		t.Fatalf("mkdir dashboard root: %v", err)
+	}
+
+	store, err := NewFileStore(root, dashboardRoot)
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+	if err := store.SaveDashboard(Dashboard{
+		ID:          "team_ops",
+		Name:        "Team Ops",
+		Description: "Tracks operator-facing metrics.",
+		Widgets: []DashboardWidget{
+			{ID: "cashflow", Name: "Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},
+		},
+	}); err != nil {
+		t.Fatalf("save dashboard: %v", err)
+	}
+
+	if err := store.DeleteDashboard("team_ops"); err != nil {
+		t.Fatalf("delete dashboard: %v", err)
+	}
+
+	dashboards, err := store.ListDashboards()
+	if err != nil {
+		t.Fatalf("list dashboards: %v", err)
+	}
+	for _, dashboard := range dashboards {
+		if dashboard.ID == "team_ops" {
+			t.Fatalf("expected dashboard to be deleted")
+		}
+	}
+}

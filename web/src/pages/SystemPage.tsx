@@ -4,11 +4,19 @@ import { AdminTerminal } from "../components/AdminTerminal";
 import { useSystemData } from "../features/system/useSystemData";
 
 export function SystemPage() {
-  const { health, quality, overview, logs, error } = useSystemData();
+  const { health, quality, overview, logs, catalog, error } = useSystemData();
 
   if (error) {
     return <section className="panel">System error: {error}</section>;
   }
+
+  const freshnessStates = (catalog?.assets ?? []).reduce(
+    (accumulator, asset) => {
+      accumulator[asset.freshness_status.state] = (accumulator[asset.freshness_status.state] ?? 0) + 1;
+      return accumulator;
+    },
+    {} as Record<string, number>
+  );
 
   return (
     <section className="page-grid">
@@ -26,6 +34,9 @@ export function SystemPage() {
         <p className="muted">Requests: {overview?.telemetry.total_requests ?? 0}</p>
         <p className="muted">Errors: {overview?.telemetry.total_errors ?? 0}</p>
         <p className="muted">Admin commands: {overview?.telemetry.total_commands ?? 0}</p>
+        <p className="muted">Fresh assets: {freshnessStates.fresh ?? 0}</p>
+        <p className="muted">Late assets: {freshnessStates.late ?? 0}</p>
+        <p className="muted">Stale assets: {freshnessStates.stale ?? 0}</p>
       </article>
       <article className="card wide-card">
         <h2>Quality Signals</h2>

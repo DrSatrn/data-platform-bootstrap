@@ -17,6 +17,9 @@ development and for the verified localhost smoke workflow.
 9. Open the System page and verify the built-in metrics, recent logs, and admin terminal are responding.
 10. Inspect the finance dashboard and dataset views to confirm materialized outputs are being served.
 11. Confirm the dashboard surface is showing saved widgets for cashflow, category spend, and budget variance.
+12. Use the Dashboard page to create or duplicate a dashboard, adjust widget definitions, and save the result through `/api/v1/reports`.
+13. Use the Datasets and System pages to confirm freshness badges reflect the latest materialized artifacts.
+14. Use the Datasets page detail panel to inspect source refs, quality refs, docs refs, and column-level metadata for the selected asset.
 
 ## Fastest Verified Path
 
@@ -47,4 +50,6 @@ execution layer for curated marts, metrics, and quality queries. The Compose
 stack also now packages the frontend as a built service image, runs migrations
 automatically through a one-shot container, and waits for health before the web
 service starts. Saved dashboard definitions are seeded from repo-managed
-dashboard manifests and persisted under the local data root.
+dashboard manifests, can be edited directly from the browser, and are
+persisted under the local data root while PostgreSQL is available as a mirrored
+reporting persistence backend.

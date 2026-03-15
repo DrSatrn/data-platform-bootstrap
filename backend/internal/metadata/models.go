@@ -14,6 +14,7 @@ type DataAsset struct {
 	SourceRefs        []string  `json:"source_refs" yaml:"source_refs"`
 	Columns           []Column  `json:"columns" yaml:"columns"`
 	Freshness         Freshness `json:"freshness" yaml:"freshness"`
+	FreshnessStatus   Status    `json:"freshness_status"`
 	QualityCheckRefs  []string  `json:"quality_check_refs" yaml:"quality_check_refs"`
 	DocumentationRefs []string  `json:"documentation_refs" yaml:"documentation_refs"`
 }
@@ -30,6 +31,16 @@ type Column struct {
 type Freshness struct {
 	ExpectedWithin string `json:"expected_within" yaml:"expected_within"`
 	WarnAfter      string `json:"warn_after" yaml:"warn_after"`
+}
+
+// Status describes the current observed freshness state for an asset. It is
+// computed at runtime from local materializations rather than coming directly
+// from the manifest.
+type Status struct {
+	State       string `json:"state"`
+	LastUpdated string `json:"last_updated,omitempty"`
+	LagSeconds  int64  `json:"lag_seconds,omitempty"`
+	Message     string `json:"message"`
 }
 
 // Owner describes a responsible individual or team.

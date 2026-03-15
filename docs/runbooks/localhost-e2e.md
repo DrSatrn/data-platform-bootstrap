@@ -191,6 +191,22 @@ curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetr
 curl "http://127.0.0.1:8080/api/v1/reports"
 ```
 
+8. Create, edit, or delete dashboards from the browser:
+
+- open `http://127.0.0.1:3000`
+- go to `Dashboard`
+- use `New dashboard`, `Duplicate`, `Edit dashboard`, and `Delete`
+- save and then confirm the new definition is returned by `/api/v1/reports`
+
+9. Inspect freshness-enriched catalog output:
+
+```bash
+curl "http://127.0.0.1:8080/api/v1/catalog"
+```
+
+You should now see `freshness_status` on assets, with states such as `fresh`,
+`late`, `stale`, or `missing` depending on the local artifact timestamps.
+
 ## Failure modes to check first
 
 - API running but no execution:

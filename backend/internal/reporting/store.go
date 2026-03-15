@@ -22,6 +22,21 @@ import (
 type Store interface {
 	ListDashboards() ([]Dashboard, error)
 	SaveDashboard(Dashboard) error
+	DeleteDashboard(string) error
+}
+
+// MultiStore lets the platform prefer one reporting store while keeping a
+// secondary local-first mirror. This is useful when PostgreSQL is available
+// but we still want filesystem-backed resilience and an easy seed source.
+type MultiStore struct {
+	primary   Store
+	secondary Store
+}
+
+// NewMultiStore creates a reporting store that prefers the primary backend but
+// falls back to the secondary backend when needed.
+func NewMultiStore(primary, secondary Store) Store {
+	return &MultiStore{primary: primary, secondary: secondary}
 }
 
 // Dashboard summarizes a saved internal reporting view.
@@ -96,6 +111,20 @@ func (s *MemoryStore) SaveDashboard(dashboard Dashboard) error {
 	return nil
 }
 
+// DeleteDashboard removes a saved dashboard from memory.
+func (s *MemoryStore) DeleteDashboard(dashboardID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for index := range s.dashboards {
+		if s.dashboards[index].ID == dashboardID {
+			s.dashboards = append(s.dashboards[:index], s.dashboards[index+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
 // FileStore persists dashboards under the platform data root and seeds missing
 // state from repo-managed dashboard manifests.
 type FileStore struct {
@@ -148,6 +177,24 @@ func (s *FileStore) SaveDashboard(dashboard Dashboard) error {
 		return compareStrings(left.Name, right.Name)
 	})
 	return s.writeDashboardsLocked(dashboards)
+}
+
+// DeleteDashboard removes one dashboard from persisted local-first state.
+func (s *FileStore) DeleteDashboard(dashboardID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dashboards, err := s.readDashboardsLocked()
+	if err != nil {
+		return err
+	}
+	filtered := dashboards[:0]
+	for _, dashboard := range dashboards {
+		if dashboard.ID != dashboardID {
+			filtered = append(filtered, dashboard)
+		}
+	}
+	return s.writeDashboardsLocked(filtered)
 }
 
 func (s *FileStore) ensureSeeded() error {
@@ -275,4 +322,32 @@ func compareStrings(left, right string) int {
 	default:
 		return 0
 	}
+}
+
+// ListDashboards returns dashboards from the primary store when available and
+// populated, otherwise it falls back to the secondary store.
+func (s *MultiStore) ListDashboards() ([]Dashboard, error) {
+	primaryDashboards, primaryErr := s.primary.ListDashboards()
+	if primaryErr == nil && len(primaryDashboards) > 0 {
+		return primaryDashboards, nil
+	}
+	return s.secondary.ListDashboards()
+}
+
+// SaveDashboard persists to both stores so the primary backend and local-first
+// fallback stay aligned.
+func (s *MultiStore) SaveDashboard(dashboard Dashboard) error {
+	if err := s.primary.SaveDashboard(dashboard); err != nil {
+		return err
+	}
+	return s.secondary.SaveDashboard(dashboard)
+}
+
+// DeleteDashboard removes a dashboard from both stores so the primary backend
+// and the local-first mirror remain aligned.
+func (s *MultiStore) DeleteDashboard(dashboardID string) error {
+	if err := s.primary.DeleteDashboard(dashboardID); err != nil {
+		return err
+	}
+	return s.secondary.DeleteDashboard(dashboardID)
 }

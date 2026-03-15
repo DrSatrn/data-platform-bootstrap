@@ -3,7 +3,11 @@
 package metadata
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -19,13 +23,15 @@ type AssetLoader interface {
 type CatalogHandler struct {
 	loader  AssetLoader
 	catalog *Catalog
+	dataRoot string
 }
 
 // NewCatalogHandler constructs the metadata API handler.
-func NewCatalogHandler(loader AssetLoader, catalog *Catalog) http.Handler {
+func NewCatalogHandler(loader AssetLoader, catalog *Catalog, dataRoot string) http.Handler {
 	return &CatalogHandler{
 		loader:  loader,
 		catalog: catalog,
+		dataRoot: dataRoot,
 	}
 }
 
@@ -39,7 +45,84 @@ func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.catalog.ReplaceAssets(assets)
+	enriched := h.catalog.ListAssets()
+	for index := range enriched {
+		enriched[index].FreshnessStatus = h.freshnessStatus(enriched[index])
+	}
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"assets": h.catalog.ListAssets(),
+		"assets": enriched,
 	})
+}
+
+func (h *CatalogHandler) freshnessStatus(asset DataAsset) Status {
+	path := assetMaterializationPath(h.dataRoot, asset.ID)
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Status{
+				State:   "missing",
+				Message: "No local materialization has been recorded yet.",
+			}
+		}
+		return Status{
+			State:   "unknown",
+			Message: fmt.Sprintf("Unable to inspect local materialization: %v", err),
+		}
+	}
+
+	updatedAt := info.ModTime().UTC()
+	lag := time.Since(updatedAt)
+	if lag < 0 {
+		lag = 0
+	}
+
+	expectedWithin, expectedErr := time.ParseDuration(asset.Freshness.ExpectedWithin)
+	warnAfter, warnErr := time.ParseDuration(asset.Freshness.WarnAfter)
+	switch {
+	case expectedErr != nil || warnErr != nil:
+		return Status{
+			State:       "fresh",
+			LastUpdated: updatedAt.Format(time.RFC3339),
+			LagSeconds:  int64(lag.Seconds()),
+			Message:     "Freshness SLA is configured but could not be parsed; using raw local timestamp only.",
+		}
+	case lag > warnAfter:
+		return Status{
+			State:       "stale",
+			LastUpdated: updatedAt.Format(time.RFC3339),
+			LagSeconds:  int64(lag.Seconds()),
+			Message:     fmt.Sprintf("Asset is past its warning SLA of %s.", asset.Freshness.WarnAfter),
+		}
+	case lag > expectedWithin:
+		return Status{
+			State:       "late",
+			LastUpdated: updatedAt.Format(time.RFC3339),
+			LagSeconds:  int64(lag.Seconds()),
+			Message:     fmt.Sprintf("Asset is past its expected freshness target of %s.", asset.Freshness.ExpectedWithin),
+		}
+	default:
+		return Status{
+			State:       "fresh",
+			LastUpdated: updatedAt.Format(time.RFC3339),
+			LagSeconds:  int64(lag.Seconds()),
+			Message:     "Asset is within its expected freshness window.",
+		}
+	}
+}
+
+func assetMaterializationPath(dataRoot, assetID string) string {
+	switch {
+	case assetID == "raw_transactions":
+		return filepath.Join(dataRoot, "raw", "raw_transactions.csv")
+	case assetID == "raw_account_balances":
+		return filepath.Join(dataRoot, "raw", "raw_account_balances.json")
+	case assetID == "raw_budget_rules":
+		return filepath.Join(dataRoot, "raw", "raw_budget_rules.json")
+	case len(assetID) > 5 && assetID[:5] == "mart_":
+		return filepath.Join(dataRoot, "mart", assetID+".json")
+	case len(assetID) > 8 && assetID[:8] == "metrics_":
+		return filepath.Join(dataRoot, "metrics", assetID+".json")
+	default:
+		return filepath.Join(dataRoot, assetID+".json")
+	}
 }

@@ -68,7 +68,9 @@ The platform now includes first-party operational features owned by this reposit
 - a system overview API and admin diagnostics page
 - a browser-based admin terminal in the management portal
 - a `platformctl remote ...` command that connects to the running app from any local terminal
-- file-backed saved dashboards seeded from repo-managed dashboard manifests
+- saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
+- browser-based dashboard management with create, duplicate, edit, delete, reorder, and live widget preview flows
+- first-party line and bar chart widgets rendered without external BI or charting products
 
 ## Local Bootstrap
 
@@ -79,6 +81,8 @@ The platform now includes first-party operational features owned by this reposit
 5. Open the web UI on `http://127.0.0.1:3000`.
 6. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
 7. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
+8. Use the Datasets page to inspect freshness states and the Dashboard page to manage saved dashboards directly from the browser.
+9. Use the Datasets page catalog/detail split view to inspect ownership, source refs, quality refs, docs refs, and column-level metadata for a selected asset.
 
 ## Compose Bootstrap
 
