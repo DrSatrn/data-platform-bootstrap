@@ -21,16 +21,16 @@ type AssetLoader interface {
 
 // CatalogHandler serves dataset and metadata endpoints.
 type CatalogHandler struct {
-	loader  AssetLoader
-	catalog *Catalog
+	loader   AssetLoader
+	catalog  *Catalog
 	dataRoot string
 }
 
 // NewCatalogHandler constructs the metadata API handler.
 func NewCatalogHandler(loader AssetLoader, catalog *Catalog, dataRoot string) http.Handler {
 	return &CatalogHandler{
-		loader:  loader,
-		catalog: catalog,
+		loader:   loader,
+		catalog:  catalog,
 		dataRoot: dataRoot,
 	}
 }
@@ -49,8 +49,11 @@ func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for index := range enriched {
 		enriched[index].FreshnessStatus = h.freshnessStatus(enriched[index])
 	}
+	enriched = EnrichAssets(enriched)
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"assets": enriched,
+		"assets":  enriched,
+		"summary": SummarizeAssets(enriched),
+		"lineage": BuildEdges(enriched),
 	})
 }
 

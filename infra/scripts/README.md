@@ -9,3 +9,6 @@ migration runners, manifest validators, and smoke-test helpers.
 - `compose_smoke.sh`: boots the packaged Docker Compose stack, waits for
   migration and service health, validates the built web service, and proves the
   API, worker, scheduler, analytics, quality, artifacts, and remote CLI paths.
+- `benchmark_suite.sh`: runs the repo-owned platform benchmark command against
+  a running stack and writes a timestamped JSON report for future latency and
+  regression tracking.

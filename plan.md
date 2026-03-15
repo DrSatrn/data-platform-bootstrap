@@ -17,47 +17,42 @@ The platform already has:
 - real orchestration and execution
 - DuckDB-backed curated analytics
 - local and packaged smoke paths
-- saved dashboard persistence at the API/store layer
+- dashboard editing and persistence through the browser
+- first-party reporting, diagnostics, and metadata surfaces
 
-The biggest remaining product gap is that operators still cannot shape the
-reporting surface from the UI. The dashboard experience is readable, but it is
-not yet an editable internal tool.
+The next highest-leverage gap is platform trust and repeatable validation:
+operators need deeper catalog intelligence, and the engineering loop needs
+first-party benchmarks that can grow alongside smoke tests.
 
 ## Current Plan
 
-1. Dashboard lifecycle hardening
-   - Complete browser-based create/edit/delete/duplicate flows.
-   - Mirror dashboard persistence into PostgreSQL while preserving the
-     local-first file-backed source.
-   - Add tests around reporting persistence and lifecycle behavior.
+1. Metadata intelligence
+   - Derive richer catalog coverage and lineage summaries from repo manifests.
+   - Surface documentation coverage, quality coverage, freshness, and lineage
+     context in the operator UI.
+   - Keep the metadata API useful without introducing a separate graph service.
 
-2. Richer reporting UX
-   - Support KPI, table, line, and bar widgets without third-party charting
-     dependencies.
-   - Keep live widget hydration and preview during editing.
-   - Improve the saved-dashboard experience so it behaves like a real internal
-     product surface.
+2. Validation and benchmark foundation
+   - Add a first-party benchmark command to `platformctl`.
+   - Add a repo-owned benchmark script that emits timestamped JSON reports.
+   - Build a stronger future E2E validation baseline alongside smoke tests.
 
-3. Metadata trust surfaces
-   - Keep freshness status attached to catalog assets.
-   - Surface stale and missing artifacts clearly in Datasets and System.
-   - Add backend tests so freshness behavior remains reliable across refactors.
-
-4. Next likely follow-on work
-   - Dashboard sharing/preset workflows, more report-level controls, and
-     deeper catalog or dataset drill-down pages.
+3. Next likely follow-on work
+   - Report sharing/preset workflows, deeper dataset drill-downs, and broader
+     control-plane normalization in PostgreSQL.
+   - Expand the benchmark suite with scheduled-run, artifact, and report-save
+     latency budgets.
 
 ## Latest Completed Workstep
 
-- Added browser-based dashboard creation, duplication, editing, deletion, and
-  widget reordering flows.
-- Added first-party line and bar chart widgets alongside KPI and table widgets.
-- Mirrored dashboard persistence into PostgreSQL via the reporting store
-  boundary.
-- Added backend freshness tests and surfaced freshness status in the datasets
-  and system views.
-- Turned the Datasets page into a catalog/detail workbench with owner, source,
-  quality, docs, and column metadata inspection.
+- Added derived catalog coverage, lineage, and trust summaries to the metadata
+  API.
+- Turned the Datasets page into a stronger metadata workbench with coverage,
+  lineage, governance, and column documentation context.
+- Added a first-party `platformctl benchmark` command plus
+  `infra/scripts/benchmark_suite.sh`.
+- Captured an initial benchmark baseline against the packaged stack under
+  `var/benchmarks/`.
 
 ## Deferred / Prompt-Requiring Tests
 

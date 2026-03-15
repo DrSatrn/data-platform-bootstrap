@@ -13,6 +13,28 @@ export function DatasetsPage() {
 
   return (
     <section className="page-grid">
+      <article className="card wide-card">
+        <div className="row-between">
+          <h2>Catalog Trust Summary</h2>
+          <span className="badge">{data?.summary.total_assets ?? 0} assets</span>
+        </div>
+        <div className="stats-grid">
+          <div className="subcard">
+            <p className="muted">Documented columns</p>
+            <strong>
+              {data?.summary.documented_columns ?? 0}/{data?.summary.total_columns ?? 0}
+            </strong>
+          </div>
+          <div className="subcard">
+            <p className="muted">Assets missing docs</p>
+            <strong>{data?.summary.assets_missing_docs ?? 0}</strong>
+          </div>
+          <div className="subcard">
+            <p className="muted">Assets missing quality</p>
+            <strong>{data?.summary.assets_missing_quality ?? 0}</strong>
+          </div>
+        </div>
+      </article>
       <article className="card">
         <div className="row-between">
           <h2>Catalog</h2>
@@ -52,9 +74,9 @@ export function DatasetsPage() {
 
 function DatasetDetail({ asset }: { asset: Asset }) {
   return (
-    <article className="card">
-      <div className="row-between">
-        <h2>{asset.name}</h2>
+      <article className="card">
+        <div className="row-between">
+          <h2>{asset.name}</h2>
         <div className="inline-actions">
           <span className="badge">{asset.layer}</span>
           <span className="badge">{asset.kind}</span>
@@ -74,9 +96,27 @@ function DatasetDetail({ asset }: { asset: Asset }) {
             <p className="muted">Last updated {new Date(asset.freshness_status.last_updated).toLocaleString()}</p>
           ) : null}
         </div>
+        <div className="subcard">
+          <p className="muted">Coverage</p>
+          <strong>
+            {asset.coverage.documented_columns}/{asset.coverage.total_columns} documented columns
+          </strong>
+          <p className="muted">
+            Docs {asset.coverage.has_documentation ? "present" : "missing"} · Quality{" "}
+            {asset.coverage.has_quality_checks ? "present" : "missing"} · PII{" "}
+            {asset.coverage.contains_pii ? "detected" : "none"}
+          </p>
+        </div>
+        <div className="subcard">
+          <p className="muted">Lineage</p>
+          <strong>{asset.lineage.upstream.length} upstream</strong>
+          <p className="muted">{asset.lineage.downstream.length} downstream</p>
+        </div>
       </div>
       <div className="stack">
         <ReferenceStrip label="Sources" values={asset.source_refs} />
+        <ReferenceStrip label="Upstream assets" values={asset.lineage.upstream} />
+        <ReferenceStrip label="Downstream assets" values={asset.lineage.downstream} />
         <ReferenceStrip label="Quality checks" values={asset.quality_check_refs} />
         <ReferenceStrip label="Docs" values={asset.documentation_refs} />
       </div>

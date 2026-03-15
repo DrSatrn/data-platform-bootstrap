@@ -51,6 +51,15 @@ make compose-smoke
 
 That workflow confirms the hosted web UI is reachable, not just the API.
 
+## Benchmark follow-up
+
+After a successful smoke pass, run the benchmark suite to capture response
+budgets for the current build:
+
+```bash
+make benchmark
+```
+
 ## Recommended local startup
 
 1. Start the API:

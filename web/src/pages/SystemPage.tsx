@@ -38,6 +38,13 @@ export function SystemPage() {
         <p className="muted">Late assets: {freshnessStates.late ?? 0}</p>
         <p className="muted">Stale assets: {freshnessStates.stale ?? 0}</p>
       </article>
+      <article className="card">
+        <h2>Catalog Trust</h2>
+        <p className="muted">Missing docs: {catalog?.summary.assets_missing_docs ?? 0}</p>
+        <p className="muted">Missing quality: {catalog?.summary.assets_missing_quality ?? 0}</p>
+        <p className="muted">Assets with PII: {catalog?.summary.assets_containing_pii ?? 0}</p>
+        <p className="muted">Lineage edges: {catalog?.summary.lineage_edges ?? 0}</p>
+      </article>
       <article className="card wide-card">
         <h2>Quality Signals</h2>
         <div className="stack">

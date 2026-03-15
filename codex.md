@@ -28,13 +28,15 @@ What has already been built
 	•	Packaged Compose deployment with a built frontend service image, one-shot migrations, health-gated startup, and a repo-owned `compose_smoke.sh` workflow that validates the hosted UI plus the API, worker, scheduler, analytics, quality, artifacts, and CLI paths.
 	•	Catalog assets now expose runtime freshness state derived from local materialization timestamps, and the Datasets/System pages surface those freshness signals directly.
 	•	The Datasets page now acts as a catalog/detail workbench, exposing owner, source refs, quality refs, docs refs, and richer column metadata for the selected asset.
+	•	The metadata API now derives trust-oriented coverage summaries and lineage edges from manifests and runtime state, not just raw asset lists.
+	•	`platformctl benchmark` plus `infra/scripts/benchmark_suite.sh` now provide a first-party latency benchmark path that writes timestamped JSON reports under `var/benchmarks/`.
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
 	•	Normalize more control-plane metadata into first-class PostgreSQL tables beyond the current pragmatic snapshot and queue repositories.
 	•	Expand the analytical layer beyond the first finance slice with freshness surfaces, more than one transform/metric family, and richer report editing workflows.
-	•	Add a UI path for editing and saving dashboards instead of relying on API-level persistence alone.
 	•	Broaden scheduler coverage beyond the currently supported cron subset if future slices need ranges, named weekdays, or more advanced catchup semantics.
+	•	Deepen the benchmark suite so it covers scheduled-run latency, artifact retrieval, report save/update paths, and higher-load scenarios.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -45,15 +47,14 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Completed browser-based dashboard management: create, duplicate, edit, delete, add/remove/reorder widgets, and save through `/api/v1/reports`.
-	•	Expanded the reporting surface with first-party line-chart and bar-chart widgets rendered in the frontend without third-party chart packages.
-	•	Promoted reporting persistence toward the preferred control plane by mirroring saved dashboards into PostgreSQL through the reporting store boundary while retaining the local-first file store.
-	•	Added runtime freshness enrichment for catalog assets and surfaced freshness status in the Datasets and System pages.
-	•	Upgraded the Datasets page from a flat list into a catalog/detail inspection surface for owner, lineage-adjacent refs, docs refs, and column metadata.
-	•	Added backend tests covering metadata freshness classification and reporting delete persistence.
+	•	Added derived metadata coverage and lineage summaries to the catalog API so operators can see documentation coverage, quality coverage, freshness distribution, PII presence, and lineage edges directly.
+	•	Expanded the Datasets page into a richer catalog workbench with trust summary cards, coverage detail, upstream/downstream lineage, and governance-oriented metadata inspection.
+	•	Added a first-party benchmark command to `platformctl` and a repo-owned `benchmark_suite.sh` wrapper that writes timestamped JSON reports.
+	•	Hardened the benchmark flow so it fails loudly when the target stack is unreachable instead of producing misleading green output.
+	•	Captured a real packaged-stack benchmark baseline under `var/benchmarks/benchmark-20260315T011516Z.json`.
 
 Next workstep to execute
-	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, and broader control-plane normalization in PostgreSQL.
+	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, broader control-plane normalization in PostgreSQL, and expanded benchmark/load validation coverage.
 
 Session Close Handoff
 
@@ -66,33 +67,35 @@ Current state at session end
 	•	The frontend now renders the dashboard from saved dashboard definitions plus constrained analytics queries rather than hardcoded page-specific data loading, and operators can manage those dashboards directly from the browser.
 	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, persisted locally under the platform data root through the file-backed reporting store, and mirrored into PostgreSQL when the DB-backed reporting store is active.
 	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
-	•	The metadata/catalog API now enriches assets with runtime freshness state, and that state is surfaced in the Datasets and System pages.
+	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
+	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
 
 Files changed in the latest workstep
-	•	Reporting store and API:
-		•	`backend/internal/reporting/store.go`
-		•	`backend/internal/reporting/handler.go`
-		•	`backend/internal/reporting/store_test.go`
-		•	`backend/internal/reporting/README.md`
-	•	DB-backed reporting persistence:
-		•	`backend/internal/db/dashboard_store.go`
-		•	`backend/internal/db/README.md`
-	•	Metadata freshness testing:
-		•	`backend/internal/metadata/handler_test.go`
-	•	Frontend reporting and API client:
-		•	`web/src/lib/api.ts`
-		•	`web/src/features/dashboard/useDashboardData.ts`
-		•	`web/src/pages/DashboardPage.tsx`
+	•	Metadata model, API, and tests:
+		•	`backend/internal/metadata/models.go`
+		•	`backend/internal/metadata/catalog.go`
+		•	`backend/internal/metadata/catalog_test.go`
+		•	`backend/internal/metadata/handler.go`
+	•	Benchmark command and tests:
+		•	`backend/cmd/platformctl/main.go`
+		•	`backend/cmd/platformctl/main_test.go`
+	•	Frontend metadata surfaces:
 		•	`web/src/features/datasets/useDatasets.ts`
 		•	`web/src/pages/DatasetsPage.tsx`
-		•	`web/src/styles/global.css`
-	•	Docs and planning:
-		•	`README.md`
+		•	`web/src/features/system/useSystemData.ts`
+		•	`web/src/pages/SystemPage.tsx`
+	•	Benchmark workflow and docs:
+		•	`infra/scripts/benchmark_suite.sh`
+		•	`infra/scripts/README.md`
+		•	`docs/runbooks/benchmarking.md`
 		•	`docs/runbooks/bootstrap.md`
 		•	`docs/runbooks/localhost-e2e.md`
+		•	`docs/runbooks/README.md`
+		•	`README.md`
+		•	`Makefile`
 		•	`plan.md`
 		•	`codex.md`
 
@@ -102,14 +105,17 @@ Validated at end of session
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18085 sh infra/scripts/localhost_smoke.sh`
+		•	`PLATFORM_SMOKE_PORT=18086 sh infra/scripts/localhost_smoke.sh`
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
+	•	Packaged-stack benchmark baseline passed:
+		•	`sh infra/scripts/benchmark_suite.sh`
+		•	output: `var/benchmarks/benchmark-20260315T011516Z.json`
 
 Important fixes made during this session
-	•	The reporting store contract now supports delete semantics so browser-based dashboard lifecycle management stays aligned across memory, file-backed, and PostgreSQL-backed persistence implementations.
-	•	Widget editing now keeps dataset and metric sources mutually exclusive so constrained analytics queries do not silently prefer one source over the other.
-	•	Chart rendering now handles negative values correctly by computing a dynamic baseline instead of assuming all series are positive.
+	•	The benchmark command now fails when one or more targets record zero successful requests, preventing misleading green benchmark runs against dead stacks.
+	•	The benchmark wrapper now performs a health check up front so operator feedback is immediate when the target stack is not live.
+	•	A catalog summary bug was fixed so column totals come from derived coverage state rather than assuming raw column arrays are always present in the summary input.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -123,12 +129,13 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is richer reporting product depth rather than basic dashboard CRUD.
+	•	The cleanest next increment is deeper enterprise-readiness across validation and metadata-backed user experience.
 	•	The next agent can focus on:
 		•	dashboard presets/sharing workflows
 		•	richer widget-specific controls and layout behavior
-		•	dataset drill-down/detail pages using the existing catalog and analytics APIs
+		•	more advanced dataset drill-downs and lineage visualization using the existing catalog API
 		•	deeper PostgreSQL normalization for reporting and metadata state
+		•	expanding the benchmark suite into load, queue, artifact, and scheduled-run latency budgets
 
 Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
@@ -136,16 +143,19 @@ Biggest remaining gaps
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
+	•	The benchmark suite is now real, but it is still a small baseline rather than a full performance certification matrix.
 
 Read these first in the next session
 	•	`README.md`
 	•	`backend/internal/app/runtime.go`
 	•	`backend/internal/reporting/store.go`
-	•	`backend/internal/db/dashboard_store.go`
 	•	`backend/internal/analytics/service.go`
 	•	`backend/internal/metadata/handler.go`
-	•	`web/src/features/dashboard/useDashboardData.ts`
-	•	`web/src/pages/DashboardPage.tsx`
+	•	`backend/internal/metadata/catalog.go`
+	•	`backend/cmd/platformctl/main.go`
+	•	`web/src/features/datasets/useDatasets.ts`
+	•	`web/src/pages/DatasetsPage.tsx`
+	•	`docs/runbooks/benchmarking.md`
 	•	`docs/runbooks/localhost-e2e.md`
 
 Non-negotiable engineering goals

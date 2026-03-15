@@ -34,6 +34,13 @@ type LogsPayload = {
 };
 
 type CatalogPayload = {
+  summary: {
+    by_freshness: Record<string, number>;
+    assets_missing_docs: number;
+    assets_missing_quality: number;
+    assets_containing_pii: number;
+    lineage_edges: number;
+  };
   assets: Array<{
     id: string;
     freshness_status: {

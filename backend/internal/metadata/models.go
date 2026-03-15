@@ -15,6 +15,8 @@ type DataAsset struct {
 	Columns           []Column  `json:"columns" yaml:"columns"`
 	Freshness         Freshness `json:"freshness" yaml:"freshness"`
 	FreshnessStatus   Status    `json:"freshness_status"`
+	Coverage          Coverage  `json:"coverage"`
+	Lineage           Lineage   `json:"lineage"`
 	QualityCheckRefs  []string  `json:"quality_check_refs" yaml:"quality_check_refs"`
 	DocumentationRefs []string  `json:"documentation_refs" yaml:"documentation_refs"`
 }
@@ -49,4 +51,40 @@ type Owner struct {
 	DisplayName string `json:"display_name" yaml:"display_name"`
 	Email       string `json:"email" yaml:"email"`
 	Team        string `json:"team" yaml:"team"`
+}
+
+// Coverage describes how well a catalog asset is documented and governed.
+type Coverage struct {
+	DocumentedColumns int  `json:"documented_columns"`
+	TotalColumns      int  `json:"total_columns"`
+	HasDocumentation  bool `json:"has_documentation"`
+	HasQualityChecks  bool `json:"has_quality_checks"`
+	ContainsPII       bool `json:"contains_pii"`
+}
+
+// Lineage captures immediate upstream and downstream relationships for an
+// asset so the UI can render useful context without a separate graph service.
+type Lineage struct {
+	Upstream   []string `json:"upstream"`
+	Downstream []string `json:"downstream"`
+}
+
+// Edge describes one lineage relationship between two assets or sources.
+type Edge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// Summary provides high-signal aggregate catalog metrics for operators and
+// validation tooling.
+type Summary struct {
+	TotalAssets          int            `json:"total_assets"`
+	ByLayer              map[string]int `json:"by_layer"`
+	ByFreshness          map[string]int `json:"by_freshness"`
+	AssetsMissingDocs    int            `json:"assets_missing_docs"`
+	AssetsMissingQuality int            `json:"assets_missing_quality"`
+	AssetsContainingPII  int            `json:"assets_containing_pii"`
+	DocumentedColumns    int            `json:"documented_columns"`
+	TotalColumns         int            `json:"total_columns"`
+	LineageEdges         int            `json:"lineage_edges"`
 }

@@ -19,11 +19,37 @@ export type Asset = {
     lag_seconds?: number;
     message: string;
   };
+  coverage: {
+    documented_columns: number;
+    total_columns: number;
+    has_documentation: boolean;
+    has_quality_checks: boolean;
+    contains_pii: boolean;
+  };
+  lineage: {
+    upstream: string[];
+    downstream: string[];
+  };
   columns: Array<{ name: string; type: string; description: string; is_pii?: boolean }>;
 };
 
 type DatasetPayload = {
   assets: Asset[];
+  summary: {
+    total_assets: number;
+    by_layer: Record<string, number>;
+    by_freshness: Record<string, number>;
+    assets_missing_docs: number;
+    assets_missing_quality: number;
+    assets_containing_pii: number;
+    documented_columns: number;
+    total_columns: number;
+    lineage_edges: number;
+  };
+  lineage: Array<{
+    from: string;
+    to: string;
+  }>;
 };
 
 export function useDatasets() {

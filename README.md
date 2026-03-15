@@ -135,6 +135,19 @@ quality, artifacts, and CLI layers:
 make compose-smoke
 ```
 
+## Benchmarking
+
+The repo now includes a first-party benchmark command and wrapper script so we
+can start tracking response budgets as the product grows:
+
+```bash
+make benchmark
+```
+
+That writes a timestamped JSON report under `var/benchmarks/` and currently
+covers health, catalog, analytics, reports, system overview, and the admin
+terminal status command.
+
 ## Localhost Safety Defaults
 
 - API and web bindings are loopback-first by default.
