@@ -10,7 +10,7 @@ No production handlers were changed in this work block.
 - Endpoint/method contracts reviewed: `18`
 - Plain-text error responses found: `0`
 - Handlers missing JSON `Content-Type` on error: `0`
-- Inconsistencies found: `5`
+- Inconsistencies found: `4`
 - Critical issues found: `0`
 
 ## Post-Hardening Update
@@ -46,8 +46,8 @@ leakage.
 | `/api/v1/admin/users` | `GET` | `200` | `403`, `500`, `405` | JSON `{error}`; `403` is generic admin-only error | No |
 | `/api/v1/admin/users` | `POST` | `201` | `400`, `403`, `405` | JSON `{error}`; raw role/service errors bubble through | No |
 | `/api/v1/admin/users` | `PATCH` | `200` | `400`, `403`, `405` | JSON `{error}`; raw service errors bubble through | No |
-| `/api/v1/pipelines` | `GET` | `200` | `403`, `500` | JSON `{error}` from wrapper/handler | Mostly |
-| `/api/v1/pipelines` | `POST` | `202` | `400`, `403` | JSON `{error}`; trigger failures return raw service errors | No |
+| `/api/v1/pipelines` | `GET` | `200` | `403`, `500` | JSON `{error}` from wrapper/handler; validation summaries are sanitized | Yes |
+| `/api/v1/pipelines` | `POST` | `202` | `400`, `403` | JSON `{error}` with stable trigger-failure messages | Yes |
 | `/api/v1/catalog` | `GET` | `200` | `403`, `500` | JSON `{error}` from wrapper/handler | Mostly |
 | `/api/v1/catalog` | `PATCH` | `200` | `400`, `403`, `404`, `500`, `503` | JSON `{error}`; store errors returned verbatim | No |
 | `/api/v1/catalog/profile` | `GET` | `200` | `400`, `403`, `404`, `500` | JSON `{error}`; profiling errors returned verbatim | Mostly |
@@ -100,8 +100,9 @@ leakage.
 
 ### `backend/internal/orchestration/handler.go`
 - Good: read-path failures use stable messages instead of raw store errors.
-- Concern: trigger failures return raw control-service errors.
-- Concern: write-path auth failure shape differs from the shared role middleware payload.
+- Good: trigger failures now use stable client messages and log raw backend detail server-side.
+- Good: pipeline validation summaries are sanitized instead of returning raw validator text.
+- Good: write-path auth failure shape matches the shared role middleware payload.
 
 ### `backend/internal/quality/handler.go`
 - Good: JSON-only.

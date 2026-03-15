@@ -34,6 +34,7 @@
 - Active sessions per user are capped at `5` by default and older sessions are trimmed.
 - Session touch failures are logged instead of being silently ignored.
 - Handler responses no longer return raw `err.Error()` strings directly to API clients.
+- Pipeline validation summaries are sanitized and no longer expose raw validator text from the orchestration handler.
 - Handler-local role checks now use the same structured `403` envelope shape as the shared role middleware.
 - The security model is now documented for operators in `docs/security.md`.
 
@@ -43,6 +44,7 @@
 - `cd backend && go test -count=1 ./...` — PASS
 - `cd backend && go run ./cmd/platformctl validate-manifests` — PASS
 - `git diff --check` — PASS
+- `cd backend && go test -count=1 ./internal/orchestration/...` — PASS
 - `rg -n 'shared\\.WriteJSON\\([^\\n]*err\\.Error\\(\\)|\"error\": err\\.Error\\(\\)' backend/internal --glob 'handler.go' --glob 'handlers.go' --glob 'profile_handler.go' --glob 'registry_handler.go'` — only remaining hits are audit-detail fields and server logs, not client error payloads
 
 ## What Was Explicitly NOT Changed

@@ -70,7 +70,14 @@ func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	validationErrors := make(map[string]string)
 	for _, pipeline := range pipelines {
 		if err := ValidatePipeline(pipeline); err != nil {
-			validationErrors[pipeline.ID] = err.Error()
+			// Validation results are intended for operators, but we still keep
+			// the API payload stable and avoid returning raw validator text.
+			validationErrors[pipeline.ID] = "pipeline definition is invalid; inspect local validation logs for details"
+			h.logger.Warn(
+				"pipeline validation failed",
+				slog.String("pipeline_id", pipeline.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 
