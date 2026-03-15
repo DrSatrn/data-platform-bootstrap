@@ -1,78 +1,160 @@
-# Bootstrap Runbook
+# Compose Bootstrap Runbook
 
-This runbook explains the intended local bootstrap path for day-to-day
-development and for the verified localhost smoke workflow.
+This runbook owns the packaged self-host startup path. It does not describe the
+host-run debug flow. Use [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+first if you have not already completed one successful smoke run.
 
-## Intended Flow
+## What This Path Is For
 
-1. Review `codex.md` for repo-specific guidance.
-2. Copy `.env.example` to `.env`, adjust local paths if needed, and define at
-   least one token with the role you need for the session.
-3. Apply database migrations if PostgreSQL is running with `go run ./cmd/platformctl migrate`.
-4. Build the backend and web runtimes. Confirm host C/C++ build tools are
-   installed because the DuckDB driver is CGO-backed.
-5. Start the Compose stack or run `platform-api`, `platform-worker`, `platform-scheduler`, and the web app locally.
-6. Confirm the API health endpoint responds and the worker is polling.
-7. Queue a manual pipeline run from the Pipelines page or with `platformctl remote --token <token> trigger personal_finance_pipeline`.
-8. Verify that run artifacts appear under the local `var/` directory and that run status moves from `queued` to `running` to `succeeded`.
-9. Open the System page and verify the built-in metrics, recent logs, and admin terminal are responding.
-10. Inspect the finance dashboard and dataset views to confirm materialized outputs are being served.
-11. Confirm the dashboard surface is showing saved widgets for cashflow, category spend, and budget variance.
-12. Use the Dashboard page to create or duplicate a dashboard, adjust widget definitions, and save the result through `/api/v1/reports`.
-13. Use the Datasets and System pages to confirm freshness badges reflect the latest materialized artifacts.
-14. Use the Datasets page detail panel to inspect source refs, quality refs, docs refs, and column-level metadata for the selected asset.
-15. Run `make benchmark` after the stack is healthy to capture response budgets for the current build.
-16. Open the System page and confirm the audit trail shows recent pipeline, dashboard, and admin actions.
-17. Run `make backup` and verify a first-party recovery bundle can be created for the current environment.
+Use this runbook when you want:
 
-## Token Guidance
+- the closest thing to the intended self-hosted local deployment
+- PostgreSQL enabled as the preferred control-plane backend
+- the packaged web service instead of the Vite dev server
 
-- `PLATFORM_ADMIN_TOKEN` maps to the `admin` role and is enough for smoke
-  scripts, `platformctl remote`, and the built-in admin terminal.
-- `PLATFORM_ACCESS_TOKENS` lets you add extra `viewer` and `editor` tokens in
-  `token:role:subject` format.
-- Use an `editor` token in the browser when you want to trigger runs or save
-  dashboards without exposing the full admin command surface.
+## Role Requirements
 
-## Fastest Verified Path
+- Anonymous: `GET /healthz`, `GET /api/v1/session`
+- Viewer: browse UI pages and read APIs
+- Editor: trigger runs, save dashboards
+- Admin: admin terminal, `platformctl remote ...`
 
-Use the repo-owned smoke workflow when you want a quick end-to-end confidence
-check without mutating your normal repo-local data directory:
+## Optional Compose Overrides
 
-```bash
-make smoke
+The tracked Compose file has safe defaults already. Only create `.env.compose`
+if you want to override token or Postgres settings.
+
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
+cp .env.compose.example .env.compose
 ```
 
-That workflow starts API, worker, and scheduler against an isolated `/tmp`
-runtime root, verifies scheduled and manual runs, checks run artifacts, creates
-and verifies a backup bundle, calls the admin terminal API, and proves the
-`platformctl remote` CLI against the live localhost API.
+## Start The Stack
 
-## Compose Path
+Working directory:
 
-When you want the service stack running continuously instead of an isolated
-smoke run, use the validated Compose flow:
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
+```
 
-```bash
+Command:
+
+```sh
 make bootstrap
 ```
 
-This path now uses PostgreSQL as the primary control-plane store for queued
-runs, run snapshots, and artifact metadata, and DuckDB as the analytical
-execution layer for curated marts, metrics, and quality queries. The Compose
-stack also now packages the frontend as a built service image, runs migrations
-automatically through a one-shot container, and waits for health before the web
-service starts. Saved dashboard definitions are seeded from repo-managed
-dashboard manifests, can be edited directly from the browser, and are
-persisted under the local data root while PostgreSQL is available as a mirrored
-reporting persistence backend.
+Expected success result:
+
+- `docker compose ps` shows:
+  - healthy `postgres`
+  - completed `migrate`
+  - healthy `api`
+  - running `worker`
+  - running `scheduler`
+  - healthy `web`
+- API is reachable at `http://127.0.0.1:8080/healthz`
+- web is reachable at `http://127.0.0.1:3000`
+
+## Verify The Stack
+
+Health:
+
+```sh
+curl http://127.0.0.1:8080/healthz
+```
+
+Expected result:
+
+- HTTP `200`
+- JSON includes the configured environment and data root
+
+Session:
+
+```sh
+curl http://127.0.0.1:8080/api/v1/session
+```
+
+Expected result:
+
+- HTTP `200`
+- anonymous principal if no bearer token is supplied
+
+Catalog:
+
+```sh
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
+```
+
+Expected result:
+
+- HTTP `200`
+- JSON `assets` array is present
+
+## Run One Manual Pipeline
+
+Role required: `editor`
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer editor-token" \
+  -H "Content-Type: application/json" \
+  -d '{"pipeline_id":"personal_finance_pipeline"}' \
+  http://127.0.0.1:8080/api/v1/pipelines
+```
+
+Expected result:
+
+- HTTP `202`
+- response includes `"status":"queued"` in the returned run payload
+
+## Verify Downstream Outputs
+
+Role required: `viewer`
+
+```sh
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/pipelines
+curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+```
+
+Expected result:
+
+- the latest run reaches `succeeded`
+- analytics returns rows
+- dataset profile returns row count and profiled columns
+
+## Preferred Control-Plane Reality
+
+In this mode:
+
+- PostgreSQL is the preferred source of truth for runs, queue state, artifacts,
+  dashboards, audit events, and projected metadata
+- filesystem stores remain as local-first fallback and recovery material, not
+  the preferred live read path
+- DuckDB remains the analytical execution store
+
+If PostgreSQL is unavailable, the runtime falls back to filesystem-backed
+stores, but that is a fallback mode, not the preferred packaged behavior.
+
+## If This Fails, Check Next
+
+1. `docker compose -f infra/compose/docker-compose.yml ps`
+2. `docker compose -f infra/compose/docker-compose.yml logs migrate`
+3. `docker compose -f infra/compose/docker-compose.yml logs api`
+4. `docker compose -f infra/compose/docker-compose.yml logs worker`
+5. `docker compose -f infra/compose/docker-compose.yml logs scheduler`
+6. confirm `127.0.0.1:8080` and `127.0.0.1:3000` are not already occupied
 
 ## Recovery Follow-Up
 
-After a healthy bootstrap, capture a recovery point:
+After the stack is healthy, capture a recovery point:
 
-```bash
+```sh
 make backup
 ```
 
-This now creates and verifies a portable platform backup bundle under `var/backups/`.
+Expected result:
+
+- command exits `0`
+- output includes `backup bundle created:`
+- output includes `backup bundle verified:` after verification

@@ -1,0 +1,13 @@
+# This quality manifest tracks whether account balance snapshots are arriving
+# within the freshness window expected by the raw account-balance landing
+# asset.
+id: check_balance_snapshot_recency
+name: Balance Snapshot Recency
+description: Flags account balance snapshots that arrive too far behind their expected capture time.
+severity: high
+asset_ref: raw_account_balances
+type: freshness
+column_ref: captured_at
+threshold:
+  operator: lte
+  value: 8

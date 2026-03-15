@@ -1,0 +1,6 @@
+dbt_finance_demo:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../../../../var/duckdb/platform.duckdb

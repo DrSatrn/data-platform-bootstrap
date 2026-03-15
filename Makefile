@@ -3,8 +3,9 @@
 # tricks so the build and runtime model stays easy to understand.
 
 SHELL := /bin/sh
+COMPOSE_ENV_FILE := $(if $(wildcard .env.compose),--env-file .env.compose,)
 
-.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup
+.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup restore-drill
 
 doctor:
 	@echo "Review codex.md before first build."
@@ -34,10 +35,10 @@ web-build:
 	cd web && npm run build
 
 up:
-	docker compose -f infra/compose/docker-compose.yml up --build
+	docker compose $(COMPOSE_ENV_FILE) -f infra/compose/docker-compose.yml up --build
 
 down:
-	docker compose -f infra/compose/docker-compose.yml down
+	docker compose $(COMPOSE_ENV_FILE) -f infra/compose/docker-compose.yml down
 
 smoke:
 	sh infra/scripts/localhost_smoke.sh
@@ -51,5 +52,8 @@ benchmark:
 backup:
 	sh infra/scripts/backup_snapshot.sh
 
+restore-drill:
+	sh infra/scripts/restore_drill.sh
+
 bootstrap:
-	docker compose -f infra/compose/docker-compose.yml up -d --build
+	docker compose $(COMPOSE_ENV_FILE) -f infra/compose/docker-compose.yml up -d --build

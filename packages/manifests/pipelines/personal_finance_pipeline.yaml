@@ -20,7 +20,6 @@ jobs:
     type: ingest
     retries: 2
     timeout: 2m
-    command: python3 tasks/ingest_transactions.py
     inputs:
       - sample.transactions_csv
     outputs:
@@ -32,7 +31,6 @@ jobs:
       - ingest_transactions_csv
     retries: 2
     timeout: 2m
-    command: python3 tasks/ingest_balances.py
     inputs:
       - sample.account_balances_json
     outputs:
@@ -44,7 +42,6 @@ jobs:
       - ingest_account_balances_json
     retries: 1
     timeout: 1m
-    command: python3 tasks/ingest_budget_rules.py
     inputs:
       - sample.budget_rules_json
     outputs:
@@ -119,7 +116,6 @@ jobs:
       - build_budget_vs_actual_mart
     retries: 0
     timeout: 1m
-    command: python3 tasks/check_uncategorized.py
     inputs:
       - mart_monthly_cashflow
     outputs:

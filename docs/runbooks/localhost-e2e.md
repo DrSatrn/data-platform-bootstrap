@@ -1,250 +1,168 @@
-# Localhost End-to-End Runbook
+# Host-Run End-to-End Runbook
 
-This runbook explains how to bring up the platform locally and verify a real end-to-end pipeline execution on localhost.
+This runbook owns the host-run binary path. Use it when you are debugging the
+API, worker, scheduler, or web app individually. Do not use this as the first
+setup document; start with
+[quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md).
 
-## Goal
+## What This Path Is For
 
-Prove that the platform can:
+Use this runbook when you want to:
 
-- start locally on an Apple Silicon machine
-- accept a manual pipeline trigger
-- queue the run durably
-- execute the run in the worker
-- materialize local data artifacts
-- persist run snapshots, queue state, and artifact metadata in PostgreSQL when bootstrapped
-- expose updated run history and analytics through the API and UI
+- run `platform-api`, `platform-worker`, and `platform-scheduler` directly
+- inspect local logs and behavior without Docker
+- debug config or code changes with tighter feedback loops
 
-## Prerequisites
+## Configuration Reality
 
-- Go installed locally
-- Node and npm installed locally
-- host C/C++ build tools available for the DuckDB Go driver
-- Docker or OrbStack available for local PostgreSQL if you want the full stack profile
-- a local `.env` file created from `.env.example` with placeholder credentials replaced
-- at least one configured bearer token for the role you want to test
+- Host-run binaries auto-load `.env` and `.env.local`.
+- Copy [.env.example](/Users/streanor/Documents/Playground/data-platform/.env.example)
+  to `.env` from the repo root.
+- Those values are intended for `go run` from `backend/`.
+- Compose-only overrides belong in `.env.compose`, not `.env`.
 
-## Fastest repeatable check
+## Role Requirements
 
-Use the repo-owned smoke script when you want the quickest verified path:
+- Viewer: read platform pages and APIs
+- Editor: trigger manual runs and save dashboards
+- Admin: admin terminal and `platformctl remote ...`
 
-```bash
-make smoke
+## Prepare Local Config
+
+Working directory:
+
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
+cp .env.example .env
 ```
 
-That workflow starts API, worker, and scheduler on loopback, triggers a manual
-run after confirming the scheduler path, verifies the artifact API, exercises
-the admin terminal, creates and verifies a real backup bundle, and proves the
-`platformctl remote` CLI.
+Expected result:
 
-If the default smoke port is already occupied, choose another loopback port:
+- `.env` exists at repo root
+- it contains local filesystem paths such as `../var/data`
 
-```bash
-PLATFORM_SMOKE_PORT=18081 make smoke
-```
+If this fails, check next:
 
-## Packaged deployment check
+1. confirm you are in the repo root
+2. confirm `.env.example` still exists
 
-Use the Compose smoke workflow when you want to validate the production-style
-local deployment rather than host-run binaries:
+## Optional Postgres Setup
 
-```bash
-make compose-smoke
-```
+If you want the preferred Postgres control-plane mode while still running
+processes directly, start only Postgres through Compose:
 
-That workflow confirms the hosted web UI is reachable, not just the API.
-
-## Benchmark follow-up
-
-After a successful smoke pass, run the benchmark suite to capture response
-budgets for the current build:
-
-```bash
-make benchmark
-```
-
-Capture a recovery point as part of the same validation pass:
-
-```bash
-make backup
-```
-
-## Recommended local startup
-
-1. Start the API:
-
-```bash
-cd backend
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-api
-```
-
-2. Start the worker in a second terminal:
-
-```bash
-cd backend
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-worker
-```
-
-3. Start the frontend in a third terminal:
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-4. Optional but recommended: apply migrations if PostgreSQL is running:
-
-```bash
+```sh
+docker compose -f infra/compose/docker-compose.yml up -d postgres
 cd backend
 go run ./cmd/platformctl migrate
 ```
 
-For the Compose-backed service image path:
+Expected result:
 
-```bash
-make bootstrap
+- migration command exits `0`
+- Postgres is healthy in `docker compose ps`
+
+If you skip this, the runtime will use the filesystem fallback stores.
+
+## Start The Services
+
+API:
+
+```sh
+cd /Users/streanor/Documents/Playground/data-platform/backend
+go run ./cmd/platform-api
 ```
 
-That path now starts PostgreSQL, runs migrations automatically through the
-`migrate` service, waits for API health, and serves the frontend through the
-packaged platform web service rather than a Vite dev server.
+Worker:
 
-## Health checks
-
-Confirm the API is reachable:
-
-```bash
-curl http://127.0.0.1:8080/healthz
+```sh
+cd /Users/streanor/Documents/Playground/data-platform/backend
+go run ./cmd/platform-worker
 ```
 
-Confirm manifest validation still passes:
+Scheduler:
 
-```bash
-cd backend
-go run ./cmd/platformctl validate-manifests
+```sh
+cd /Users/streanor/Documents/Playground/data-platform/backend
+go run ./cmd/platform-scheduler
 ```
 
-## Trigger the pipeline
+Web:
 
-Use the CLI:
-
-```bash
-cd backend
-PLATFORM_API_BASE_URL=http://127.0.0.1:8080 \
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token \
-go run ./cmd/platformctl remote trigger personal_finance_pipeline
+```sh
+cd /Users/streanor/Documents/Playground/data-platform/web
+npm run dev
 ```
 
-Or use the browser:
+Expected success result:
 
-- open `http://127.0.0.1:3000`
-- paste an `editor` or `admin` token into the sidebar token field
-- go to the Pipelines page
-- click `Run now`
+- API responds on `http://127.0.0.1:8080/healthz`
+- web responds on `http://127.0.0.1:3000`
+- worker logs show polling
+- scheduler logs show the configured tick interval
 
-Or use the System page admin terminal:
+## Trigger One Manual Run
 
-- run `trigger personal_finance_pipeline`
+Role required: `editor`
 
-## Expected outputs
+CLI path:
 
-After the worker poll interval, the run should progress to `succeeded` and these files should exist under the local data root:
-
-- `control_plane/runs/<run_id>.json`
-- `raw/raw_transactions.csv`
-- `raw/raw_account_balances.json`
-- `raw/raw_budget_rules.json`
-- `mart/mart_monthly_cashflow.json`
-- `mart/mart_category_spend.json`
-- `mart/mart_budget_vs_actual.json`
-- `quality/check_uncategorized_transactions.json`
-- `metrics/metrics_savings_rate.json`
-- `metrics/metrics_category_variance.json`
-
-If you are using the default repo-local data root, these will appear under `var/`.
-
-## Verification checks
-
-1. Inspect pipeline status:
-
-```bash
-curl http://127.0.0.1:8080/api/v1/pipelines
+```sh
+curl -X POST \
+  -H "Authorization: Bearer editor-token" \
+  -H "Content-Type: application/json" \
+  -d '{"pipeline_id":"personal_finance_pipeline"}' \
+  http://127.0.0.1:8080/api/v1/pipelines
 ```
 
-2. Inspect analytics output:
+Browser path:
 
-```bash
-curl http://127.0.0.1:8080/api/v1/analytics
-curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
-curl "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
+1. open `http://127.0.0.1:3000`
+2. paste an `editor` token into the sidebar
+3. open `Pipelines`
+4. click `Run now`
+
+Expected result:
+
+- the returned run is `queued`
+- the worker moves it to `running`
+- the final state becomes `succeeded`
+
+## Verify Outputs
+
+Role required: `viewer`
+
+```sh
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/pipelines
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
 ```
 
-3. Inspect system overview:
+Expected result:
 
-```bash
-curl http://127.0.0.1:8080/api/v1/system/overview
-```
+- pipelines response shows a recent `succeeded` run
+- catalog response includes assets with freshness state
+- profile response includes `row_count` and `columns`
+- analytics response includes metric rows
 
-4. Inspect recent logs:
+Expected local files under `var/`:
 
-```bash
-curl http://127.0.0.1:8080/api/v1/system/logs
-```
+- `var/data/raw/raw_transactions.csv`
+- `var/data/staging/staging_transactions_enriched.json`
+- `var/data/intermediate/intermediate_category_monthly_rollup.json`
+- `var/data/mart/mart_budget_vs_actual.json`
+- `var/data/metrics/metrics_category_variance.json`
 
-5. Inspect run artifacts for a specific run:
+## If This Fails, Check Next
 
-```bash
-curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>"
-```
-
-6. Inspect artifact contents for a specific file:
-
-```bash
-curl "http://127.0.0.1:8080/api/v1/artifacts?run_id=<run_id>&path=metrics%2Fmetrics_savings_rate.json"
-```
-
-7. Inspect the saved dashboard definitions that drive the reporting UI:
-
-```bash
-curl "http://127.0.0.1:8080/api/v1/reports"
-```
-
-8. Create, edit, or delete dashboards from the browser:
-
-- open `http://127.0.0.1:3000`
-- go to `Dashboard`
-- use `New dashboard`, `Duplicate`, `Edit dashboard`, and `Delete`
-- save and then confirm the new definition is returned by `/api/v1/reports`
-
-9. Inspect freshness-enriched catalog output:
-
-```bash
-curl "http://127.0.0.1:8080/api/v1/catalog"
-```
-
-You should now see `freshness_status` on assets, with states such as `fresh`,
-`late`, `stale`, or `missing` depending on the local artifact timestamps.
-
-10. Inspect the resolved browser session:
-
-```bash
-curl http://127.0.0.1:8080/api/v1/session
-curl -H "Authorization: Bearer local-dev-admin-token" http://127.0.0.1:8080/api/v1/session
-```
-
-## Failure modes to check first
-
-- API running but no execution:
-  The worker is probably not running or not sharing the same data root.
-- Run stays queued:
-  Confirm `platform-worker` is running and using the same `PLATFORM_DATA_ROOT` as the API.
-- UI is stale:
-  Refresh the Pipelines or System page after the worker finishes a run.
-- Admin CLI cannot connect:
-  Confirm `PLATFORM_API_BASE_URL` and `PLATFORM_ADMIN_TOKEN` match the running API configuration.
-- Smoke script fails early:
-  Inspect the printed `logs_root` path under `/tmp` and review `api.log`,
-  `worker.log`, and `scheduler.log` first.
-- Compose services take a while to become healthy:
-  The first packaged boot may need time to build images before health checks
-  succeed.
+1. API healthy but no progress:
+   confirm worker is running and shares the same `PLATFORM_DATA_ROOT`
+2. run stays queued:
+   confirm worker logs show queue polling
+3. browser action fails:
+   confirm you used an `editor` token rather than `viewer`
+4. admin terminal fails:
+   confirm you used an `admin` token
+5. profile endpoint fails:
+   confirm the run has completed and the materialized asset exists

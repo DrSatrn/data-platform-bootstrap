@@ -27,20 +27,42 @@ type PipelinePayload = {
 };
 
 export function usePipelines() {
-  const { token, session } = useAuth();
+  const { loading, token, session } = useAuth();
   const [data, setData] = useState<PipelinePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingPipelineID, setPendingPipelineID] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(() => {
+    if (loading) {
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setData(null);
+      setError("Viewer role required to access pipelines.");
+      return;
+    }
+    setRefreshing(true);
     fetchJSON<PipelinePayload>("/api/v1/pipelines")
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Unknown pipelines error"));
-  }, []);
+      .then((payload) => {
+        setData(payload);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Unknown pipelines error"))
+      .finally(() => setRefreshing(false));
+  }, [loading, session]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!session?.capabilities.view_platform) {
+      return;
+    }
+    const interval = window.setInterval(load, 10000);
+    return () => window.clearInterval(interval);
+  }, [load, session]);
 
   async function triggerPipeline(pipelineID: string) {
     setPendingPipelineID(pipelineID);
@@ -58,5 +80,5 @@ export function usePipelines() {
     }
   }
 
-  return { data, error, pendingPipelineID, triggerPipeline };
+  return { data, error, pendingPipelineID, refreshing, triggerPipeline, refresh: load };
 }

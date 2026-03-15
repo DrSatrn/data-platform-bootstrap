@@ -9,9 +9,9 @@ The implementation intentionally emphasizes teaching value. Code is organized ar
 If you are new to the project, use this reading order:
 
 1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
-2. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
-3. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
-4. [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+2. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+3. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
+4. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
 5. [making-changes.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/making-changes.md)
 
 ## Product Goals
@@ -46,6 +46,16 @@ PostgreSQL-backed control plane for run snapshots, queue state, and artifact
 metadata. The filesystem path remains the local-first fallback when PostgreSQL
 is unavailable.
 
+## Configuration Reality
+
+- Host-run Go binaries now auto-load `.env` and `.env.local` from the repo root
+  or the current working directory.
+- [.env.example](/Users/streanor/Documents/Playground/data-platform/.env.example)
+  is the host-run example and uses local filesystem paths.
+- Compose does not use `.env.example` as its canonical config source.
+- The tracked Compose file has safe defaults already, and optional overrides
+  belong in `.env.compose`.
+
 ## Public Repo Safety
 
 - No real secrets, IPs, tokens, or host-specific credentials should ever be committed here.
@@ -58,9 +68,10 @@ is unavailable.
 
 The platform now supports lightweight bearer-token RBAC for self-hosted use:
 
-- `admin` can use the admin terminal and all editor actions
+- anonymous can access only `GET /healthz` and `GET /api/v1/session`
+- `viewer` can access read-only product APIs and pages
 - `editor` can trigger runs and modify saved dashboards
-- `viewer` is read-only
+- `admin` can use the admin terminal and all editor actions
 
 Configuration:
 
@@ -75,8 +86,9 @@ PLATFORM_ACCESS_TOKENS=viewer-token:viewer:alice,editor-token:editor:bob
 ```
 
 The browser UI stores one bearer token locally and uses `/api/v1/session` to
-discover capabilities, so write/admin controls disable themselves when the
-token is missing or under-privileged.
+discover capabilities. Product pages now require at least `viewer`, so an
+anonymous browser session will see only health/session access until a token is
+provided.
 
 ## Audit Trail
 
@@ -114,7 +126,15 @@ Use:
 make backup
 ```
 
-See [backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md) for details.
+Use:
+
+```bash
+make restore-drill
+```
+
+when you want a safe extraction drill without overwriting live state. See
+[backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md)
+for the full recovery procedure.
 
 ## Analytical SQL
 
@@ -156,70 +176,26 @@ The platform now includes first-party operational features owned by this reposit
 - Python-backed dataset profile cards in the Datasets page so operators can
   inspect row counts, observed types, null counts, ranges, and sample values
 
-## Local Bootstrap
+## Start Here
 
-1. Copy `.env.example` to `.env` and replace placeholder credentials and tokens.
-2. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
-3. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
-4. Start `platform-scheduler` if you want scheduled queueing enabled.
-5. Open the web UI on `http://127.0.0.1:3000`.
-6. Use the Pipelines page `Run now` action or the System page admin terminal command `trigger personal_finance_pipeline`.
-7. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
-8. Use the Datasets page to inspect freshness states and the Dashboard page to manage saved dashboards directly from the browser.
-9. Use the Datasets page catalog/detail split view to inspect ownership, source refs, quality refs, docs refs, column-level metadata, and runtime profile summaries for a selected asset.
-10. Use the Metrics page to browse semantic metrics, dimensions, measures, and preview responses.
+Use the canonical quickstart instead of guessing between the overlapping
+runbooks:
 
-## Compose Bootstrap
+- [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
 
-The Compose path is now a validated local runtime on Apple Silicon with Go 1.24
-service images built from the repo Dockerfiles. The stack includes a one-shot
-migration service, a packaged web service instead of a Vite dev server, and
-health-gated startup ordering:
-
-```bash
-make bootstrap
-```
-
-Or, without `make`:
-
-```bash
-docker compose -f infra/compose/docker-compose.yml up -d --build
-```
-
-After the stack is healthy, the platform should be available on:
-
-- `http://127.0.0.1:8080` for the API
-- `http://127.0.0.1:3000` for the packaged web UI
-- `platformctl remote ...` against `http://127.0.0.1:8080`
-
-## Verified Localhost Smoke Path
-
-The repo now includes a first-party localhost smoke script that starts an
-isolated API, worker, and scheduler stack on loopback, drives a scheduled run
-plus a manual run, verifies run-scoped artifacts, exercises the admin terminal
-API, proves the `platformctl remote` CLI path, and now creates plus verifies a
-real backup bundle inside the isolated runtime root.
+The recommended first success path is:
 
 ```bash
 make smoke
 ```
 
-By default the smoke run uses `http://127.0.0.1:18080` and a temporary runtime
-root under `/tmp`. It keeps that runtime root after success so you can inspect
-logs and artifacts. Set `PLATFORM_SMOKE_KEEP=0` if you want automatic cleanup.
-If `127.0.0.1:18080` is already in use, rerun with
-`PLATFORM_SMOKE_PORT=<unused-port> make smoke`.
+That verifies the core platform behavior without requiring you to hand-start
+services. After that, use:
 
-## Verified Compose Smoke Path
-
-The repo also includes a packaged-deployment smoke workflow that boots Docker
-Compose, waits for migrations and health, validates the hosted web UI, and
-drives a real pipeline run through the API, worker, scheduler, analytics,
-quality, artifacts, backup, and CLI layers:
-
-```bash
-make compose-smoke
-```
+- [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+  for the packaged Compose path
+- [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
+  for the host-run debug path
 
 ## Benchmarking
 

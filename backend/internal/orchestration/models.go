@@ -39,6 +39,7 @@ type Job struct {
 	Inputs       []string          `json:"inputs" yaml:"inputs"`
 	Outputs      []string          `json:"outputs" yaml:"outputs"`
 	Labels       map[string]string `json:"labels" yaml:"labels"`
+	ExternalTool *ExternalToolSpec `json:"external_tool,omitempty" yaml:"external_tool,omitempty"`
 }
 
 // JobType distinguishes the supported execution strategies.
@@ -50,7 +51,32 @@ const (
 	JobTypeTransformPy   JobType = "transform_python"
 	JobTypeQualityCheck  JobType = "quality_check"
 	JobTypePublishMetric JobType = "publish_metric"
+	JobTypeExternalTool  JobType = "external_tool"
 )
+
+// ExternalToolSpec declares a bounded invocation of an optional repo-local
+// tool such as dbt. The worker remains the control plane and only delegates a
+// single execution step plus artifact collection to the adapter.
+type ExternalToolSpec struct {
+	Tool       string                 `json:"tool" yaml:"tool"`
+	Action     string                 `json:"action" yaml:"action"`
+	ProjectRef string                 `json:"project_ref" yaml:"project_ref"`
+	ConfigRef  string                 `json:"config_ref" yaml:"config_ref"`
+	Profile    string                 `json:"profile,omitempty" yaml:"profile,omitempty"`
+	Target     string                 `json:"target,omitempty" yaml:"target,omitempty"`
+	Selector   string                 `json:"selector,omitempty" yaml:"selector,omitempty"`
+	Binary     string                 `json:"binary,omitempty" yaml:"binary,omitempty"`
+	Args       []string               `json:"args,omitempty" yaml:"args,omitempty"`
+	Vars       map[string]any         `json:"vars,omitempty" yaml:"vars,omitempty"`
+	Artifacts  []ExternalToolArtifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
+}
+
+// ExternalToolArtifact declares one file that should be mirrored into the
+// run-scoped artifact namespace after the tool finishes.
+type ExternalToolArtifact struct {
+	Path     string `json:"path" yaml:"path"`
+	Required bool   `json:"required,omitempty" yaml:"required,omitempty"`
+}
 
 // RunStatus models the explicit state machine used for pipeline and job runs.
 type RunStatus string

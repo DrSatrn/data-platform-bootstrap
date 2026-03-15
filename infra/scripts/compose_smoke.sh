@@ -42,7 +42,7 @@ wait_for_run_artifact() {
   expected_artifact="$2"
   attempts=0
   while [ "$attempts" -lt 60 ]; do
-    payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$run_id")
+    payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$run_id")
     if printf "%s" "$payload" | grep -q "\"${expected_artifact}\""; then
       return 0
     fi
@@ -74,14 +74,14 @@ wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
 wait_for_run_artifact "$manual_run_id" "staging/staging_transactions_enriched.json"
 wait_for_run_artifact "$manual_run_id" "intermediate/intermediate_category_monthly_rollup.json"
 
-curl -fsS "$API_URL/api/v1/analytics?dataset=mart_monthly_cashflow" | grep -q '"month"'
-curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual" | grep -q '"variance_amount"'
-curl -fsS "$API_URL/api/v1/analytics?metric=metrics_savings_rate" | grep -q '"savings_rate"'
-curl -fsS "$API_URL/api/v1/analytics?metric=metrics_category_variance" | grep -q '"variance_amount"'
-curl -fsS "$API_URL/api/v1/metrics" | grep -q '"metrics_category_variance"'
-curl -fsS "$API_URL/api/v1/quality" | grep -q '"checks"'
-curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
-curl -fsS "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?dataset=mart_monthly_cashflow" | grep -q '"month"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual" | grep -q '"variance_amount"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?metric=metrics_savings_rate" | grep -q '"savings_rate"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?metric=metrics_category_variance" | grep -q '"variance_amount"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/metrics" | grep -q '"metrics_category_variance"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/quality" | grep -q '"checks"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
 curl -fsS "$WEB_URL" | grep -q 'Data Platform'
 
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl remote --server http://127.0.0.1:8080 status >/dev/null

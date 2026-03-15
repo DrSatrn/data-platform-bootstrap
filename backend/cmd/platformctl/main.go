@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/streanor/data-platform/backend/internal/analytics"
 	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/backup"
 	"github.com/streanor/data-platform/backend/internal/config"
@@ -25,7 +26,9 @@ import (
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
+	"github.com/streanor/data-platform/backend/internal/quality"
 	"github.com/streanor/data-platform/backend/internal/reporting"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -110,15 +113,441 @@ func validateManifests() error {
 	if err != nil {
 		return err
 	}
+	assets, err := loader.LoadAssets()
+	if err != nil {
+		return err
+	}
+	metrics, err := loader.LoadMetrics()
+	if err != nil {
+		return err
+	}
+	owners, err := loadYAMLFiles[metadata.Owner](filepath.Join(cfg.ManifestRoot, "owners", "*.yaml"))
+	if err != nil {
+		return err
+	}
+	qualityChecks, err := loadYAMLFiles[quality.Definition](filepath.Join(cfg.ManifestRoot, "quality", "*.yaml"))
+	if err != nil {
+		return err
+	}
+	dashboards, err := loadYAMLFiles[reporting.Dashboard](filepath.Join(cfg.DashboardRoot, "*.yaml"))
+	if err != nil {
+		return err
+	}
+	repoRoot := filepath.Dir(filepath.Dir(filepath.Clean(cfg.ManifestRoot)))
 
-	for _, pipeline := range pipelines {
-		if err := orchestration.ValidatePipeline(pipeline); err != nil {
-			return fmt.Errorf("pipeline %s: %w", pipeline.ID, err)
-		}
+	ownerByID := map[string]metadata.Owner{}
+	for _, owner := range owners {
+		ownerByID[owner.ID] = owner
+	}
+	assetByID := map[string]metadata.DataAsset{}
+	for _, asset := range assets {
+		assetByID[asset.ID] = asset
+	}
+	metricByID := map[string]analytics.MetricDefinition{}
+	for _, metric := range metrics {
+		metricByID[metric.ID] = metric
+	}
+	qualityByID := map[string]quality.Definition{}
+	for _, check := range qualityChecks {
+		qualityByID[check.ID] = check
 	}
 
-	_, err = loader.LoadAssets()
-	return err
+	errors := []string{}
+	errors = append(errors, validateOwners(ownerByID)...)
+	errors = append(errors, validateAssets(assets, ownerByID, qualityByID, assetByID)...)
+	errors = append(errors, validateMetrics(metrics, ownerByID, assetByID)...)
+	errors = append(errors, validateQualityChecks(qualityChecks, assetByID)...)
+	errors = append(errors, validatePipelines(pipelines, ownerByID, assetByID, metricByID, qualityByID, cfg, repoRoot)...)
+	errors = append(errors, validateDashboards(dashboards, assetByID, metricByID)...)
+
+	if len(errors) > 0 {
+		return fmt.Errorf("%d validation errors:\n- %s", len(errors), strings.Join(errors, "\n- "))
+	}
+	return nil
+}
+
+func validateOwners(owners map[string]metadata.Owner) []string {
+	errors := []string{}
+	if len(owners) == 0 {
+		return append(errors, "at least one owner manifest is required")
+	}
+	for id, owner := range owners {
+		if strings.TrimSpace(id) == "" {
+			errors = append(errors, "owner manifest is missing id")
+		}
+		if strings.TrimSpace(owner.DisplayName) == "" {
+			errors = append(errors, fmt.Sprintf("owner %s is missing display_name", id))
+		}
+	}
+	return errors
+}
+
+func validateAssets(assets []metadata.DataAsset, owners map[string]metadata.Owner, qualityChecks map[string]quality.Definition, knownAssets map[string]metadata.DataAsset) []string {
+	errors := []string{}
+	seenAssets := map[string]struct{}{}
+	for _, asset := range assets {
+		if asset.ID == "" {
+			errors = append(errors, "asset manifest is missing id")
+			continue
+		}
+		if _, exists := seenAssets[asset.ID]; exists {
+			errors = append(errors, fmt.Sprintf("asset %s is defined more than once", asset.ID))
+		}
+		seenAssets[asset.ID] = struct{}{}
+		if _, ok := owners[asset.Owner]; !ok {
+			errors = append(errors, fmt.Sprintf("asset %s references unknown owner %s", asset.ID, asset.Owner))
+		}
+		if asset.Layer == "" {
+			errors = append(errors, fmt.Sprintf("asset %s is missing layer", asset.ID))
+		}
+		if asset.Kind == "" {
+			errors = append(errors, fmt.Sprintf("asset %s is missing kind", asset.ID))
+		}
+		if _, err := time.ParseDuration(asset.Freshness.ExpectedWithin); err != nil {
+			errors = append(errors, fmt.Sprintf("asset %s has invalid freshness.expected_within: %v", asset.ID, err))
+		}
+		if _, err := time.ParseDuration(asset.Freshness.WarnAfter); err != nil {
+			errors = append(errors, fmt.Sprintf("asset %s has invalid freshness.warn_after: %v", asset.ID, err))
+		}
+		columnNames := map[string]struct{}{}
+		for _, column := range asset.Columns {
+			if column.Name == "" {
+				errors = append(errors, fmt.Sprintf("asset %s contains a column without a name", asset.ID))
+				continue
+			}
+			if _, exists := columnNames[column.Name]; exists {
+				errors = append(errors, fmt.Sprintf("asset %s defines column %s more than once", asset.ID, column.Name))
+			}
+			columnNames[column.Name] = struct{}{}
+		}
+		for _, checkID := range asset.QualityCheckRefs {
+			if _, ok := qualityChecks[checkID]; !ok {
+				errors = append(errors, fmt.Sprintf("asset %s references unknown quality check %s", asset.ID, checkID))
+			}
+		}
+		for _, sourceRef := range asset.SourceRefs {
+			if strings.HasPrefix(sourceRef, "sample.") || strings.HasPrefix(sourceRef, "api.") || strings.HasPrefix(sourceRef, "db.") {
+				continue
+			}
+			if _, ok := knownAssets[sourceRef]; !ok {
+				errors = append(errors, fmt.Sprintf("asset %s references unknown source_ref %s", asset.ID, sourceRef))
+			}
+		}
+	}
+	return errors
+}
+
+func validateMetrics(metrics []analytics.MetricDefinition, owners map[string]metadata.Owner, assets map[string]metadata.DataAsset) []string {
+	errors := []string{}
+	seenMetrics := map[string]struct{}{}
+	for _, metric := range metrics {
+		if metric.ID == "" {
+			errors = append(errors, "metric manifest is missing id")
+			continue
+		}
+		if _, exists := seenMetrics[metric.ID]; exists {
+			errors = append(errors, fmt.Sprintf("metric %s is defined more than once", metric.ID))
+		}
+		seenMetrics[metric.ID] = struct{}{}
+		if _, ok := owners[metric.Owner]; !ok {
+			errors = append(errors, fmt.Sprintf("metric %s references unknown owner %s", metric.ID, metric.Owner))
+		}
+		asset, ok := assets[metric.DatasetRef]
+		if !ok {
+			errors = append(errors, fmt.Sprintf("metric %s references unknown dataset %s", metric.ID, metric.DatasetRef))
+			continue
+		}
+		if !assetHasColumn(asset, metric.TimeDimension) {
+			errors = append(errors, fmt.Sprintf("metric %s references missing time_dimension %s on asset %s", metric.ID, metric.TimeDimension, asset.ID))
+		}
+		for _, dimension := range metric.Dimensions {
+			if !assetHasColumn(asset, dimension) {
+				errors = append(errors, fmt.Sprintf("metric %s dimension %s does not exist on asset %s", metric.ID, dimension, asset.ID))
+			}
+		}
+		for _, measure := range metric.Measures {
+			if !assetHasColumn(asset, measure) {
+				errors = append(errors, fmt.Sprintf("metric %s measure %s does not exist on asset %s", metric.ID, measure, asset.ID))
+			}
+		}
+		if metric.DefaultVisualization == "" {
+			errors = append(errors, fmt.Sprintf("metric %s is missing default_visualization", metric.ID))
+		}
+	}
+	return errors
+}
+
+func validateQualityChecks(checks []quality.Definition, assets map[string]metadata.DataAsset) []string {
+	errors := []string{}
+	seenChecks := map[string]struct{}{}
+	for _, check := range checks {
+		if check.ID == "" {
+			errors = append(errors, "quality manifest is missing id")
+			continue
+		}
+		if _, exists := seenChecks[check.ID]; exists {
+			errors = append(errors, fmt.Sprintf("quality check %s is defined more than once", check.ID))
+		}
+		seenChecks[check.ID] = struct{}{}
+		asset, ok := assets[check.AssetRef]
+		if !ok {
+			errors = append(errors, fmt.Sprintf("quality check %s references unknown asset %s", check.ID, check.AssetRef))
+			continue
+		}
+		if check.ColumnRef != "" && !assetHasColumn(asset, check.ColumnRef) {
+			errors = append(errors, fmt.Sprintf("quality check %s references missing column %s on asset %s", check.ID, check.ColumnRef, asset.ID))
+		}
+		if check.Type == "" {
+			errors = append(errors, fmt.Sprintf("quality check %s is missing type", check.ID))
+		}
+	}
+	return errors
+}
+
+func validatePipelines(
+	pipelines []orchestration.Pipeline,
+	owners map[string]metadata.Owner,
+	assets map[string]metadata.DataAsset,
+	metrics map[string]analytics.MetricDefinition,
+	qualityChecks map[string]quality.Definition,
+	cfg config.Settings,
+	repoRoot string,
+) []string {
+	errors := []string{}
+	seenPipelines := map[string]struct{}{}
+	for _, pipeline := range pipelines {
+		if _, exists := seenPipelines[pipeline.ID]; exists {
+			errors = append(errors, fmt.Sprintf("pipeline %s is defined more than once", pipeline.ID))
+		}
+		seenPipelines[pipeline.ID] = struct{}{}
+		if _, ok := owners[pipeline.Owner]; !ok {
+			errors = append(errors, fmt.Sprintf("pipeline %s references unknown owner %s", pipeline.ID, pipeline.Owner))
+		}
+		if err := validatePipelineStructure(pipeline); err != nil {
+			errors = append(errors, fmt.Sprintf("pipeline %s failed structural validation: %v", pipeline.ID, err))
+		}
+		for _, job := range pipeline.Jobs {
+			if job.Retries < 0 {
+				errors = append(errors, fmt.Sprintf("pipeline %s job %s has negative retries", pipeline.ID, job.ID))
+			}
+			switch job.Type {
+			case orchestration.JobTypeIngest:
+				for _, output := range job.Outputs {
+					if _, ok := assets[output]; !ok {
+						errors = append(errors, fmt.Sprintf("pipeline %s ingest job %s outputs unknown asset %s", pipeline.ID, job.ID, output))
+					}
+				}
+			case orchestration.JobTypeTransformSQL:
+				if job.TransformRef == "" {
+					errors = append(errors, fmt.Sprintf("pipeline %s job %s is missing transform_ref", pipeline.ID, job.ID))
+				} else if !sqlTransformExists(cfg.SQLRoot, job.TransformRef) {
+					errors = append(errors, fmt.Sprintf("pipeline %s job %s references missing SQL transform %s", pipeline.ID, job.ID, job.TransformRef))
+				}
+				for _, output := range job.Outputs {
+					if _, ok := assets[output]; !ok {
+						errors = append(errors, fmt.Sprintf("pipeline %s SQL job %s outputs unknown asset %s", pipeline.ID, job.ID, output))
+					}
+				}
+			case orchestration.JobTypeTransformPy:
+				if job.Command == "" {
+					errors = append(errors, fmt.Sprintf("pipeline %s job %s is missing python command", pipeline.ID, job.ID))
+				} else if !pythonTaskExists(cfg.PythonTaskRoot, job.Command) {
+					errors = append(errors, fmt.Sprintf("pipeline %s job %s references missing python task in command %q", pipeline.ID, job.ID, job.Command))
+				}
+				for _, output := range job.Outputs {
+					if _, ok := assets[output]; !ok {
+						errors = append(errors, fmt.Sprintf("pipeline %s Python job %s outputs unknown asset %s", pipeline.ID, job.ID, output))
+					}
+				}
+			case orchestration.JobTypeQualityCheck:
+				if _, ok := qualityChecks[job.ID]; !ok {
+					errors = append(errors, fmt.Sprintf("pipeline %s quality job %s has no matching quality manifest", pipeline.ID, job.ID))
+				}
+				if !sqlQualityExists(cfg.SQLRoot, job.ID) {
+					errors = append(errors, fmt.Sprintf("pipeline %s quality job %s references missing SQL quality query", pipeline.ID, job.ID))
+				}
+			case orchestration.JobTypePublishMetric:
+				for _, output := range job.Outputs {
+					if _, ok := metrics[output]; !ok {
+						errors = append(errors, fmt.Sprintf("pipeline %s metric job %s outputs unknown metric %s", pipeline.ID, job.ID, output))
+						continue
+					}
+					if !sqlMetricExists(cfg.SQLRoot, output) {
+						errors = append(errors, fmt.Sprintf("pipeline %s metric job %s references missing metric SQL for %s", pipeline.ID, job.ID, output))
+					}
+				}
+			case orchestration.JobTypeExternalTool:
+				if job.ExternalTool == nil {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s is missing external_tool config", pipeline.ID, job.ID))
+					continue
+				}
+				if strings.TrimSpace(job.ExternalTool.Tool) == "" {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s is missing external_tool.tool", pipeline.ID, job.ID))
+				}
+				if strings.TrimSpace(job.ExternalTool.Action) == "" {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s is missing external_tool.action", pipeline.ID, job.ID))
+				}
+				if !repoPathExists(repoRoot, job.ExternalTool.ProjectRef) {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s references missing project_ref %s", pipeline.ID, job.ID, job.ExternalTool.ProjectRef))
+				}
+				if !repoPathExists(repoRoot, job.ExternalTool.ConfigRef) {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s references missing config_ref %s", pipeline.ID, job.ID, job.ExternalTool.ConfigRef))
+				}
+				if len(job.ExternalTool.Artifacts) == 0 {
+					errors = append(errors, fmt.Sprintf("pipeline %s external_tool job %s must declare at least one artifact", pipeline.ID, job.ID))
+				}
+			default:
+				errors = append(errors, fmt.Sprintf("pipeline %s job %s uses unsupported type %s", pipeline.ID, job.ID, job.Type))
+			}
+
+			for _, input := range job.Inputs {
+				if strings.HasPrefix(input, "sample.") {
+					continue
+				}
+				if _, assetExists := assets[input]; assetExists {
+					continue
+				}
+				if _, metricExists := metrics[input]; metricExists {
+					continue
+				}
+				errors = append(errors, fmt.Sprintf("pipeline %s job %s references unknown input %s", pipeline.ID, job.ID, input))
+			}
+		}
+	}
+	return errors
+}
+
+func validatePipelineStructure(pipeline orchestration.Pipeline) error {
+	if strings.TrimSpace(pipeline.ID) == "" {
+		return fmt.Errorf("pipeline id is required")
+	}
+	if len(pipeline.Jobs) == 0 {
+		return fmt.Errorf("pipeline must contain at least one job")
+	}
+	seenJobs := map[string]struct{}{}
+	for _, job := range pipeline.Jobs {
+		if strings.TrimSpace(job.ID) == "" {
+			return fmt.Errorf("job id is required")
+		}
+		if _, exists := seenJobs[job.ID]; exists {
+			return fmt.Errorf("duplicate job id %q", job.ID)
+		}
+		seenJobs[job.ID] = struct{}{}
+	}
+	for _, job := range pipeline.Jobs {
+		for _, dependency := range job.DependsOn {
+			if _, ok := seenJobs[dependency]; !ok {
+				return fmt.Errorf("job %q depends on unknown job %q", job.ID, dependency)
+			}
+			if dependency == job.ID {
+				return fmt.Errorf("job %q cannot depend on itself", job.ID)
+			}
+		}
+	}
+	return nil
+}
+
+func validateDashboards(dashboards []reporting.Dashboard, assets map[string]metadata.DataAsset, metrics map[string]analytics.MetricDefinition) []string {
+	errors := []string{}
+	seenDashboards := map[string]struct{}{}
+	for _, dashboard := range dashboards {
+		if _, exists := seenDashboards[dashboard.ID]; exists {
+			errors = append(errors, fmt.Sprintf("dashboard %s is defined more than once", dashboard.ID))
+		}
+		seenDashboards[dashboard.ID] = struct{}{}
+		if err := reporting.ValidateDashboardDefinition(dashboard); err != nil {
+			errors = append(errors, fmt.Sprintf("dashboard %s failed validation: %v", dashboard.ID, err))
+			continue
+		}
+		widgetIDs := map[string]struct{}{}
+		for _, widget := range dashboard.Widgets {
+			if _, exists := widgetIDs[widget.ID]; exists {
+				errors = append(errors, fmt.Sprintf("dashboard %s widget %s is defined more than once", dashboard.ID, widget.ID))
+			}
+			widgetIDs[widget.ID] = struct{}{}
+			if widget.DatasetRef != "" {
+				if _, ok := assets[widget.DatasetRef]; !ok {
+					errors = append(errors, fmt.Sprintf("dashboard %s widget %s references unknown dataset %s", dashboard.ID, widget.ID, widget.DatasetRef))
+				}
+			}
+			if widget.MetricRef != "" {
+				if _, ok := metrics[widget.MetricRef]; !ok {
+					errors = append(errors, fmt.Sprintf("dashboard %s widget %s references unknown metric %s", dashboard.ID, widget.ID, widget.MetricRef))
+				}
+			}
+		}
+	}
+	return errors
+}
+
+func assetHasColumn(asset metadata.DataAsset, name string) bool {
+	for _, column := range asset.Columns {
+		if column.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func sqlTransformExists(sqlRoot, transformRef string) bool {
+	name := strings.TrimPrefix(transformRef, "transform.")
+	if name == transformRef {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(sqlRoot, "transforms", name+".sql"))
+	return err == nil
+}
+
+func sqlMetricExists(sqlRoot, metricID string) bool {
+	_, err := os.Stat(filepath.Join(sqlRoot, "metrics", metricID+".sql"))
+	return err == nil
+}
+
+func sqlQualityExists(sqlRoot, checkID string) bool {
+	_, err := os.Stat(filepath.Join(sqlRoot, "quality", checkID+".sql"))
+	return err == nil
+}
+
+func pythonTaskExists(taskRoot, command string) bool {
+	tokens := strings.Fields(strings.TrimSpace(command))
+	if len(tokens) < 2 {
+		return false
+	}
+	scriptPath := tokens[1]
+	if !filepath.IsAbs(scriptPath) {
+		scriptPath = filepath.Join(taskRoot, filepath.Clean(scriptPath))
+	}
+	_, err := os.Stat(scriptPath)
+	return err == nil
+}
+
+func repoPathExists(repoRoot, path string) bool {
+	cleaned := filepath.Clean(strings.TrimSpace(path))
+	if cleaned == "." || cleaned == "" || filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, "..") {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(cleaned)))
+	return err == nil
+}
+
+func loadYAMLFiles[T any](pattern string) ([]T, error) {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("glob yaml files: %w", err)
+	}
+	out := make([]T, 0, len(matches))
+	for _, match := range matches {
+		bytes, err := os.ReadFile(match)
+		if err != nil {
+			return nil, fmt.Errorf("read yaml file %s: %w", match, err)
+		}
+		var item T
+		if err := yaml.Unmarshal(bytes, &item); err != nil {
+			return nil, fmt.Errorf("decode yaml file %s: %w", match, err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 func migrate() error {
@@ -376,12 +805,12 @@ func runBenchmark(args []string) error {
 func defaultBenchmarkTargets() []benchmarkTarget {
 	return []benchmarkTarget{
 		{Name: "health", Method: http.MethodGet, Path: "/healthz"},
-		{Name: "catalog", Method: http.MethodGet, Path: "/api/v1/catalog"},
-		{Name: "analytics_dataset", Method: http.MethodGet, Path: "/api/v1/analytics?dataset=mart_budget_vs_actual"},
-		{Name: "analytics_metric", Method: http.MethodGet, Path: "/api/v1/analytics?metric=metrics_category_variance"},
-		{Name: "reports", Method: http.MethodGet, Path: "/api/v1/reports"},
-		{Name: "system_overview", Method: http.MethodGet, Path: "/api/v1/system/overview"},
-		{Name: "system_audit", Method: http.MethodGet, Path: "/api/v1/system/audit"},
+		{Name: "catalog", Method: http.MethodGet, Path: "/api/v1/catalog", Token: true},
+		{Name: "analytics_dataset", Method: http.MethodGet, Path: "/api/v1/analytics?dataset=mart_budget_vs_actual", Token: true},
+		{Name: "analytics_metric", Method: http.MethodGet, Path: "/api/v1/analytics?metric=metrics_category_variance", Token: true},
+		{Name: "reports", Method: http.MethodGet, Path: "/api/v1/reports", Token: true},
+		{Name: "system_overview", Method: http.MethodGet, Path: "/api/v1/system/overview", Token: true},
+		{Name: "system_audit", Method: http.MethodGet, Path: "/api/v1/system/audit", Token: true},
 		{Name: "admin_status", Method: http.MethodPost, Path: "/api/v1/admin/terminal/execute", Body: `{"command":"status"}`, Token: true},
 	}
 }

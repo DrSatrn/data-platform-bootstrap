@@ -1,0 +1,48 @@
+id: personal_finance_dbt_pipeline
+name: Personal Finance Pipeline With Optional DBT
+description: Uses the platform control plane to run an optional dbt project.
+owner: platform-team
+tags:
+  - personal-finance
+  - optional-external-tool
+schedule:
+  cron: "0 7 * * *"
+  timezone: Australia/Brisbane
+  catchup: false
+  is_paused: true
+  description: Example optional dbt-driven finance pipeline kept paused by default.
+jobs:
+  - id: ingest_transactions_csv
+    name: Ingest Transactions CSV
+    type: ingest
+    retries: 1
+    timeout: 2m
+    inputs:
+      - sample.transactions_csv
+    outputs:
+      - raw_transactions
+  - id: run_finance_dbt
+    name: Build Finance Models In DBT
+    type: external_tool
+    depends_on:
+      - ingest_transactions_csv
+    retries: 1
+    timeout: 5m
+    external_tool:
+      tool: dbt
+      action: build
+      project_ref: packages/external_tools/dbt_finance_demo
+      config_ref: packages/external_tools/dbt_finance_demo/profiles
+      profile: dbt_finance_demo
+      target: dev
+      selector: monthly_cashflow
+      artifacts:
+        - path: target/manifest.json
+          required: false
+        - path: target/run_results.json
+          required: true
+    inputs:
+      - raw_transactions
+    outputs:
+      - dbt_manifest
+      - dbt_run_results

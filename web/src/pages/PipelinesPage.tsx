@@ -9,23 +9,31 @@ import { useRunArtifacts } from "../features/pipelines/useRunArtifacts";
 
 export function PipelinesPage() {
   const { session } = useAuth();
-  const { data, error, pendingPipelineID, triggerPipeline } = usePipelines();
+  const { data, error, pendingPipelineID, refreshing, triggerPipeline, refresh } = usePipelines();
   const [selectedRunID, setSelectedRunID] = useState<string | null>(null);
   const { artifacts, error: artifactError } = useRunArtifacts(selectedRunID);
 
   if (error) {
     return <section className="panel">Pipelines error: {error}</section>;
   }
+  if (!data) {
+    return <section className="panel">Loading pipelines...</section>;
+  }
 
   return (
     <section className="page-grid">
       <div className="card wide-card">
-        <h2>Pipelines</h2>
+        <div className="row-between">
+          <h2>Pipelines</h2>
+          <button className="mini-button" onClick={refresh} type="button">
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
         {!session?.capabilities.trigger_runs ? (
           <p className="muted">Editor token required to queue manual runs from the UI.</p>
         ) : null}
         <div className="stack">
-          {(data?.pipelines ?? []).map((pipeline) => (
+          {data.pipelines.map((pipeline) => (
             <article className="subcard" key={pipeline.id}>
               <div className="row-between">
                 <div>
@@ -50,12 +58,15 @@ export function PipelinesPage() {
         </div>
       </div>
       <div className="card">
-        <h2>Recent Runs</h2>
+        <div className="row-between">
+          <h2>Recent Runs</h2>
+          <span className="badge">{refreshing ? "live refresh" : "10s polling"}</span>
+        </div>
         <div className="stack">
-          {(data?.runs ?? []).length === 0 ? (
+          {data.runs.length === 0 ? (
             <p className="muted">No runs have been recorded yet.</p>
           ) : (
-            data?.runs.map((run) => (
+            data.runs.map((run) => (
               <article className="subcard" key={run.id}>
                 <div className="row-between">
                   <div>

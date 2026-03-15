@@ -2,6 +2,7 @@
 // run. It gives operators a direct window into what the worker produced.
 import { useEffect, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { fetchJSON } from "../../lib/api";
 
 type Artifact = {
@@ -17,6 +18,7 @@ type ArtifactPayload = {
 };
 
 export function useRunArtifacts(runID: string | null) {
+  const { session } = useAuth();
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,11 +27,19 @@ export function useRunArtifacts(runID: string | null) {
       setArtifacts([]);
       return;
     }
+    if (!session?.capabilities.view_platform) {
+      setArtifacts([]);
+      setError("Viewer role required to inspect artifacts.");
+      return;
+    }
 
     fetchJSON<ArtifactPayload>(`/api/v1/artifacts?run_id=${encodeURIComponent(runID)}`)
-      .then((payload) => setArtifacts(payload.artifacts))
+      .then((payload) => {
+        setArtifacts(payload.artifacts);
+        setError(null);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown artifact error"));
-  }, [runID]);
+  }, [runID, session]);
 
   return { artifacts, error };
 }

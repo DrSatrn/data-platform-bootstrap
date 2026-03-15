@@ -1,0 +1,10 @@
+name: dbt_finance_demo
+version: 1.0.0
+profile: dbt_finance_demo
+
+model-paths:
+  - models
+
+target-path: target
+clean-targets:
+  - target

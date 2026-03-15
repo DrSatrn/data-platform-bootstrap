@@ -47,6 +47,9 @@ export function DashboardPage() {
   }
 
   const activeDashboard = isEditing && draft ? draft : dashboard;
+  if (!activeDashboard && dashboards.length === 0) {
+    return <section className="panel">Loading dashboards...</section>;
+  }
   const kpiWidgets = (activeDashboard?.widgets ?? []).filter((widget) => widget.type === "kpi");
   const detailWidgets = (activeDashboard?.widgets ?? []).filter((widget) => widget.type !== "kpi");
 

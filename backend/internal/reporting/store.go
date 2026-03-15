@@ -297,6 +297,12 @@ func validateDashboard(dashboard Dashboard) error {
 	return nil
 }
 
+// ValidateDashboardDefinition exposes dashboard validation to tooling that
+// needs the same contract as the reporting store without duplicating logic.
+func ValidateDashboardDefinition(dashboard Dashboard) error {
+	return validateDashboard(dashboard)
+}
+
 func defaultDashboards() []Dashboard {
 	return []Dashboard{
 		{

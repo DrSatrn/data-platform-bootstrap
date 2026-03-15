@@ -6,6 +6,7 @@ concise, explicit, and usable under stress.
 
 Current runbooks include:
 
+- `quickstart.md`
 - `bootstrap.md`
 - `localhost-e2e.md`
 - `benchmarking.md`

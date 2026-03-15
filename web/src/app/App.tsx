@@ -52,8 +52,11 @@ export function App() {
               <button className="mini-button" onClick={clearToken} type="button">
                 Clear token
               </button>
-              <span className="badge">{session?.capabilities.edit_dashboards ? "editor" : "read-only"}</span>
+              <span className="badge">{session?.principal.role ?? "anonymous"}</span>
             </div>
+            <p className="muted">
+              Viewer is required for product pages. Editor enables run triggers and dashboard saves. Admin enables the terminal and `platformctl remote`.
+            </p>
           </div>
         </div>
         <nav className="nav">

@@ -1,94 +1,187 @@
 # Backup And Recovery Bundles
 
-This runbook explains the first-party backup/export path built into the
-platform. The goal is to give self-hosted operators a real recovery workflow
-without depending on external backup products.
+This runbook owns the first-party backup and recovery story. It is written as a
+procedure, not just a description.
 
-## What The Bundle Contains
+## Current Recovery Reality
 
-`platformctl backup create` writes a `.tar.gz` archive that includes:
+What is implemented today:
 
-- control-plane JSON exports for runs, queue state, dashboards, audit events,
-  metadata assets, and sanitized config
-- local materialized data under the platform data root when present
-- run-scoped artifact files
-- the DuckDB database file
-- repo-managed manifest and dashboard snapshots
-- a machine-readable `manifest.json` containing file inventory and checksums
+- bundle creation
+- bundle verification
+- isolated restore drill extraction
 
-The backup manifest intentionally excludes secrets such as bearer tokens and
-PostgreSQL credentials.
+What is intentionally not implemented yet:
+
+- destructive one-command restore into a live runtime root
+- automatic PostgreSQL row replay from bundle exports
+
+That means recovery is now concrete and drillable, but still operator-driven.
 
 ## Create A Backup
 
-From the repo root:
+Working directory:
+
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
+```
+
+Command:
 
 ```sh
 make backup
 ```
 
-Or directly:
+Expected success result:
+
+- output includes `backup bundle created:`
+- output includes `backup bundle verified:`
+- the bundle exists under `var/backups/`
+
+## Verify An Existing Bundle
+
+Command:
 
 ```sh
 cd backend
-go run ./cmd/platformctl backup create --out ../var/backups/manual-backup.tar.gz
+go run ./cmd/platformctl backup verify --file ../var/backups/<bundle-name>.tar.gz
 ```
 
-## Verify A Backup
+Expected success result:
 
-Always verify the bundle after creation:
+- command exits `0`
+- output includes `generated_at=`
+- output includes counts for runs, queue requests, dashboards, data assets, and bundle files
 
-```sh
-cd backend
-go run ./cmd/platformctl backup verify --file ../var/backups/manual-backup.tar.gz
-```
+## List Existing Bundles
 
-Verification checks:
-
-- required export files exist
-- `manifest.json` is present
-- archived file sizes match the manifest
-- archived file checksums match the manifest
-
-## Discover Existing Bundles
+Command:
 
 ```sh
 cd backend
 go run ./cmd/platformctl backup list
 ```
 
-The admin terminal also supports:
+Expected success result:
 
-- `backups`
-- `backup create`
-- `backup verify <bundle-name-or-path>`
+- one line per known bundle
+- each line includes the full path and size in bytes
 
-## Recovery Guidance
+## Safe Restore Drill
 
-This subsystem is currently a backup/export and verification path, not yet a
-one-command destructive restore workflow.
+This drill proves you can extract and inspect a bundle without overwriting live
+state.
 
-Today’s safe recovery path is:
+Command:
 
-1. Verify the bundle.
-2. Extract it into an isolated working directory.
-3. Restore the relevant local roots:
-   - `files/data/control_plane`
-   - `files/data/raw`
-   - `files/data/mart`
-   - `files/data/metrics`
-   - `files/data/quality`
-   - `files/artifacts`
-   - `files/duckdb/platform.duckdb`
-4. Reapply migrations if PostgreSQL was recreated.
-5. Restart the platform and exercise:
-   - `/healthz`
-   - `/api/v1/catalog`
-   - `/api/v1/reports`
-   - `/api/v1/system/audit`
-6. Run the smoke workflow to prove the recovered stack is healthy.
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
+make restore-drill
+```
 
-## Planned Next Step
+Expected success result:
 
-The next evolution is a restore automation command that can replay bundle state
-into a clean target environment with stronger safeguards.
+- output includes `restore drill passed`
+- output includes:
+  - `bundle_path=...`
+  - `restore_root=/tmp/...`
+  - `next_step_copy_data_from=...`
+  - `next_step_copy_artifacts_from=...`
+
+What this checks:
+
+- `manifest.json` is extractable
+- control-plane exports are present
+- extracted data and artifact directories exist
+
+## Manual Restore Procedure
+
+Use this only into a stopped target environment.
+
+1. Stop the platform processes or Compose stack.
+2. Verify the bundle:
+
+```sh
+cd backend
+go run ./cmd/platformctl backup verify --file ../var/backups/<bundle-name>.tar.gz
+```
+
+3. Extract the bundle into an isolated working directory:
+
+```sh
+mkdir -p /tmp/platform-restore
+tar -xzf var/backups/<bundle-name>.tar.gz -C /tmp/platform-restore
+```
+
+4. Restore filesystem-backed data into the target runtime root:
+
+```sh
+cp -R /tmp/platform-restore/files/data/. var/data/
+cp -R /tmp/platform-restore/files/artifacts/. var/artifacts/
+cp /tmp/platform-restore/files/duckdb/platform.duckdb var/duckdb/platform.duckdb
+```
+
+5. If PostgreSQL was recreated, reapply migrations before starting the stack:
+
+```sh
+cd backend
+go run ./cmd/platformctl migrate
+```
+
+6. Restart the platform.
+
+7. Run the post-restore checks below.
+
+## What Comes Back From Filesystem Restore
+
+Restored directly from the bundle:
+
+- local data root content
+- local artifacts
+- DuckDB file
+- control-plane JSON snapshots in the extracted export directory
+
+Recreated separately:
+
+- PostgreSQL schema via migrations
+- PostgreSQL rows are not automatically replayed yet
+
+In preferred Postgres mode, the live DB remains authoritative after restart.
+Today’s bundle exports give you inspection and future replay material, not an
+automated relational restore path.
+
+## Post-Restore Validation
+
+Run these checks after restart:
+
+```sh
+curl http://127.0.0.1:8080/healthz
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/reports
+curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+```
+
+Expected success result:
+
+- all commands return HTTP `200`
+- catalog returns assets
+- reports returns dashboards
+- dataset profile returns `row_count`
+
+Then run:
+
+```sh
+make smoke
+```
+
+Expected success result:
+
+- `localhost smoke test passed`
+
+## If This Fails, Check Next
+
+1. confirm the bundle verified before extraction
+2. confirm the target runtime was stopped before copying files
+3. confirm `var/data`, `var/artifacts`, and `var/duckdb` were restored into the correct repo root
+4. if using Postgres, confirm migrations ran successfully before restart
+5. if API is healthy but catalog/profile fail, confirm the restored data files actually exist under `var/data`

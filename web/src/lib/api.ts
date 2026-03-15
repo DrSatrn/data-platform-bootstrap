@@ -1,9 +1,12 @@
 // This file centralizes the frontend's API access so error handling and
 // response shapes stay consistent across pages.
+import { authStorageKey } from "../features/auth/useAuth";
+
 export async function fetchJSON<T>(path: string, token?: string): Promise<T> {
+  const resolvedToken = token ?? browserToken();
   const response = await fetch(path, {
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {})
     }
   });
   if (!response.ok) {
@@ -13,11 +16,12 @@ export async function fetchJSON<T>(path: string, token?: string): Promise<T> {
 }
 
 export async function postJSON<TResponse, TRequest>(path: string, payload: TRequest, token?: string): Promise<TResponse> {
+  const resolvedToken = token ?? browserToken();
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {})
     },
     body: JSON.stringify(payload)
   });
@@ -31,10 +35,11 @@ export async function postJSON<TResponse, TRequest>(path: string, payload: TRequ
 }
 
 export async function deleteJSON<TResponse>(path: string, token?: string): Promise<TResponse> {
+  const resolvedToken = token ?? browserToken();
   const response = await fetch(path, {
     method: "DELETE",
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {})
     }
   });
 
@@ -44,4 +49,12 @@ export async function deleteJSON<TResponse>(path: string, token?: string): Promi
   }
 
   return (await response.json()) as TResponse;
+}
+
+function browserToken() {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  const token = window.localStorage.getItem(authStorageKey)?.trim();
+  return token || undefined;
 }

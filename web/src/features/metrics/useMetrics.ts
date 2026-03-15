@@ -2,6 +2,7 @@
 // definitions and hydrating preview data through the constrained analytics API.
 import { useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { fetchJSON } from "../../lib/api";
 
 export type MetricDefinition = {
@@ -26,6 +27,7 @@ type MetricsPayload = {
 };
 
 export function useMetrics() {
+  const { loading, session } = useAuth();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedMetricID, setSelectedMetricID] = useState<string | null>(null);
@@ -33,14 +35,24 @@ export function useMetrics() {
   const [preview, setPreview] = useState<Array<Record<string, string | number>>>([]);
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setMetrics([]);
+      setError("Viewer role required to access metrics.");
+      return;
+    }
+
     fetchJSON<MetricsPayload>("/api/v1/metrics")
       .then((payload) => {
         setMetrics(payload.metrics);
+        setError(null);
         setSelectedMetricID((current) => current ?? payload.metrics[0]?.definition.id ?? null);
         setPreview(payload.metrics[0]?.preview ?? []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown metrics error"));
-  }, []);
+  }, [loading, session]);
 
   const selectedMetric = useMemo(
     () => metrics.find((item) => item.definition.id === selectedMetricID) ?? metrics[0] ?? null,
@@ -49,6 +61,10 @@ export function useMetrics() {
 
   useEffect(() => {
     if (!selectedMetric) {
+      setPreview([]);
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
       setPreview([]);
       return;
     }
@@ -65,7 +81,7 @@ export function useMetrics() {
     fetchJSON<{ dashboard: { series: Array<Record<string, string | number>> } }>(`/api/v1/analytics?${query.toString()}`)
       .then((payload) => setPreview(payload.dashboard.series))
       .catch((err) => setError(err instanceof Error ? err.message : "Metric preview error"));
-  }, [filters, selectedMetric]);
+  }, [filters, selectedMetric, session]);
 
   function updateFilter(field: "fromMonth" | "toMonth" | "category", value: string) {
     setFilters((current) => ({ ...current, [field]: value }));

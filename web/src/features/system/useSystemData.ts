@@ -1,6 +1,7 @@
 // This hook gathers platform health and quality summaries for the system page.
 import { useEffect, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { fetchJSON } from "../../lib/api";
 
 type HealthPayload = {
@@ -85,6 +86,7 @@ type CatalogPayload = {
 };
 
 export function useSystemData() {
+  const { loading, session } = useAuth();
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [quality, setQuality] = useState<QualityPayload | null>(null);
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
@@ -92,26 +94,59 @@ export function useSystemData() {
   const [audit, setAudit] = useState<AuditPayload | null>(null);
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function load() {
+    if (loading) {
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setError("Viewer role required to access the system view.");
+      setQuality(null);
+      setOverview(null);
+      setLogs(null);
+      setAudit(null);
+      setCatalog(null);
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      const [nextHealth, nextQuality, nextOverview, nextLogs, nextAudit, nextCatalog] = await Promise.all([
+        fetchJSON<HealthPayload>("/healthz"),
+        fetchJSON<QualityPayload>("/api/v1/quality"),
+        fetchJSON<OverviewPayload>("/api/v1/system/overview"),
+        fetchJSON<LogsPayload>("/api/v1/system/logs"),
+        fetchJSON<AuditPayload>("/api/v1/system/audit"),
+        fetchJSON<CatalogPayload>("/api/v1/catalog")
+      ]);
+      setHealth(nextHealth);
+      setQuality(nextQuality);
+      setOverview(nextOverview);
+      setLogs(nextLogs);
+      setAudit(nextAudit);
+      setCatalog(nextCatalog);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown system error");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    Promise.all([
-      fetchJSON<HealthPayload>("/healthz"),
-      fetchJSON<QualityPayload>("/api/v1/quality"),
-      fetchJSON<OverviewPayload>("/api/v1/system/overview"),
-      fetchJSON<LogsPayload>("/api/v1/system/logs"),
-      fetchJSON<AuditPayload>("/api/v1/system/audit"),
-      fetchJSON<CatalogPayload>("/api/v1/catalog")
-    ])
-      .then(([nextHealth, nextQuality, nextOverview, nextLogs, nextAudit, nextCatalog]) => {
-        setHealth(nextHealth);
-        setQuality(nextQuality);
-        setOverview(nextOverview);
-        setLogs(nextLogs);
-        setAudit(nextAudit);
-        setCatalog(nextCatalog);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Unknown system error"));
-  }, []);
+    void load();
+  }, [loading, session]);
 
-  return { health, quality, overview, logs, audit, catalog, error };
+  useEffect(() => {
+    if (!session?.capabilities.view_platform) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      void load();
+    }, 10000);
+    return () => window.clearInterval(interval);
+  }, [session]);
+
+  return { health, quality, overview, logs, audit, catalog, error, refreshing, refresh: load };
 }

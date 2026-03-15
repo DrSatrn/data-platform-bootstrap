@@ -9,8 +9,8 @@ build the system originally and needs a reliable path to operate it.
 If you are new to the repo, read in this order:
 
 1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
-2. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
-3. [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+2. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+3. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
 4. this document
 
 ## Tooling Prerequisites
@@ -42,11 +42,27 @@ What that does:
 - builds the Go binaries for `darwin/arm64`
 - builds the React app
 
+## Access Model Summary
+
+- Anonymous: `GET /healthz`, `GET /api/v1/session`
+- Viewer: read APIs and read-only product pages
+- Editor: manual run triggers and dashboard writes
+- Admin: admin terminal and `platformctl remote ...`
+
+If a command uses `platformctl remote`, it is admin-only because it goes
+through the admin terminal endpoint.
+
 ## Main Ways To Run The Platform
 
-### 1. Fast local smoke path
+### 1. Canonical first-run path
 
-Use this when you want the quickest confidence check:
+Use [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md).
+That document owns first-run setup. This manual assumes you already completed
+one successful smoke or packaged boot.
+
+### 2. Fast local smoke path
+
+Use this when you want the quickest repeatable confidence check:
 
 ```sh
 make smoke
@@ -56,7 +72,7 @@ This starts an isolated localhost API, worker, and scheduler, validates a real
 run, validates artifacts, validates the admin terminal, and now validates
 backup creation and verification too.
 
-### 2. Packaged self-host style stack
+### 3. Packaged self-host style stack
 
 Use this when you want the closest thing to the intended local deployment:
 
@@ -69,7 +85,7 @@ Then open:
 - `http://127.0.0.1:3000`
 - `http://127.0.0.1:8080/healthz`
 
-### 3. Run services individually
+### 4. Run services individually
 
 Use this when you are debugging one process at a time.
 
@@ -160,6 +176,12 @@ Create and verify a backup:
 
 ```sh
 make backup
+```
+
+Run a safe restore drill:
+
+```sh
+make restore-drill
 ```
 
 ## Normal Maintenance Tasks

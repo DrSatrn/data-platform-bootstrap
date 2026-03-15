@@ -94,7 +94,7 @@ func RunScheduler(ctx context.Context) error {
 	}
 	catalog := metadata.NewCatalog()
 	control := orchestration.NewControlService(loader, persistence.store, persistence.queue)
-	service := scheduler.NewService(cfg.SchedulerTick, loader, persistence.store, control, catalog, logger, cfg.DataRoot)
+	service := scheduler.NewService(cfg.SchedulerTick, loader, persistence.store, control, catalog, persistence.metadata, logger, cfg.DataRoot)
 
 	logger.Info("starting scheduler loop", slog.Duration("tick", cfg.SchedulerTick))
 	return service.Run(ctx)
@@ -137,21 +137,24 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	}
 	backupService := backup.NewService(cfg, loader, persistence.store, queueSnapshots, persistence.reports, persistence.audit, persistence.metadata)
 	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, persistence.reports, persistence.artifacts, telemetry, backupService)
+	if err := metadata.ProjectStore(loader, persistence.metadata); err != nil {
+		logger.Warn("metadata projection on startup failed", slog.String("error", err.Error()))
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
 	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
-	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit))
-	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata))
-	mux.Handle("/api/v1/catalog/profile", metadata.NewProfileHandler(profileService))
-	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
-	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
-	mux.Handle("/api/v1/metrics", analytics.NewMetricCatalogHandler(loader, analyticsService))
-	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService, persistence.audit))
-	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
-	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService))
-	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
-	mux.Handle("/api/v1/system/audit", audit.NewHandler(persistence.audit))
+	mux.Handle("/api/v1/pipelines", authz.RequireRole(authService, authz.RoleViewer, orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit)))
+	mux.Handle("/api/v1/catalog", authz.RequireRole(authService, authz.RoleViewer, metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata)))
+	mux.Handle("/api/v1/catalog/profile", authz.RequireRole(authService, authz.RoleViewer, metadata.NewProfileHandler(profileService)))
+	mux.Handle("/api/v1/quality", authz.RequireRole(authService, authz.RoleViewer, quality.NewHandler(qualityService)))
+	mux.Handle("/api/v1/analytics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewHandler(analyticsService)))
+	mux.Handle("/api/v1/metrics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewMetricCatalogHandler(loader, analyticsService)))
+	mux.Handle("/api/v1/reports", authz.RequireRole(authService, authz.RoleViewer, reporting.NewHandler(persistence.reports, authService, persistence.audit)))
+	mux.Handle("/api/v1/artifacts", authz.RequireRole(authService, authz.RoleViewer, storage.NewHandler(persistence.artifacts)))
+	mux.Handle("/api/v1/system/overview", authz.RequireRole(authService, authz.RoleViewer, observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService)))
+	mux.Handle("/api/v1/system/logs", authz.RequireRole(authService, authz.RoleViewer, observability.NewRecentLogsHandler(telemetry)))
+	mux.Handle("/api/v1/system/audit", authz.RequireRole(authService, authz.RoleViewer, audit.NewHandler(persistence.audit)))
 	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService, persistence.audit))
 
 	return observability.RequestLoggingMiddleware(logger, telemetry, mux)

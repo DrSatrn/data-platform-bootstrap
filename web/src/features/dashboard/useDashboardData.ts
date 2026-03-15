@@ -80,7 +80,7 @@ const emptyWidget = (): DashboardWidget => ({
 });
 
 export function useDashboardData(): DashboardData {
-  const { token, session } = useAuth();
+  const { loading, token, session } = useAuth();
   const [dashboards, setDashboards] = useState<DashboardDefinition[]>([]);
   const [selectedDashboardID, setSelectedDashboardID] = useState<string | null>(null);
   const [widgetData, setWidgetData] = useState<Record<string, QueryPayload["query"]>>({});
@@ -97,16 +97,29 @@ export function useDashboardData(): DashboardData {
   const previewDashboard = isEditing && draft ? draft : dashboard;
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setDashboards([]);
+      setSelectedDashboardID(null);
+      setError("Viewer role required to access dashboards.");
+      return;
+    }
     void loadDashboards();
-  }, []);
+  }, [loading, session]);
 
   useEffect(() => {
     if (!previewDashboard) {
       setWidgetData({});
       return;
     }
+    if (!session?.capabilities.view_platform) {
+      setWidgetData({});
+      return;
+    }
     void hydrateDashboard(previewDashboard);
-  }, [previewDashboard]);
+  }, [previewDashboard, session]);
 
   async function loadDashboards(preferredID?: string) {
     try {

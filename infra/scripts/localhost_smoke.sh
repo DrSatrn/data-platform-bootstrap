@@ -54,7 +54,7 @@ wait_for_run_artifact() {
   expected_artifact="$2"
   attempts=0
   while [ "$attempts" -lt 30 ]; do
-    payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$run_id")
+    payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$run_id")
     if printf "%s" "$payload" | grep -q "\"${expected_artifact}\""; then
       return 0
     fi
@@ -68,7 +68,7 @@ wait_for_run_artifact() {
 wait_for_scheduled_run() {
   attempts=0
   while [ "$attempts" -lt 30 ]; do
-    payload=$(curl -fsS "$API_URL/api/v1/pipelines")
+    payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/pipelines")
     if printf "%s" "$payload" | tr -d '\n' | grep -q '"trigger":"scheduled"'; then
       return 0
     fi
@@ -177,19 +177,19 @@ wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
 wait_for_run_artifact "$manual_run_id" "staging/staging_transactions_enriched.json"
 wait_for_run_artifact "$manual_run_id" "intermediate/intermediate_category_monthly_rollup.json"
 
-artifacts_payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id")
+artifacts_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$manual_run_id")
 printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_savings_rate.json"'
 printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_category_variance.json"'
 printf "%s" "$artifacts_payload" | grep -q '"staging/staging_transactions_enriched.json"'
 printf "%s" "$artifacts_payload" | grep -q '"intermediate/intermediate_category_monthly_rollup.json"'
 
-reports_payload=$(curl -fsS "$API_URL/api/v1/reports")
+reports_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/reports")
 printf "%s" "$reports_payload" | grep -q '"finance_overview"'
 
-budget_payload=$(curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual")
+budget_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual")
 printf "%s" "$budget_payload" | grep -q '"variance_amount"'
 
-metrics_payload=$(curl -fsS "$API_URL/api/v1/metrics")
+metrics_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/metrics")
 printf "%s" "$metrics_payload" | grep -q '"metrics_savings_rate"'
 
 BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"

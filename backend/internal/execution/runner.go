@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/config"
+	"github.com/streanor/data-platform/backend/internal/externaltools"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/python"
@@ -31,7 +32,9 @@ type Runner struct {
 	files  *storage.Service
 	sql    *transforms.Engine
 	python *python.Runner
+	tools  *externaltools.Runner
 	logger *slog.Logger
+	repo   string
 }
 
 // NewRunner constructs an execution runner.
@@ -43,7 +46,15 @@ func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration
 		files:  files,
 		sql:    transforms.NewEngine(cfg.DuckDBPath, cfg.SQLRoot),
 		python: python.NewRunner(cfg),
+		tools: externaltools.NewRunner(externaltools.Settings{
+			Root:           cfg.ExternalToolRoot,
+			DBTBinary:      cfg.DBTBinary,
+			DLTBinary:      cfg.DLTBinary,
+			PySparkBinary:  cfg.PySparkBinary,
+			DefaultTimeout: cfg.ExternalToolTimeout,
+		}),
 		logger: logger,
+		repo:   externalToolRepoRoot(cfg),
 	}
 }
 
@@ -140,6 +151,8 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 		err = r.runQualityCheck(run.ID, job)
 	case orchestration.JobTypePublishMetric:
 		err = r.runMetricsPublish(run.ID, job)
+	case orchestration.JobTypeExternalTool:
+		err = r.runExternalTool(ctx, run, job)
 	default:
 		err = fmt.Errorf("unsupported job type %s", job.Type)
 	}
@@ -482,12 +495,128 @@ func (r *Runner) writeMetricArtifact(runID, metricID string) error {
 	})
 }
 
+func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.PipelineRun, job orchestration.Job) error {
+	if job.ExternalTool == nil {
+		return fmt.Errorf("external tool job %s is missing configuration", job.ID)
+	}
+
+	spec := *job.ExternalTool
+	timeout, err := parseJobTimeout(job.Timeout)
+	if err != nil {
+		return err
+	}
+
+	result, err := r.tools.Run(ctx, externaltools.RunRequest{
+		RunID:      run.ID,
+		RepoRoot:   r.repo,
+		PipelineID: run.PipelineID,
+		JobID:      job.ID,
+		Timeout:    timeout,
+		Spec:       spec,
+	})
+	for _, event := range result.Events {
+		r.appendEvent(run, event.Level, event.Message, mergeEventFields(event.Fields, map[string]string{"job_id": job.ID}))
+	}
+	for _, line := range result.LogLines {
+		r.logger.Info("external tool", slog.String("job_id", job.ID), slog.String("tool", firstNonEmpty(result.Tool, spec.Tool)), slog.String("message", line))
+	}
+	if err := r.writeExternalToolLogArtifacts(run.ID, job.ID, result); err != nil {
+		return err
+	}
+	if err != nil {
+		r.appendEvent(run, "error", "external tool failed", map[string]string{
+			"job_id":        job.ID,
+			"tool":          firstNonEmpty(result.Tool, spec.Tool),
+			"action":        firstNonEmpty(result.Action, spec.Action),
+			"failure_class": result.FailureClass,
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("external tool %s %s failed: %w", spec.Tool, spec.Action, err)
+	}
+	for _, artifact := range result.Artifacts {
+		bytes, readErr := os.ReadFile(artifact.SourcePath)
+		if readErr != nil {
+			return fmt.Errorf("read external tool artifact %s: %w", artifact.SourcePath, readErr)
+		}
+		if writeErr := r.writeRunScopedArtifact(run.ID, artifact.RelativePath, bytes); writeErr != nil {
+			return writeErr
+		}
+	}
+	r.appendEvent(run, "info", "external tool finished", map[string]string{
+		"job_id":         job.ID,
+		"tool":           firstNonEmpty(result.Tool, spec.Tool),
+		"action":         firstNonEmpty(result.Action, spec.Action),
+		"artifact_count": strconv.Itoa(len(result.Artifacts)),
+	})
+	return nil
+}
+
 func latestValue(row map[string]any) any {
 	if value, present := row["savings_rate"]; present {
 		return value
 	}
 	if value, present := row["variance_amount"]; present {
 		return value
+	}
+	return nil
+}
+
+func repoRootFromManifestRoot(manifestRoot string) string {
+	return filepath.Clean(filepath.Join(manifestRoot, "..", ".."))
+}
+
+func externalToolRepoRoot(cfg config.Settings) string {
+	if strings.TrimSpace(cfg.ExternalToolRoot) != "" {
+		return filepath.Clean(cfg.ExternalToolRoot)
+	}
+	return repoRootFromManifestRoot(cfg.ManifestRoot)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func parseJobTimeout(value string) (time.Duration, error) {
+	if strings.TrimSpace(value) == "" {
+		return 0, nil
+	}
+	timeout, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse job timeout %q: %w", value, err)
+	}
+	return timeout, nil
+}
+
+func mergeEventFields(primary, defaults map[string]string) map[string]string {
+	if len(primary) == 0 && len(defaults) == 0 {
+		return nil
+	}
+	merged := make(map[string]string, len(primary)+len(defaults))
+	for key, value := range defaults {
+		merged[key] = value
+	}
+	for key, value := range primary {
+		merged[key] = value
+	}
+	return merged
+}
+
+func (r *Runner) writeExternalToolLogArtifacts(runID, jobID string, result externaltools.Result) error {
+	logRoot := filepath.ToSlash(filepath.Join("external_tools", jobID, "logs"))
+	if strings.TrimSpace(result.Stdout) != "" {
+		if err := r.writeRunScopedArtifact(runID, filepath.ToSlash(filepath.Join(logRoot, "stdout.log")), []byte(result.Stdout)); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(result.Stderr) != "" {
+		if err := r.writeRunScopedArtifact(runID, filepath.ToSlash(filepath.Join(logRoot, "stderr.log")), []byte(result.Stderr)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

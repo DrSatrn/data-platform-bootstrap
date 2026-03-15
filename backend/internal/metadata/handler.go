@@ -37,19 +37,12 @@ func NewCatalogHandler(loader AssetLoader, catalog *Catalog, dataRoot string, st
 }
 
 func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	assets, err := h.loader.LoadAssets()
+	assets, err := h.assetsForResponse()
 	if err != nil {
 		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 			"error": "failed to load assets",
 		})
 		return
-	}
-	if h.store != nil {
-		if err := h.store.SyncAssets(assets); err == nil {
-			if storedAssets, listErr := h.store.ListAssets(); listErr == nil && len(storedAssets) > 0 {
-				assets = storedAssets
-			}
-		}
 	}
 
 	h.catalog.ReplaceAssets(assets)
@@ -63,6 +56,15 @@ func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"summary": SummarizeAssets(enriched),
 		"lineage": BuildEdges(enriched),
 	})
+}
+
+func (h *CatalogHandler) assetsForResponse() ([]DataAsset, error) {
+	if h.store != nil {
+		if storedAssets, err := h.store.ListAssets(); err == nil && len(storedAssets) > 0 {
+			return storedAssets, nil
+		}
+	}
+	return h.loader.LoadAssets()
 }
 
 func (h *CatalogHandler) freshnessStatus(asset DataAsset) Status {

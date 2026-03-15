@@ -26,6 +26,7 @@ type Service struct {
 	store     orchestration.Store
 	control   *orchestration.ControlService
 	catalog   *metadata.Catalog
+	metaStore metadata.Store
 	logger    *slog.Logger
 	statePath string
 }
@@ -37,6 +38,7 @@ func NewService(
 	store orchestration.Store,
 	control *orchestration.ControlService,
 	catalog *metadata.Catalog,
+	metaStore metadata.Store,
 	logger *slog.Logger,
 	dataRoot string,
 ) *Service {
@@ -46,6 +48,7 @@ func NewService(
 		store:     store,
 		control:   control,
 		catalog:   catalog,
+		metaStore: metaStore,
 		logger:    logger,
 		statePath: filepath.Join(dataRoot, "control_plane", "scheduler_state.json"),
 	}
@@ -82,6 +85,10 @@ func (s *Service) refreshCatalog() error {
 	assets, err := s.loader.LoadAssets()
 	if err != nil {
 		return err
+	}
+
+	if err := metadata.ProjectStore(s.loader, s.metaStore); err != nil {
+		s.logger.Warn("metadata projection refresh failed", slog.String("error", err.Error()))
 	}
 
 	s.catalog.ReplaceAssets(assets)

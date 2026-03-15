@@ -20,6 +20,9 @@ func ValidatePipeline(pipeline Pipeline) error {
 		if job.ID == "" {
 			return fmt.Errorf("job id is required")
 		}
+		if err := validateJob(job); err != nil {
+			return fmt.Errorf("job %q is invalid: %w", job.ID, err)
+		}
 		if _, exists := seen[job.ID]; exists {
 			return fmt.Errorf("duplicate job id %q", job.ID)
 		}

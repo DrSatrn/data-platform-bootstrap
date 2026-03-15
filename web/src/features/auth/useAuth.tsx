@@ -22,16 +22,16 @@ type AuthContextValue = {
   loading: boolean;
 };
 
-const storageKey = "data-platform-auth-token";
+export const authStorageKey = "data-platform-auth-token";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setTokenState] = useState(() => window.localStorage.getItem(storageKey) ?? "");
+  const [token, setTokenState] = useState(() => window.localStorage.getItem(authStorageKey) ?? "");
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, token);
+    window.localStorage.setItem(authStorageKey, token);
     setLoading(true);
     fetchJSON<SessionPayload>("/api/v1/session", token.trim() || undefined)
       .then(setSession)

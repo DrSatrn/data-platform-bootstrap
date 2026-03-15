@@ -99,7 +99,7 @@ func (s *Service) SessionForRequest(r *http.Request) Session {
 	return Session{
 		Principal: principal,
 		Capabilities: map[string]bool{
-			"view_platform":      true,
+			"view_platform":      Allowed(principal, RoleViewer),
 			"trigger_runs":       Allowed(principal, RoleEditor),
 			"edit_dashboards":    Allowed(principal, RoleEditor),
 			"run_admin_terminal": Allowed(principal, RoleAdmin),

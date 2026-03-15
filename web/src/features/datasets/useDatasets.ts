@@ -1,6 +1,7 @@
 // This hook loads dataset catalog metadata for the datasets page.
 import { useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { fetchJSON } from "../../lib/api";
 
 export type Asset = {
@@ -73,6 +74,7 @@ type DatasetPayload = {
 };
 
 export function useDatasets() {
+  const { loading, session } = useAuth();
   const [data, setData] = useState<DatasetPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetID, setSelectedAssetID] = useState<string | null>(null);
@@ -81,13 +83,23 @@ export function useDatasets() {
   const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setData(null);
+      setError("Viewer role required to access the catalog.");
+      return;
+    }
+
     fetchJSON<DatasetPayload>("/api/v1/catalog")
       .then((payload) => {
         setData(payload);
+        setError(null);
         setSelectedAssetID((current) => current ?? payload.assets[0]?.id ?? null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown datasets error"));
-  }, []);
+  }, [loading, session]);
 
   const selectedAsset = useMemo(
     () => data?.assets.find((asset) => asset.id === selectedAssetID) ?? data?.assets[0] ?? null,
@@ -96,6 +108,10 @@ export function useDatasets() {
 
   useEffect(() => {
     if (!selectedAssetID) {
+      setProfile(null);
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
       setProfile(null);
       return;
     }
@@ -109,7 +125,7 @@ export function useDatasets() {
         setProfileError(err instanceof Error ? err.message : "Unknown dataset profile error");
       })
       .finally(() => setProfileLoading(false));
-  }, [selectedAssetID]);
+  }, [selectedAssetID, session]);
 
   return { data, error, profile, profileError, profileLoading, selectedAssetID, selectedAsset, setSelectedAssetID };
 }

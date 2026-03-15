@@ -6,10 +6,13 @@ import { useSystemData } from "../features/system/useSystemData";
 
 export function SystemPage() {
   const { session } = useAuth();
-  const { health, quality, overview, logs, audit, catalog, error } = useSystemData();
+  const { health, quality, overview, logs, audit, catalog, error, refreshing, refresh } = useSystemData();
 
   if (error) {
     return <section className="panel">System error: {error}</section>;
+  }
+  if (!health || !overview || !catalog) {
+    return <section className="panel">Loading system view...</section>;
   }
 
   const freshnessStates = (catalog?.assets ?? []).reduce(
@@ -23,16 +26,24 @@ export function SystemPage() {
   return (
     <section className="page-grid">
       <article className="card">
-        <h2>Service Health</h2>
-        <p className="muted">Environment: {health?.environment ?? "unknown"}</p>
-        <p>Status: {health?.status ?? "unknown"}</p>
+        <div className="row-between">
+          <h2>Service Health</h2>
+          <button className="mini-button" onClick={() => void refresh()} type="button">
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+        <p className="muted">Environment: {health.environment}</p>
+        <p>Status: {health.status}</p>
         <p className="muted">Session: {session?.principal.subject ?? "anonymous"} ({session?.principal.role ?? "anonymous"})</p>
-        <p className="muted">Known pipelines: {overview?.known_pipelines ?? 0}</p>
-        <p className="muted">Known assets: {overview?.known_assets ?? 0}</p>
-        <p className="muted">Run history: {overview?.run_history ?? 0}</p>
+        <p className="muted">Known pipelines: {overview.known_pipelines}</p>
+        <p className="muted">Known assets: {overview.known_assets}</p>
+        <p className="muted">Run history: {overview.run_history}</p>
       </article>
       <article className="card">
-        <h2>Built-in Metrics</h2>
+        <div className="row-between">
+          <h2>Built-in Metrics</h2>
+          <span className="badge">{refreshing ? "live refresh" : "10s polling"}</span>
+        </div>
         <p className="muted">Uptime: {overview?.telemetry.uptime_seconds ?? 0}s</p>
         <p className="muted">Requests: {overview?.telemetry.total_requests ?? 0}</p>
         <p className="muted">Errors: {overview?.telemetry.total_errors ?? 0}</p>
