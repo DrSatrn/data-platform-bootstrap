@@ -5,11 +5,15 @@
 import { useEffect, useState } from "react";
 
 import { useAuth } from "../features/auth/useAuth";
-import { Asset, AssetProfile, useDatasets } from "../features/datasets/useDatasets";
+import { Asset, AssetProfile, DrilldownQuery, useDatasets } from "../features/datasets/useDatasets";
 
 export function DatasetsPage() {
   const {
     data,
+    drilldown,
+    drilldownError,
+    drilldownFilters,
+    drilldownLoading,
     error,
     profile,
     profileError,
@@ -19,7 +23,8 @@ export function DatasetsPage() {
     savePending,
     selectedAsset,
     selectedAssetID,
-    setSelectedAssetID
+    setSelectedAssetID,
+    updateDrilldownFilter
   } = useDatasets();
 
   if (error) {
@@ -84,6 +89,11 @@ export function DatasetsPage() {
           saveAnnotations={saveAnnotations}
           saveError={saveError}
           savePending={savePending}
+          drilldown={drilldown}
+          drilldownError={drilldownError}
+          drilldownFilters={drilldownFilters}
+          drilldownLoading={drilldownLoading}
+          updateDrilldownFilter={updateDrilldownFilter}
         />
       ) : (
         <article className="card">
@@ -102,7 +112,12 @@ function DatasetDetail({
   profileLoading,
   saveAnnotations,
   saveError,
-  savePending
+  savePending,
+  drilldown,
+  drilldownError,
+  drilldownFilters,
+  drilldownLoading,
+  updateDrilldownFilter
 }: {
   asset: Asset;
   profile: AssetProfile | null;
@@ -111,6 +126,20 @@ function DatasetDetail({
   saveAnnotations: ReturnType<typeof useDatasets>["saveAnnotations"];
   saveError: string | null;
   savePending: boolean;
+  drilldown: DrilldownQuery | null;
+  drilldownError: string | null;
+  drilldownFilters: {
+    fromMonth: string;
+    toMonth: string;
+    category: string;
+    groupBy: string;
+    drillDimension: string;
+    drillValue: string;
+    sortBy: string;
+    sortDirection: string;
+  };
+  drilldownLoading: boolean;
+  updateDrilldownFilter: ReturnType<typeof useDatasets>["updateDrilldownFilter"];
 }) {
   const { session } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -257,6 +286,125 @@ function DatasetDetail({
           </p>
         </div>
       </div>
+      {asset.id.startsWith("mart_") || asset.id.startsWith("metrics_") ? (
+        <div className="stack">
+          <div className="row-between">
+            <h3>Curated Drill-down</h3>
+            <span className="badge">{drilldown?.series.length ?? 0} rows</span>
+          </div>
+          <p className="muted">Use the analytics service to slice the curated dataset directly from the catalog workbench.</p>
+          <div className="form-grid">
+            <label className="stack">
+              <span className="muted">From month</span>
+              <input
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("fromMonth", event.target.value)}
+                placeholder="YYYY-MM"
+                value={drilldownFilters.fromMonth}
+              />
+            </label>
+            <label className="stack">
+              <span className="muted">To month</span>
+              <input
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("toMonth", event.target.value)}
+                placeholder="YYYY-MM"
+                value={drilldownFilters.toMonth}
+              />
+            </label>
+            <label className="stack">
+              <span className="muted">Category</span>
+              <input
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("category", event.target.value)}
+                placeholder="Food"
+                value={drilldownFilters.category}
+              />
+            </label>
+            <label className="stack">
+              <span className="muted">Group by</span>
+              <select className="terminal-input" onChange={(event) => updateDrilldownFilter("groupBy", event.target.value)} value={drilldownFilters.groupBy}>
+                <option value="">No grouping</option>
+                {(drilldown?.available_dimensions ?? []).map((dimension) => (
+                  <option key={dimension} value={dimension}>
+                    {dimension}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="stack">
+              <span className="muted">Drill dimension</span>
+              <select
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("drillDimension", event.target.value)}
+                value={drilldownFilters.drillDimension}
+              >
+                <option value="">No drill filter</option>
+                {(drilldown?.available_dimensions ?? []).map((dimension) => (
+                  <option key={dimension} value={dimension}>
+                    {dimension}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="stack">
+              <span className="muted">Drill value</span>
+              <input
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("drillValue", event.target.value)}
+                placeholder="2026-02 or Food"
+                value={drilldownFilters.drillValue}
+              />
+            </label>
+            <label className="stack">
+              <span className="muted">Sort by</span>
+              <select className="terminal-input" onChange={(event) => updateDrilldownFilter("sortBy", event.target.value)} value={drilldownFilters.sortBy}>
+                <option value="">Default</option>
+                {[...(drilldown?.available_dimensions ?? []), ...(drilldown?.available_measures ?? [])].map((field) => (
+                  <option key={field} value={field}>
+                    {field}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="stack">
+              <span className="muted">Sort direction</span>
+              <select
+                className="terminal-input"
+                onChange={(event) => updateDrilldownFilter("sortDirection", event.target.value)}
+                value={drilldownFilters.sortDirection}
+              >
+                <option value="asc">asc</option>
+                <option value="desc">desc</option>
+              </select>
+            </label>
+          </div>
+          {drilldownError ? <p className="muted">{drilldownError}</p> : null}
+          {drilldownLoading ? <p className="muted">Running curated drill-down query...</p> : null}
+          {drilldown && drilldown.series.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {Object.keys(drilldown.series[0]).map((column) => (
+                    <th key={column}>{column}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {drilldown.series.map((row, index) => (
+                  <tr key={`${asset.id}-drill-${index}`}>
+                    {Object.keys(drilldown.series[0]).map((column) => (
+                      <td key={column}>{String(row[column] ?? "")}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted">No drill-down rows yet for the current filters.</p>
+          )}
+        </div>
+      ) : null}
       <table className="data-table">
         <thead>
           <tr>

@@ -29,6 +29,11 @@ widgets:
     value_field: savings_rate
     description: Latest monthly savings rate published by the metrics layer.
     limit: 12
+    layout:
+      x: 0
+      y: 0
+      w: 3
+      h: 1
   - id: cashflow_chart
     name: Monthly Cashflow
     type: table
@@ -37,15 +42,30 @@ widgets:
     y_axis: savings_rate
     description: Monthly income, expenses, and savings trend.
     limit: 12
+    layout:
+      x: 3
+      y: 0
+      w: 9
+      h: 2
   - id: category_spend_table
     name: Category Spend
     type: table
     dataset_ref: mart_category_spend
     description: Monthly spend broken down by reporting category.
     limit: 12
+    layout:
+      x: 0
+      y: 2
+      w: 6
+      h: 2
   - id: budget_variance_table
     name: Budget Variance
     type: table
     dataset_ref: mart_budget_vs_actual
     description: Budget versus actual spend by category.
     limit: 16
+    layout:
+      x: 6
+      y: 2
+      w: 6
+      h: 2

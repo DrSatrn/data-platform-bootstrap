@@ -54,6 +54,16 @@ export type AssetProfile = {
   }>;
 };
 
+export type DrilldownQuery = {
+  dataset: string;
+  series: Array<Record<string, string | number>>;
+  available_dimensions?: string[];
+  available_measures?: string[];
+  group_by?: string;
+  drill_dimension?: string;
+  drill_value?: string;
+};
+
 type DatasetPayload = {
   assets: Asset[];
   summary: {
@@ -90,6 +100,19 @@ export function useDatasets() {
   const [profile, setProfile] = useState<AssetProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [drilldown, setDrilldown] = useState<DrilldownQuery | null>(null);
+  const [drilldownError, setDrilldownError] = useState<string | null>(null);
+  const [drilldownLoading, setDrilldownLoading] = useState(false);
+  const [drilldownFilters, setDrilldownFilters] = useState({
+    fromMonth: "",
+    toMonth: "",
+    category: "",
+    groupBy: "",
+    drillDimension: "",
+    drillValue: "",
+    sortBy: "",
+    sortDirection: "asc"
+  });
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -142,6 +165,63 @@ export function useDatasets() {
       .finally(() => setProfileLoading(false));
   }, [selectedAssetID, session]);
 
+  useEffect(() => {
+    if (!selectedAsset) {
+      setDrilldown(null);
+      return;
+    }
+    if (!session?.capabilities.view_platform) {
+      setDrilldown(null);
+      return;
+    }
+    if (!isCuratedQueryTarget(selectedAsset.id)) {
+      setDrilldown(null);
+      setDrilldownError(null);
+      return;
+    }
+
+    setDrilldownLoading(true);
+    setDrilldownError(null);
+    const query = new URLSearchParams();
+    if (selectedAsset.id.startsWith("metrics_")) {
+      query.set("metric", selectedAsset.id);
+    } else {
+      query.set("dataset", selectedAsset.id);
+    }
+    if (drilldownFilters.fromMonth) {
+      query.set("from_month", drilldownFilters.fromMonth);
+    }
+    if (drilldownFilters.toMonth) {
+      query.set("to_month", drilldownFilters.toMonth);
+    }
+    if (drilldownFilters.category) {
+      query.set("category", drilldownFilters.category);
+    }
+    if (drilldownFilters.groupBy) {
+      query.set("group_by", drilldownFilters.groupBy);
+    }
+    if (drilldownFilters.drillDimension) {
+      query.set("drill_dimension", drilldownFilters.drillDimension);
+    }
+    if (drilldownFilters.drillValue) {
+      query.set("drill_value", drilldownFilters.drillValue);
+    }
+    if (drilldownFilters.sortBy) {
+      query.set("sort_by", drilldownFilters.sortBy);
+    }
+    if (drilldownFilters.sortDirection) {
+      query.set("sort_direction", drilldownFilters.sortDirection);
+    }
+
+    fetchJSON<{ query: DrilldownQuery }>(`/api/v1/analytics?${query.toString()}`)
+      .then((payload) => setDrilldown(payload.query))
+      .catch((err) => {
+        setDrilldown(null);
+        setDrilldownError(err instanceof Error ? err.message : "Unknown dataset drilldown error");
+      })
+      .finally(() => setDrilldownLoading(false));
+  }, [drilldownFilters, selectedAsset, session]);
+
   async function saveAnnotations(payload: AssetUpdatePayload) {
     if (!session?.capabilities.edit_metadata) {
       throw new Error("Editor role required to update metadata.");
@@ -164,6 +244,10 @@ export function useDatasets() {
 
   return {
     data,
+    drilldown,
+    drilldownError,
+    drilldownFilters,
+    drilldownLoading,
     error,
     profile,
     profileError,
@@ -173,6 +257,14 @@ export function useDatasets() {
     savePending,
     selectedAssetID,
     selectedAsset,
-    setSelectedAssetID
+    setSelectedAssetID,
+    updateDrilldownFilter: (
+      field: "fromMonth" | "toMonth" | "category" | "groupBy" | "drillDimension" | "drillValue" | "sortBy" | "sortDirection",
+      value: string
+    ) => setDrilldownFilters((current) => ({ ...current, [field]: value }))
   };
+}
+
+function isCuratedQueryTarget(assetID: string) {
+  return assetID.startsWith("mart_") || assetID.startsWith("metrics_");
 }

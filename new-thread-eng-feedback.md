@@ -163,9 +163,9 @@ Checklist:
 
 ## Workstream 4: Reporting Polish
 Checklist:
-- [ ] Add explicit layout grid metadata to the dashboard widget domain schema.
-- [ ] Allow dynamic reordering and resizing of widgets in the UI.
-- [ ] Enhance dataset drill-down capabilities within the analytics service.
+- [x] Add explicit layout grid metadata to the dashboard widget domain schema.
+- [x] Allow dynamic reordering and resizing of widgets in the UI.
+- [x] Enhance dataset drill-down capabilities within the analytics service.
 
 ## Workstream 5: Benchmark Breadth
 Checklist:

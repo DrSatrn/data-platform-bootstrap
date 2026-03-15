@@ -23,6 +23,12 @@ export type DashboardWidget = {
     to_month?: string;
     category?: string;
   };
+  layout?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
 };
 
 export type DashboardDefinition = {
@@ -89,6 +95,8 @@ export type DashboardData = {
   addWidget: () => void;
   removeWidget: (widgetID: string) => void;
   moveWidget: (widgetID: string, direction: -1 | 1) => void;
+  nudgeWidget: (widgetID: string, axis: "x" | "y", delta: -1 | 1) => void;
+  resizeWidget: (widgetID: string, axis: "w" | "h", delta: -1 | 1) => void;
   createDashboard: () => void;
   duplicateDashboard: () => void;
   deleteDashboard: () => Promise<void>;
@@ -103,7 +111,8 @@ const emptyWidget = (): DashboardWidget => ({
   x_axis: "month",
   y_axis: "net_cashflow",
   limit: 12,
-  filters: {}
+  filters: {},
+  layout: { x: 0, y: 0, w: 6, h: 2 }
 });
 
 export function useDashboardData(): DashboardData {
@@ -156,10 +165,11 @@ export function useDashboardData(): DashboardData {
   async function loadDashboards(preferredID?: string) {
     try {
       const reports = await fetchJSON<ReportsPayload>("/api/v1/reports");
-      setDashboards(reports.dashboards);
+      const normalized = reports.dashboards.map((dashboard) => normalizeDashboardDefinition(dashboard));
+      setDashboards(normalized);
       const nextDashboardID = preferredID ?? selectedDashboardID ?? reports.dashboards[0]?.id ?? null;
       setSelectedDashboardID(nextDashboardID);
-      const nextDashboard = reports.dashboards.find((item) => item.id === nextDashboardID) ?? reports.dashboards[0] ?? null;
+      const nextDashboard = normalized.find((item) => item.id === nextDashboardID) ?? normalized[0] ?? null;
       setSelectedPresetID(nextDashboard?.presets?.[0]?.id ?? null);
       setError(null);
     } catch (err) {
@@ -224,7 +234,7 @@ export function useDashboardData(): DashboardData {
     if (!dashboard) {
       return;
     }
-    setDraft(JSON.parse(JSON.stringify(dashboard)) as DashboardDefinition);
+    setDraft(normalizeDashboardDefinition(JSON.parse(JSON.stringify(dashboard)) as DashboardDefinition));
     setIsEditing(true);
     setSaveError(null);
   }
@@ -247,7 +257,7 @@ export function useDashboardData(): DashboardData {
       presets: [],
       widgets: [emptyWidget()]
     };
-    setDraft(nextDashboard);
+    setDraft(normalizeDashboardDefinition(nextDashboard));
     setIsEditing(true);
     setSaveError(null);
   }
@@ -273,7 +283,7 @@ export function useDashboardData(): DashboardData {
         id: `${widget.id}_copy_${Date.now()}`
       }))
     };
-    setDraft(clonedDashboard);
+    setDraft(normalizeDashboardDefinition(clonedDashboard));
     setIsEditing(true);
     setSaveError(null);
   }
@@ -429,7 +439,7 @@ export function useDashboardData(): DashboardData {
       current
         ? {
             ...current,
-            widgets: [...current.widgets, emptyWidget()]
+            widgets: [...current.widgets, defaultWidgetPlacement([...current.widgets, emptyWidget()])]
           }
         : current
     );
@@ -447,21 +457,49 @@ export function useDashboardData(): DashboardData {
   }
 
   function moveWidget(widgetID: string, direction: -1 | 1) {
+    nudgeWidget(widgetID, "y", direction)
+  }
+
+  function nudgeWidget(widgetID: string, axis: "x" | "y", delta: -1 | 1) {
     setDraft((current) => {
       if (!current) {
         return current;
       }
-      const widgets = [...current.widgets];
-      const index = widgets.findIndex((widget) => widget.id === widgetID);
-      const targetIndex = index + direction;
-      if (index < 0 || targetIndex < 0 || targetIndex >= widgets.length) {
-        return current;
-      }
-      const [widget] = widgets.splice(index, 1);
-      widgets.splice(targetIndex, 0, widget);
       return {
         ...current,
-        widgets
+        widgets: current.widgets.map((widget) =>
+          widget.id === widgetID
+            ? {
+                ...widget,
+                layout: {
+                  ...widgetLayout(widget),
+                  [axis]: Math.max(0, widgetLayout(widget)[axis] + delta)
+                }
+              }
+            : widget
+        )
+      };
+    });
+  }
+
+  function resizeWidget(widgetID: string, axis: "w" | "h", delta: -1 | 1) {
+    setDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        widgets: current.widgets.map((widget) =>
+          widget.id === widgetID
+            ? {
+                ...widget,
+                layout: {
+                  ...widgetLayout(widget),
+                  [axis]: Math.max(1, Math.min(axis === "w" ? 12 : 6, widgetLayout(widget)[axis] + delta))
+                }
+              }
+            : widget
+        )
       };
     });
   }
@@ -479,7 +517,7 @@ export function useDashboardData(): DashboardData {
       }
       await postJSON<{ dashboard: DashboardDefinition }, DashboardDefinition>(
         "/api/v1/reports",
-        draft,
+        normalizeDashboardDefinition(draft),
         token.trim() || undefined
       );
       await loadDashboards(draft.id);
@@ -545,9 +583,39 @@ export function useDashboardData(): DashboardData {
     addWidget,
     removeWidget,
     moveWidget,
+    nudgeWidget,
+    resizeWidget,
     createDashboard,
     duplicateDashboard,
     deleteDashboard,
     saveDashboard
   };
+}
+
+function normalizeDashboardDefinition(dashboard: DashboardDefinition): DashboardDefinition {
+  return {
+    ...dashboard,
+    widgets: dashboard.widgets.map((widget, index) => ensureWidgetLayout(widget, index))
+  };
+}
+
+function ensureWidgetLayout(widget: DashboardWidget, index: number): DashboardWidget {
+  return {
+    ...widget,
+    layout: widget.layout ?? {
+      x: (index % 2) * 6,
+      y: Math.floor(index / 2) * 2,
+      w: widget.type === "kpi" ? 3 : 6,
+      h: widget.type === "kpi" ? 1 : 2
+    }
+  };
+}
+
+function widgetLayout(widget: DashboardWidget) {
+  return widget.layout ?? { x: 0, y: 0, w: widget.type === "kpi" ? 3 : 6, h: widget.type === "kpi" ? 1 : 2 };
+}
+
+function defaultWidgetPlacement(widgets: DashboardWidget[]) {
+  const widget = widgets[widgets.length - 1];
+  return ensureWidgetLayout(widget, widgets.length - 1);
 }

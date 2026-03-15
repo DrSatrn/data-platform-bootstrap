@@ -58,6 +58,8 @@ Writes:
 - platform users and session rows when the native identity store is available
 - dashboard changes written directly to PostgreSQL when the preferred control
   plane is available, otherwise to the fallback filesystem store
+- widget layout coordinates and spans are part of the saved dashboard contract,
+  not frontend-only local state
 - metadata seeds projected from manifests at startup and on scheduler refresh,
   plus runtime metadata annotation edits written directly to PostgreSQL when
   the preferred control plane is available
@@ -274,6 +276,18 @@ Today the mutable operator-managed fields are:
 
 Those overrides survive scheduler refreshes and manifest reseeds because the
 manifest sync updates structural fields only.
+
+## Reporting Layout And Drill-Down Contract
+
+- dashboard widgets now carry explicit `layout.x`, `layout.y`, `layout.w`, and
+  `layout.h` values
+- the browser editor mutates those values directly when operators move or
+  resize widgets
+- the analytics API now supports grouped and drilled dataset reads through
+  `group_by`, `drill_dimension`, `drill_value`, `sort_by`, and
+  `sort_direction`
+- the Datasets page consumes that constrained contract to provide curated
+  drill-down without bypassing the analytics layer
 
 ## Layer Map
 

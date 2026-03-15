@@ -28,16 +28,26 @@ type Service struct {
 // analytics API. The service intentionally keeps this small so the reporting
 // layer cannot drift into arbitrary-query behavior.
 type QueryOptions struct {
-	FromMonth string
-	ToMonth   string
-	Category  string
-	Limit     int
+	FromMonth      string
+	ToMonth        string
+	Category       string
+	Limit          int
+	GroupBy        string
+	DrillDimension string
+	DrillValue     string
+	SortBy         string
+	SortDirection  string
 }
 
 // QueryResult is shaped for chart-friendly frontend consumption.
 type QueryResult struct {
-	Dataset string           `json:"dataset"`
-	Series  []map[string]any `json:"series"`
+	Dataset             string           `json:"dataset"`
+	Series              []map[string]any `json:"series"`
+	AvailableDimensions []string         `json:"available_dimensions,omitempty"`
+	AvailableMeasures   []string         `json:"available_measures,omitempty"`
+	GroupBy             string           `json:"group_by,omitempty"`
+	DrillDimension      string           `json:"drill_dimension,omitempty"`
+	DrillValue          string           `json:"drill_value,omitempty"`
 }
 
 // NewService creates an analytics service.
@@ -87,17 +97,17 @@ func (s *Service) queryMonthlyCashflow(options QueryOptions) (QueryResult, error
 		from mart_monthly_cashflow
 	`
 	if rows, err := s.queryDuckDB(query, options, false, "month"); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_monthly_cashflow", Series: rows}, nil
+		return finalizeQueryResult("mart_monthly_cashflow", rows, options)
 	}
 	if rows, err := s.loadArtifactRows(filepath.Join("mart", "mart_monthly_cashflow.json"), options); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_monthly_cashflow", Series: rows}, nil
+		return finalizeQueryResult("mart_monthly_cashflow", rows, options)
 	}
 
 	rows, err := s.sampleMonthlyCashflow(options)
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return QueryResult{Dataset: "mart_monthly_cashflow", Series: rows}, nil
+	return finalizeQueryResult("mart_monthly_cashflow", rows, options)
 }
 
 func (s *Service) queryCategorySpend(options QueryOptions) (QueryResult, error) {
@@ -106,17 +116,17 @@ func (s *Service) queryCategorySpend(options QueryOptions) (QueryResult, error) 
 		from mart_category_spend
 	`
 	if rows, err := s.queryDuckDB(query, options, true, "month, category"); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_category_spend", Series: rows}, nil
+		return finalizeQueryResult("mart_category_spend", rows, options)
 	}
 	if rows, err := s.loadArtifactRows(filepath.Join("mart", "mart_category_spend.json"), options); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_category_spend", Series: rows}, nil
+		return finalizeQueryResult("mart_category_spend", rows, options)
 	}
 
 	rows, err := s.sampleCategorySpend(options)
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return QueryResult{Dataset: "mart_category_spend", Series: rows}, nil
+	return finalizeQueryResult("mart_category_spend", rows, options)
 }
 
 func (s *Service) queryBudgetVariance(options QueryOptions) (QueryResult, error) {
@@ -125,17 +135,17 @@ func (s *Service) queryBudgetVariance(options QueryOptions) (QueryResult, error)
 		from mart_budget_vs_actual
 	`
 	if rows, err := s.queryDuckDB(query, options, true, "month, category"); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_budget_vs_actual", Series: rows}, nil
+		return finalizeQueryResult("mart_budget_vs_actual", rows, options)
 	}
 	if rows, err := s.loadArtifactRows(filepath.Join("mart", "mart_budget_vs_actual.json"), options); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "mart_budget_vs_actual", Series: rows}, nil
+		return finalizeQueryResult("mart_budget_vs_actual", rows, options)
 	}
 
 	rows, err := s.sampleBudgetVariance(options)
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return QueryResult{Dataset: "mart_budget_vs_actual", Series: rows}, nil
+	return finalizeQueryResult("mart_budget_vs_actual", rows, options)
 }
 
 func (s *Service) querySavingsRateMetric(options QueryOptions) (QueryResult, error) {
@@ -144,17 +154,17 @@ func (s *Service) querySavingsRateMetric(options QueryOptions) (QueryResult, err
 		from metrics_savings_rate
 	`
 	if rows, err := s.queryDuckDB(query, options, false, "month"); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "metrics_savings_rate", Series: rows}, nil
+		return finalizeQueryResult("metrics_savings_rate", rows, options)
 	}
 	if rows, err := s.loadMetricArtifact("metrics_savings_rate", options); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "metrics_savings_rate", Series: rows}, nil
+		return finalizeQueryResult("metrics_savings_rate", rows, options)
 	}
 
 	rows, err := s.sampleSavingsRate(options)
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return QueryResult{Dataset: "metrics_savings_rate", Series: rows}, nil
+	return finalizeQueryResult("metrics_savings_rate", rows, options)
 }
 
 func (s *Service) queryCategoryVarianceMetric(options QueryOptions) (QueryResult, error) {
@@ -163,17 +173,17 @@ func (s *Service) queryCategoryVarianceMetric(options QueryOptions) (QueryResult
 		from metrics_category_variance
 	`
 	if rows, err := s.queryDuckDB(query, options, true, "month, category"); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "metrics_category_variance", Series: rows}, nil
+		return finalizeQueryResult("metrics_category_variance", rows, options)
 	}
 	if rows, err := s.loadMetricArtifact("metrics_category_variance", options); err == nil && len(rows) > 0 {
-		return QueryResult{Dataset: "metrics_category_variance", Series: rows}, nil
+		return finalizeQueryResult("metrics_category_variance", rows, options)
 	}
 
 	rows, err := s.sampleCategoryVariance(options)
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return QueryResult{Dataset: "metrics_category_variance", Series: rows}, nil
+	return finalizeQueryResult("metrics_category_variance", rows, options)
 }
 
 func (s *Service) queryDuckDB(baseQuery string, options QueryOptions, includeCategory bool, orderBy string) ([]map[string]any, error) {
@@ -440,12 +450,165 @@ func filterRows(rows []map[string]any, options QueryOptions) []map[string]any {
 		if options.Category != "" && category != "" && category != options.Category {
 			continue
 		}
+		if options.DrillDimension != "" && options.DrillValue != "" {
+			if stringValue(row[options.DrillDimension]) != options.DrillValue {
+				continue
+			}
+		}
 		filtered = append(filtered, row)
 	}
-	if options.Limit > 0 && len(filtered) > options.Limit {
-		return filtered[:options.Limit]
-	}
 	return filtered
+}
+
+type datasetSchema struct {
+	dimensions []string
+	measures   []string
+}
+
+func finalizeQueryResult(dataset string, rows []map[string]any, options QueryOptions) (QueryResult, error) {
+	schema, err := schemaForDataset(dataset)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	filtered := filterRows(rows, options)
+	grouped, err := applyGrouping(filtered, schema, options)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	sorted := sortRows(grouped, options)
+	if options.Limit > 0 && len(sorted) > options.Limit {
+		sorted = sorted[:options.Limit]
+	}
+	return QueryResult{
+		Dataset:             dataset,
+		Series:              sorted,
+		AvailableDimensions: schema.dimensions,
+		AvailableMeasures:   schema.measures,
+		GroupBy:             options.GroupBy,
+		DrillDimension:      options.DrillDimension,
+		DrillValue:          options.DrillValue,
+	}, nil
+}
+
+func schemaForDataset(dataset string) (datasetSchema, error) {
+	switch dataset {
+	case "mart_monthly_cashflow":
+		return datasetSchema{
+			dimensions: []string{"month"},
+			measures:   []string{"income", "expenses", "savings_rate"},
+		}, nil
+	case "mart_category_spend":
+		return datasetSchema{
+			dimensions: []string{"month", "category"},
+			measures:   []string{"actual_spend"},
+		}, nil
+	case "mart_budget_vs_actual":
+		return datasetSchema{
+			dimensions: []string{"month", "category"},
+			measures:   []string{"budget_amount", "actual_spend", "variance_amount"},
+		}, nil
+	case "metrics_savings_rate":
+		return datasetSchema{
+			dimensions: []string{"month"},
+			measures:   []string{"savings_rate"},
+		}, nil
+	case "metrics_category_variance":
+		return datasetSchema{
+			dimensions: []string{"month", "category"},
+			measures:   []string{"variance_amount"},
+		}, nil
+	default:
+		return datasetSchema{}, fmt.Errorf("unknown schema for dataset %q", dataset)
+	}
+}
+
+func applyGrouping(rows []map[string]any, schema datasetSchema, options QueryOptions) ([]map[string]any, error) {
+	if options.GroupBy == "" {
+		return rows, nil
+	}
+	if !containsString(schema.dimensions, options.GroupBy) {
+		return nil, fmt.Errorf("group_by %q is not supported for this dataset", options.GroupBy)
+	}
+
+	grouped := map[string]map[string]any{}
+	for _, row := range rows {
+		key := stringValue(row[options.GroupBy])
+		if key == "" {
+			key = "(empty)"
+		}
+		current, ok := grouped[key]
+		if !ok {
+			current = map[string]any{options.GroupBy: key}
+			for _, measure := range schema.measures {
+				current[measure] = 0.0
+			}
+		}
+		for _, measure := range schema.measures {
+			current[measure] = numericValue(current[measure]) + numericValue(row[measure])
+		}
+		grouped[key] = current
+	}
+
+	keys := sortedKeys(grouped)
+	out := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, grouped[key])
+	}
+	return out, nil
+}
+
+func sortRows(rows []map[string]any, options QueryOptions) []map[string]any {
+	out := make([]map[string]any, len(rows))
+	copy(out, rows)
+	field := options.SortBy
+	if field == "" {
+		if options.GroupBy != "" {
+			field = options.GroupBy
+		} else {
+			field = "month"
+		}
+	}
+	descending := strings.EqualFold(options.SortDirection, "desc")
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i][field]
+		right := out[j][field]
+		leftString := stringValue(left)
+		rightString := stringValue(right)
+		leftNumber, leftIsNumber := parseNumeric(left)
+		rightNumber, rightIsNumber := parseNumeric(right)
+
+		comparison := 0
+		switch {
+		case leftIsNumber && rightIsNumber:
+			switch {
+			case leftNumber < rightNumber:
+				comparison = -1
+			case leftNumber > rightNumber:
+				comparison = 1
+			}
+		default:
+			switch {
+			case leftString < rightString:
+				comparison = -1
+			case leftString > rightString:
+				comparison = 1
+			}
+		}
+		if descending {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+	return out
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys[T any](items map[string]T) []string {
@@ -467,18 +630,25 @@ func stringValue(value any) string {
 }
 
 func numericValue(value any) float64 {
+	parsed, _ := parseNumeric(value)
+	return parsed
+}
+
+func parseNumeric(value any) (float64, bool) {
 	switch typed := value.(type) {
 	case float64:
-		return typed
+		return typed, true
+	case float32:
+		return float64(typed), true
 	case int:
-		return float64(typed)
+		return float64(typed), true
 	case int64:
-		return float64(typed)
+		return float64(typed), true
 	case string:
 		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
 		if err == nil {
-			return parsed
+			return parsed, true
 		}
 	}
-	return 0
+	return 0, false
 }

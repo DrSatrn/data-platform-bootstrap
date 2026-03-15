@@ -66,17 +66,28 @@ type DashboardPreset struct {
 // DashboardWidget defines one reporting element powered by a constrained
 // analytics query rather than arbitrary SQL.
 type DashboardWidget struct {
-	ID          string      `json:"id" yaml:"id"`
-	Name        string      `json:"name" yaml:"name"`
-	Type        string      `json:"type" yaml:"type"`
-	Description string      `json:"description,omitempty" yaml:"description"`
-	DatasetRef  string      `json:"dataset_ref,omitempty" yaml:"dataset_ref"`
-	MetricRef   string      `json:"metric_ref,omitempty" yaml:"metric_ref"`
-	ValueField  string      `json:"value_field,omitempty" yaml:"value_field"`
-	XAxis       string      `json:"x_axis,omitempty" yaml:"x_axis"`
-	YAxis       string      `json:"y_axis,omitempty" yaml:"y_axis"`
-	Limit       int         `json:"limit,omitempty" yaml:"limit"`
-	Filters     WidgetQuery `json:"filters,omitempty" yaml:"filters"`
+	ID          string       `json:"id" yaml:"id"`
+	Name        string       `json:"name" yaml:"name"`
+	Type        string       `json:"type" yaml:"type"`
+	Description string       `json:"description,omitempty" yaml:"description"`
+	DatasetRef  string       `json:"dataset_ref,omitempty" yaml:"dataset_ref"`
+	MetricRef   string       `json:"metric_ref,omitempty" yaml:"metric_ref"`
+	ValueField  string       `json:"value_field,omitempty" yaml:"value_field"`
+	XAxis       string       `json:"x_axis,omitempty" yaml:"x_axis"`
+	YAxis       string       `json:"y_axis,omitempty" yaml:"y_axis"`
+	Limit       int          `json:"limit,omitempty" yaml:"limit"`
+	Filters     WidgetQuery  `json:"filters,omitempty" yaml:"filters"`
+	Layout      WidgetLayout `json:"layout,omitempty" yaml:"layout"`
+}
+
+// WidgetLayout defines the explicit dashboard grid placement for one widget.
+// This keeps runtime layout state declarative and portable across the API,
+// database, manifests, and browser editor.
+type WidgetLayout struct {
+	X int `json:"x" yaml:"x"`
+	Y int `json:"y" yaml:"y"`
+	W int `json:"w" yaml:"w"`
+	H int `json:"h" yaml:"h"`
 }
 
 // WidgetQuery captures the constrained filter contract shared with the
@@ -341,6 +352,9 @@ func validateDashboard(dashboard Dashboard) error {
 		if widget.DatasetRef == "" && widget.MetricRef == "" {
 			return fmt.Errorf("dashboard %s widget %s must reference a dataset or metric", dashboard.ID, widget.ID)
 		}
+		if widget.Layout.W < 0 || widget.Layout.H < 0 || widget.Layout.X < 0 || widget.Layout.Y < 0 {
+			return fmt.Errorf("dashboard %s widget %s layout values must be non-negative", dashboard.ID, widget.ID)
+		}
 	}
 	if dashboard.SharedRole != "" && !slices.Contains([]string{"viewer", "editor", "admin"}, dashboard.SharedRole) {
 		return fmt.Errorf("dashboard %s shared_role must be viewer, editor, or admin", dashboard.ID)
@@ -396,10 +410,35 @@ func defaultDashboards() []Dashboard {
 				},
 			},
 			Widgets: []DashboardWidget{
-				{ID: "savings_rate_kpi", Name: "Savings Rate", Type: "kpi", MetricRef: "metrics_savings_rate", ValueField: "savings_rate"},
-				{ID: "cashflow_table", Name: "Monthly Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},
-				{ID: "category_spend_table", Name: "Category Spend", Type: "table", DatasetRef: "mart_category_spend"},
-				{ID: "budget_variance_table", Name: "Budget Variance", Type: "table", DatasetRef: "mart_budget_vs_actual"},
+				{
+					ID:         "savings_rate_kpi",
+					Name:       "Savings Rate",
+					Type:       "kpi",
+					MetricRef:  "metrics_savings_rate",
+					ValueField: "savings_rate",
+					Layout:     WidgetLayout{X: 0, Y: 0, W: 3, H: 1},
+				},
+				{
+					ID:         "cashflow_table",
+					Name:       "Monthly Cashflow",
+					Type:       "table",
+					DatasetRef: "mart_monthly_cashflow",
+					Layout:     WidgetLayout{X: 3, Y: 0, W: 9, H: 2},
+				},
+				{
+					ID:         "category_spend_table",
+					Name:       "Category Spend",
+					Type:       "table",
+					DatasetRef: "mart_category_spend",
+					Layout:     WidgetLayout{X: 0, Y: 2, W: 6, H: 2},
+				},
+				{
+					ID:         "budget_variance_table",
+					Name:       "Budget Variance",
+					Type:       "table",
+					DatasetRef: "mart_budget_vs_actual",
+					Layout:     WidgetLayout{X: 6, Y: 2, W: 6, H: 2},
+				},
 			},
 		},
 	}

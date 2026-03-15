@@ -130,6 +130,18 @@ textarea {
   gap: 16px;
 }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-widget {
+  min-height: 100%;
+  grid-column: var(--widget-col-start, auto) / span var(--widget-col-span, 12);
+  grid-row: var(--widget-row-start, auto) / span var(--widget-row-span, 1);
+}
+
 .stat-card {
   min-height: 136px;
 }
@@ -342,6 +354,7 @@ textarea {
 
   .page-grid,
   .stats-grid,
+  .dashboard-grid,
   .form-grid,
   .widget-editor-grid {
     grid-template-columns: 1fr;
@@ -354,5 +367,10 @@ textarea {
   .wide-card,
   .wide-field {
     grid-column: span 1;
+  }
+
+  .dashboard-widget {
+    grid-column: span 1;
+    grid-row: auto;
   }
 }

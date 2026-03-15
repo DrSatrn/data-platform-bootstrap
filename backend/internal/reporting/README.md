@@ -16,5 +16,7 @@ local-first only as a fallback:
   than hardcoded page-specific data fetches
 - the UI now supports creating, duplicating, editing, deleting, and reordering
   dashboards and widgets directly in the browser
+- widgets now carry explicit grid layout metadata so saved dashboards preserve
+  placement and span information across API, database, and manifest seeds
 - widget rendering now covers KPI, table, line-chart, and bar-chart surfaces
   without introducing third-party charting dependencies

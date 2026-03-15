@@ -184,6 +184,12 @@ curl -X PATCH \
   http://127.0.0.1:8080/api/v1/catalog
 ```
 
+Run a grouped dataset drill-down:
+
+```sh
+curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual&group_by=category&drill_dimension=month&drill_value=2026-01&sort_by=variance_amount&sort_direction=desc"
+```
+
 Trigger a pipeline:
 
 ```sh
@@ -319,6 +325,8 @@ Current reporting runtime behavior:
 - dashboards carry owner, tags, and shared-role intent metadata
 - dashboard-wide default filters and saved presets now shape widget hydration
 - widget-level filters still apply, but they layer on top of dashboard context
+- widget layout is now explicit saved state, so odd rendering usually means the
+  stored layout metadata needs to be adjusted rather than the renderer guessing
 
 RBAC/audit issues:
 

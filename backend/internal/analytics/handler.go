@@ -6,6 +6,7 @@ package analytics
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -24,9 +25,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dataset := r.URL.Query().Get("dataset")
 	metric := r.URL.Query().Get("metric")
 	options := QueryOptions{
-		FromMonth: r.URL.Query().Get("from_month"),
-		ToMonth:   r.URL.Query().Get("to_month"),
-		Category:  r.URL.Query().Get("category"),
+		FromMonth:      r.URL.Query().Get("from_month"),
+		ToMonth:        r.URL.Query().Get("to_month"),
+		Category:       r.URL.Query().Get("category"),
+		GroupBy:        r.URL.Query().Get("group_by"),
+		DrillDimension: r.URL.Query().Get("drill_dimension"),
+		DrillValue:     r.URL.Query().Get("drill_value"),
+		SortBy:         r.URL.Query().Get("sort_by"),
+		SortDirection:  r.URL.Query().Get("sort_direction"),
 	}
 	if limit := r.URL.Query().Get("limit"); limit != "" {
 		parsed, err := strconv.Atoi(limit)
@@ -52,7 +58,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result, err = h.service.SampleDashboard()
 	}
 	if err != nil {
-		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
+		status := http.StatusInternalServerError
+		if isClientAnalyticsError(err) {
+			status = http.StatusBadRequest
+		}
+		shared.WriteJSON(w, status, map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -62,4 +72,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"dashboard": result,
 		"query":     result,
 	})
+}
+
+func isClientAnalyticsError(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "unknown curated dataset") ||
+		strings.Contains(message, "unknown metric") ||
+		strings.Contains(message, "group_by")
 }

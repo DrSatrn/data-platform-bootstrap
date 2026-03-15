@@ -59,26 +59,25 @@ The next highest-leverage gap is platform hardening:
    - Expose recovery primitives through the CLI and admin terminal.
 
 6. Next likely follow-on work
-   - Build richer reporting layout and dataset drill-down behavior on top of
-     the stronger database-first control-plane state model.
    - Expand the benchmark suite with scheduled-run, artifact, report-save,
-     queue-depth, and scheduler-latency budgets.
+     queue-depth, scheduler-latency, and concurrency budgets.
    - Tighten verification around concurrent operator workflows and packaged
      upgrade paths.
+   - Revisit richer report sharing/export once the benchmark contract is
+     strong enough to act as a release gate.
 
 ## Latest Completed Workstep
 
-- Completed Workstream 3 from `new-thread-eng-feedback.md`.
-- Reporting runtime is now PostgreSQL-first when the preferred control plane is
-  available; repo dashboard YAML is treated as initial seed material only.
-- Metadata now supports a database-backed annotation path for owner,
-  description, docs refs, quality refs, and column descriptions through
-  `PATCH /api/v1/catalog`.
-- The Datasets page now exposes an editor flow for those runtime annotations.
-- Added migration `0007_metadata_annotations.sql` and updated restore behavior
-  so restored metadata remains sticky even after later manifest reseeds.
-- Smoke coverage now proves metadata annotation persistence in the packaged
-  stack and reports explicit skips when host-run fallback mode is active.
+- Completed Workstream 4 from `new-thread-eng-feedback.md`.
+- Added explicit widget layout metadata to the reporting contract and seeded
+  dashboard manifests.
+- The dashboard editor now supports move and resize controls against saved grid
+  coordinates rather than only implicit widget order.
+- The Datasets page now includes a curated drill-down panel backed by grouped,
+  filtered, and sorted analytics queries.
+- The analytics API now supports `group_by`, `drill_dimension`,
+  `drill_value`, `sort_by`, and `sort_direction` for curated dataset reads.
+- Both smoke paths passed after the reporting/drill-down expansion.
 
 ## Deferred / Prompt-Requiring Tests
 

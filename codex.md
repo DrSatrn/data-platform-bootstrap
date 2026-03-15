@@ -20,8 +20,8 @@ What has already been built
 	•	PostgreSQL-backed control-plane repositories for run snapshots, queue state, and artifact metadata, plus the migration command surface.
 	•	DuckDB-backed SQL execution for raw landing-table loads, curated mart materialization, metric materialization, and quality queries, all version-controlled under `packages/sql`.
 	•	Artifact inspection API plus Pipelines UI artifact browsing.
-	•	File-backed saved dashboard store seeded from repo-managed dashboard manifests, with the dashboard UI now hydrating widgets through the reporting API plus constrained analytics queries.
-	•	Browser-based dashboard lifecycle flows for create, duplicate, edit, delete, widget reordering, and live widget preview.
+	•	PostgreSQL-backed saved dashboard runtime with repo-managed dashboard manifests treated as initial seeds when the preferred control plane is active.
+	•	Browser-based dashboard lifecycle flows for create, duplicate, edit, delete, widget reordering, resizing, and live widget preview.
 	•	First-party reporting widgets now include KPI, table, line-chart, and bar-chart rendering without relying on external BI or charting products.
 	•	The finance slice now includes curated category spend and budget-variance marts plus a category-variance metric, not just the original monthly cashflow and savings-rate outputs.
 	•	Scheduler cron evaluation now honors declared pipeline timezones and supports the cron subset needed by the current sample slice, including step fields and day-of-week matching.
@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Completed Workstream 3 from `new-thread-eng-feedback.md`.
-	•	Dashboards now run PostgreSQL-first when the preferred control plane is available, with repo YAML treated as seed material rather than live runtime truth.
-	•	Metadata now supports database-backed annotation edits for owner, description, docs refs, quality refs, and column descriptions through `PATCH /api/v1/catalog`.
-	•	The Datasets page now exposes an editor flow for those annotations, and packaged smoke validates that persistence path.
+	•	Completed Workstream 4 from `new-thread-eng-feedback.md`.
+	•	The dashboard widget contract now carries explicit grid layout metadata.
+	•	The browser dashboard editor now supports move and resize controls against saved widget layout state.
+	•	The analytics layer now supports grouped and drilled curated reads, and the Datasets page consumes that through a new drill-down workbench.
 
 Next workstep to execute
-	•	Start Workstream 4 from `new-thread-eng-feedback.md`: reporting layout tooling and deeper dataset drill-down behavior.
+	•	Start Workstream 5 from `new-thread-eng-feedback.md`: benchmark breadth, concurrency, queue depth, and scheduler latency assertions.
 
 Session Close Handoff
 
@@ -73,7 +73,9 @@ Current state at session end
 	•	The frontend now renders the dashboard from saved dashboard definitions plus constrained analytics queries rather than hardcoded page-specific data loading, and operators can manage those dashboards directly from the browser.
 	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, but PostgreSQL is now the live runtime store when the preferred control plane is active.
 	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
+	•	The reporting UI now also stores explicit widget layout coordinates and spans, and operators can move or resize widgets directly in the browser.
 	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
+	•	The Datasets page now includes a curated drill-down panel that queries the analytics service with grouping, drill filters, and sorting instead of bypassing the serving layer.
 	•	The platform now supports a native PostgreSQL-backed identity and session model, with the bootstrap admin token preserved as the recovery and first-run path.
 	•	The platform now records privileged actions in a durable audit trail, exposes them through the API, and renders them in the System page.
 	•	The platform now serves the metadata catalog from PostgreSQL when available and persists runtime metadata annotations directly into database annotation columns.
@@ -84,32 +86,24 @@ Current state at session end
 	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
 
 Files changed in the latest workstep
-	•	Database-first reporting and metadata:
-		•	`infra/migrations/0007_metadata_annotations.sql`
+	•	Reporting layout and analytics drill-down:
 		•	`backend/internal/reporting/store.go`
-		•	`backend/internal/reporting/store_test.go`
-		•	`backend/internal/metadata/models.go`
-		•	`backend/internal/metadata/projector.go`
-		•	`backend/internal/metadata/catalog.go`
-		•	`backend/internal/metadata/handler.go`
-		•	`backend/internal/metadata/catalog_handler_test.go`
-		•	`backend/internal/db/metadata_store.go`
-		•	`backend/internal/app/runtime.go`
-		•	`backend/internal/backup/restore.go`
-	•	Frontend metadata editor and capability updates:
-		•	`web/src/features/auth/useAuth.tsx`
+		•	`backend/internal/analytics/service.go`
+		•	`backend/internal/analytics/handler.go`
+		•	`backend/internal/analytics/service_test.go`
+		•	`packages/dashboards/finance_overview.yaml`
+	•	Frontend dashboard and dataset explorer UX:
+		•	`web/src/features/dashboard/useDashboardData.ts`
+		•	`web/src/pages/DashboardPage.tsx`
 		•	`web/src/features/datasets/useDatasets.ts`
 		•	`web/src/pages/DatasetsPage.tsx`
 		•	`web/src/pages/PageStates.test.tsx`
-		•	`web/src/app/App.test.tsx`
-	•	Docs and verification sync:
+		•	`web/src/styles/global.css`
+	•	Docs and handoff sync:
 		•	`README.md`
 		•	`docs/architecture/runtime-wiring.md`
 		•	`docs/runbooks/operator-manual.md`
 		•	`backend/internal/reporting/README.md`
-		•	`backend/internal/metadata/README.md`
-		•	`infra/scripts/localhost_smoke.sh`
-		•	`infra/scripts/compose_smoke.sh`
 		•	`new-thread-eng-feedback.md`
 		•	`plan.md`
 		•	`codex.md`
@@ -121,6 +115,8 @@ Validated at end of session
 		•	`TestRunExternalToolFailsForNonZeroExitAndMirrorsLogs`
 		•	`TestRunExternalToolFailsWhenRequiredArtifactIsMissing`
 	•	`go run ./cmd/platformctl validate-manifests` passed
+	•	Reporting-focused backend packages passed:
+		•	`go test ./internal/analytics ./internal/reporting`
 	•	`npm test` passed
 	•	`npm run build` passed
 	•	`git diff --check` passed
@@ -129,7 +125,7 @@ Validated at end of session
 		•	host-run stacks without PostgreSQL now report that native identity and metadata-annotation checks were skipped because fallback mode is active
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
-		•	packaged stacks now create a native user, log in, persist metadata annotations, and read the updated catalog
+		•	packaged stacks now create a native user, log in, persist metadata annotations, and serve the updated layout-aware reporting UI
 
 Important fixes made during this session
 	•	The runtime no longer treats dashboard manifests as the live mutable store when PostgreSQL is enabled.
@@ -149,15 +145,16 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is Workstream 4 from `new-thread-eng-feedback.md`.
+	•	The cleanest next increment is Workstream 5 from `new-thread-eng-feedback.md`.
 	•	The next agent can focus on:
-		•	adding explicit widget layout/grid metadata
-		•	enabling resizing and richer reordering in the dashboard UI
-		•	improving dataset drill-down behavior in the analytics service and Datasets page
+		•	expanding the benchmark suite into concurrent load and queue-depth assertions
+		•	capturing scheduler latency budgets in benchmark artifacts
+		•	turning those checks into a stronger release gate for the packaged stack
 
 Biggest remaining gaps
-	•	Reporting CRUD now exists in the browser, but the reporting product still lacks explicit layout tooling, resizing, and richer report-level controls.
-	•	Analytics drill-down and dimensional exploration are still narrower than the eventual internal BI experience needs.
+	•	Benchmark breadth and queue/scheduler latency assertions are still pending from the engineer contract.
+	•	Reporting CRUD now exists in the browser, but richer sharing/export workflows and deeper report-level interactivity still remain.
+	•	Analytics drill-down is stronger now, but broader dimensional exploration and more generic semantic browsing still remain.
 	•	The access-control layer now has native users and sessions, but it still needs richer team/user administration and stronger policy depth.
 	•	Benchmark breadth and queue/scheduler latency assertions are still pending from the engineer contract.
 	•	The metadata catalog is now projectable into PostgreSQL, but most runtime reads still begin from manifests and synchronize on demand rather than reading from a fully normalized repository-first model.

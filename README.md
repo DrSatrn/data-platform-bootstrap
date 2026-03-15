@@ -190,10 +190,13 @@ The platform now includes first-party operational features owned by this reposit
 - database-backed metadata annotations editable from the Datasets page when the
   PostgreSQL control plane is active
 - browser-based dashboard management with create, duplicate, edit, delete, reorder, report owner/audience metadata, dashboard-wide default filters, and saved preset flows
+- explicit widget grid layout metadata with browser-side move and resize controls
 - first-party line and bar chart widgets rendered without external BI or charting products
 - a semantic metrics browser page backed by repo-managed metric manifests
 - Python-backed dataset profile cards in the Datasets page so operators can
   inspect row counts, observed types, null counts, ranges, and sample values
+- curated dataset drill-down in the Datasets page backed by grouped and filtered
+  analytics queries instead of ad hoc SQL
 
 ## Start Here
 

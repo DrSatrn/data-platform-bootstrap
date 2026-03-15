@@ -50,6 +50,8 @@ let mockDashboardState: any = {
   addWidget: vi.fn(),
   removeWidget: vi.fn(),
   moveWidget: vi.fn(),
+  nudgeWidget: vi.fn(),
+  resizeWidget: vi.fn(),
   createDashboard: vi.fn(),
   duplicateDashboard: vi.fn(),
   deleteDashboard: vi.fn(async () => {}),
@@ -109,6 +111,10 @@ let mockDatasetState: any = {
   profile: null,
   profileError: null,
   profileLoading: false,
+  drilldown: { dataset: "mart_budget_vs_actual", series: [{ month: "2026-01", variance_amount: -50 }], available_dimensions: ["month", "category"], available_measures: ["variance_amount"] },
+  drilldownError: null,
+  drilldownFilters: { fromMonth: "", toMonth: "", category: "", groupBy: "", drillDimension: "", drillValue: "", sortBy: "", sortDirection: "asc" },
+  drilldownLoading: false,
   saveAnnotations: vi.fn(async () => {}),
   saveError: null,
   savePending: false,
@@ -128,7 +134,8 @@ let mockDatasetState: any = {
     lineage: { upstream: ["raw_transactions"], downstream: ["metrics_category_variance"] },
     columns: [{ name: "month", type: "text", description: "Month grain" }]
   },
-  setSelectedAssetID: vi.fn()
+  setSelectedAssetID: vi.fn(),
+  updateDrilldownFilter: vi.fn()
 };
 
 vi.mock("../features/auth/useAuth", () => ({
@@ -203,6 +210,8 @@ describe("operator page states", () => {
       addWidget: vi.fn(),
       removeWidget: vi.fn(),
       moveWidget: vi.fn(),
+      nudgeWidget: vi.fn(),
+      resizeWidget: vi.fn(),
       createDashboard: vi.fn(),
       duplicateDashboard: vi.fn(),
       deleteDashboard: vi.fn(async () => {}),
@@ -230,9 +239,14 @@ describe("operator page states", () => {
     };
     mockDatasetState = {
       ...mockDatasetState,
+      drilldown: { dataset: "mart_budget_vs_actual", series: [{ month: "2026-01", variance_amount: -50 }], available_dimensions: ["month", "category"], available_measures: ["variance_amount"] },
+      drilldownError: null,
+      drilldownFilters: { fromMonth: "", toMonth: "", category: "", groupBy: "", drillDimension: "", drillValue: "", sortBy: "", sortDirection: "asc" },
+      drilldownLoading: false,
       saveAnnotations: vi.fn(async () => {}),
       saveError: null,
-      savePending: false
+      savePending: false,
+      updateDrilldownFilter: vi.fn()
     };
   });
 
@@ -291,5 +305,6 @@ describe("operator page states", () => {
     const html = renderToStaticMarkup(<DatasetsPage />);
     expect(html).toContain("Edit annotations");
     expect(html).toContain("Budget vs Actual");
+    expect(html).toContain("Curated Drill-down");
   });
 });

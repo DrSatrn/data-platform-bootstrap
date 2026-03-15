@@ -2,6 +2,8 @@
 // lightweight dashboard editor. The goal is to make the reporting layer feel
 // like a real internal tool where operators can shape the UI, not just consume
 // a fixed dashboard.
+import type { CSSProperties } from "react";
+
 import { StatCard } from "../components/StatCard";
 import { useAuth } from "../features/auth/useAuth";
 import { DashboardWidget, useDashboardData } from "../features/dashboard/useDashboardData";
@@ -43,6 +45,8 @@ export function DashboardPage() {
     addWidget,
     removeWidget,
     moveWidget,
+    nudgeWidget,
+    resizeWidget,
     createDashboard,
     duplicateDashboard,
     deleteDashboard,
@@ -57,8 +61,7 @@ export function DashboardPage() {
   if (!activeDashboard && dashboards.length === 0) {
     return <section className="panel">Loading dashboards...</section>;
   }
-  const kpiWidgets = (activeDashboard?.widgets ?? []).filter((widget) => widget.type === "kpi");
-  const detailWidgets = (activeDashboard?.widgets ?? []).filter((widget) => widget.type !== "kpi");
+  const orderedWidgets = sortWidgets(activeDashboard?.widgets ?? []);
 
   return (
     <section className="page-grid">
@@ -338,6 +341,54 @@ export function DashboardPage() {
                     <button
                       className="mini-button"
                       disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => nudgeWidget(widget.id, "x", -1)}
+                      type="button"
+                    >
+                      Left
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => nudgeWidget(widget.id, "x", 1)}
+                      type="button"
+                    >
+                      Right
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => resizeWidget(widget.id, "w", -1)}
+                      type="button"
+                    >
+                      Narrower
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => resizeWidget(widget.id, "w", 1)}
+                      type="button"
+                    >
+                      Wider
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => resizeWidget(widget.id, "h", -1)}
+                      type="button"
+                    >
+                      Shorter
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => resizeWidget(widget.id, "h", 1)}
+                      type="button"
+                    >
+                      Taller
+                    </button>
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
                       onClick={() => removeWidget(widget.id)}
                       type="button"
                     >
@@ -479,31 +530,21 @@ export function DashboardPage() {
                     />
                   </label>
                 </div>
+                <p className="muted">
+                  Grid position col {layoutOf(widget).x + 1}, row {layoutOf(widget).y + 1}, span {layoutOf(widget).w} x{" "}
+                  {layoutOf(widget).h}
+                </p>
               </div>
             ))}
           </div>
         </article>
       ) : null}
 
-      <div className="stats-grid">
-        {kpiWidgets.map((widget) => {
-          const series = widgetData[widget.id]?.series ?? [];
-          const latest = series[series.length - 1] ?? {};
-          const valueField = widget.value_field ?? firstMetricField(latest);
-
-          return (
-            <StatCard
-              key={widget.id}
-              label={widget.name}
-              value={formatValue(latest[valueField], valueField)}
-              tone={valueField.includes("rate") ? "good" : "neutral"}
-            />
-          );
-        })}
+      <div className="dashboard-grid wide-card">
+        {orderedWidgets.map((widget) => (
+          <WidgetPreview key={widget.id} widget={widget} series={widgetData[widget.id]?.series ?? []} />
+        ))}
       </div>
-      {detailWidgets.map((widget) => (
-        <WidgetPreview key={widget.id} widget={widget} series={widgetData[widget.id]?.series ?? []} />
-      ))}
     </section>
   );
 }
@@ -518,7 +559,7 @@ function WidgetPreview({
   const columns = deriveColumns(series);
 
   return (
-    <article className="card wide-card">
+    <article className="card dashboard-widget" style={widgetPlacementStyle(widget) as CSSProperties}>
       <div className="row-between">
         <h3>{widget.name}</h3>
         <span className="badge">{widget.dataset_ref ?? widget.metric_ref}</span>
@@ -526,6 +567,8 @@ function WidgetPreview({
       {widget.description ? <p className="muted">{widget.description}</p> : null}
       {series.length === 0 ? (
         <p className="muted">No data is available yet for this widget.</p>
+      ) : widget.type === "kpi" ? (
+        <KPIWidget widget={widget} series={series} />
       ) : widget.type === "line" || widget.type === "bar" ? (
         <ChartPreview widget={widget} series={series} />
       ) : (
@@ -550,6 +593,18 @@ function WidgetPreview({
       )}
     </article>
   );
+}
+
+function KPIWidget({
+  widget,
+  series
+}: {
+  widget: DashboardWidget;
+  series: Array<Record<string, string | number>>;
+}) {
+  const latest = series[series.length - 1] ?? {};
+  const valueField = widget.value_field ?? firstMetricField(latest);
+  return <StatCard label={widget.name} tone={valueField.includes("rate") ? "good" : "neutral"} value={formatValue(latest[valueField], valueField)} />;
 }
 
 function ChartPreview({
@@ -664,4 +719,32 @@ function formatValue(value: string | number | undefined, field: string) {
     }).format(value);
   }
   return String(value ?? "");
+}
+
+function sortWidgets(widgets: DashboardWidget[]) {
+  return [...widgets].sort((left, right) => {
+    const leftLayout = layoutOf(left);
+    const rightLayout = layoutOf(right);
+    if (leftLayout.y !== rightLayout.y) {
+      return leftLayout.y - rightLayout.y;
+    }
+    if (leftLayout.x !== rightLayout.x) {
+      return leftLayout.x - rightLayout.x;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function layoutOf(widget: DashboardWidget) {
+  return widget.layout ?? { x: 0, y: 0, w: widget.type === "kpi" ? 3 : 6, h: widget.type === "kpi" ? 1 : 2 };
+}
+
+function widgetPlacementStyle(widget: DashboardWidget) {
+  const layout = layoutOf(widget);
+  return {
+    ["--widget-col-start" as const]: String(layout.x + 1),
+    ["--widget-col-span" as const]: String(Math.max(1, layout.w)),
+    ["--widget-row-start" as const]: String(layout.y + 1),
+    ["--widget-row-span" as const]: String(Math.max(1, layout.h))
+  };
 }
