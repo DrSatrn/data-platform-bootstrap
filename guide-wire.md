@@ -1,88 +1,59 @@
 # Guide Wire
-This file is the live coordination rail for the v1 release push.
+This file is the live coordination rail for the v3 three-model push.
 
 ## Goal
-Ship a credible self-hostable v1 without merge collisions across the three active models.
+Finish the remaining pre-production gaps without merge collisions:
 
-## Active Models
-- Model 1: backend hardening and test coverage
-- Model 2: frontend consolidation and polish
-- Model 3: platform, infra, docs, CI/CD, release readiness
+- Model 1: orchestration retries/idempotency, DB ingestion, retention GC
+- Model 2: semantic rollups, CSV export, shareable dashboard links
+- Model 3: alerting, Prometheus metrics, tagged release automation
 
-## Reviewer-Controlled Chokepoints
-Do not edit without explicit reviewer approval:
+## Current Prompt Rail
+Read these first:
+
+- `prompts/v3-review-coordinator-report.md`
+- `prompts/v3-model1-backend.md`
+- `prompts/v3-model2-frontend.md`
+- `prompts/v3-model3-platform.md`
+
+The old `prompts/coordinator.md` and v1/v2 prompt files are no longer live.
+
+## Hot Files
+Edit surgically and only when the current lane requires it:
+
 - `backend/internal/app/runtime.go`
+- `backend/internal/config/config.go`
+- `backend/cmd/platformctl/main.go`
 - `web/src/app/App.tsx`
 - `infra/compose/docker-compose.yml`
 - `Makefile`
 
-## Backend Ownership
-- Model 1 open:
-  - `backend/internal/transforms/`
-  - `backend/internal/quality/`
-  - `backend/internal/ingestion/`
-  - `backend/internal/execution/`
-  - `backend/internal/storage/`
-  - `backend/internal/analytics/`
-  - `backend/test/`
-- No-fly zone for all models:
-  - `backend/internal/authz/`
-  - `backend/internal/db/`
-  - `backend/internal/backup/`
-  - `backend/internal/orchestration/`
-  - `backend/internal/scheduler/`
-  - `backend/internal/reporting/`
-  - `backend/internal/audit/`
-  - `backend/internal/opsview/`
+## Ownership Snapshot
 
-## Frontend Ownership
-- Model 2 open:
-  - `web/src/pages/` except `ManagementPage.tsx`
-  - `web/src/components/`
-  - `web/src/features/auth/`
-  - `web/src/features/dashboard/`
-  - `web/src/styles/`
-  - `web/src/lib/`
-- Model 3 maintenance only:
-  - `web/src/pages/ManagementPage.tsx`
-  - `web/src/features/management/`
+- Model 1: backend domain and orchestration work
+- Model 2: frontend/dashboard/product wiring
+- Model 3: backend ops surfaces, CI/CD, coordination docs, release assets
 
-## Infra And Docs Ownership
-- Model 3 open:
-  - `.github/`
-  - `docs/`
-  - `infra/scripts/`
-  - `guide-wire.md`
-  - `plan.md`
-  - `codex.md`
-  - `README.md`
-  - `doc.md`
-  - `contributing.md`
-  - `infra-overview.md`
-  - `uat-checklist.md`
-  - `new-thread-eng-feedback.md`
-- No-fly zone:
-  - `infra/migrations/`
+Model 3 should avoid `web/src/**` and routed UI work unless the live prompt
+explicitly says otherwise.
 
-## Current Priorities
-1. Model 1: backend tests and API hardening
-2. Model 2: routing, page consolidation, loading/error states, page tests
-3. Model 3: rewrite stale coordination docs, create CI, update handoff docs, run UAT when Models 1 and 2 are complete
+## Verified Model 3 State
+
+- webhook alerting now exists for failed runs and stale assets
+- `/api/v1/system/metrics` now serves Prometheus-formatted telemetry
+- tagged GitHub Actions builds now package `platformctl` plus `docs/runbooks`
+  through Makefile-driven release targets
+- the backend module now explicitly includes the MySQL driver required by the
+  ingestion exporter and execution-path tests
+
+## Current Verification Commands
+
+- `cd backend && go test ./internal/alerting ./internal/config ./internal/metadata ./internal/observability ./internal/scheduler ./internal/execution ./internal/app`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci.yml"); puts "yaml ok"'`
+- `make -n release-platformctl TARGET_OS=linux TARGET_ARCH=amd64 TARGET_DIR=dist/linux-amd64/bin`
 
 ## Merge Protocol
-1. Check `v1-review-coordination-plan.md` Section 6 before editing anything.
-2. If a task requires a file you do not own, stop and escalate.
-3. Leave a completion note with files changed, verification, untouched files, and escalation items.
-4. Merge order is strict: Model 1, then Model 2, then Model 3.
 
-## Release Gates
-- `cd backend && go test ./...`
-- `cd backend && go run ./cmd/platformctl validate-manifests`
-- `cd web && npm run build`
-- `cd web && npm test`
-- `make smoke`
-
-## Current Status
-- The principal v1 review is complete.
-- `guide-wire.md` and `plan.md` now track current work, not historical tranche notes.
-- UAT is the final verification step and should only run after Model 1 and Model 2 completion is explicitly documented.
+1. Use the prompt files above as the source of truth over older handoff notes.
+2. Prefer additive files first; keep hot-file diffs narrow and explicit.
+3. Record verification and any touched hot files in the closeout.

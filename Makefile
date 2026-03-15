@@ -5,7 +5,7 @@
 SHELL := /bin/sh
 COMPOSE_ENV_FILE := $(if $(wildcard .env.compose),--env-file .env.compose,)
 
-.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup restore-drill restore-e2e
+.PHONY: doctor fmt lint test build backend-build web-build release-platformctl package-release up down smoke compose-smoke bootstrap benchmark backup restore-drill restore-e2e
 
 doctor:
 	@echo "Review codex.md before first build."
@@ -30,6 +30,20 @@ backend-build:
 	cd backend && GOOS=darwin GOARCH=arm64 go build -o bin/platform-scheduler ./cmd/platform-scheduler
 	cd backend && GOOS=darwin GOARCH=arm64 go build -o bin/platform-worker ./cmd/platform-worker
 	cd backend && GOOS=darwin GOARCH=arm64 go build -o bin/platformctl ./cmd/platformctl
+
+release-platformctl:
+	test -n "$(TARGET_OS)"
+	test -n "$(TARGET_ARCH)"
+	test -n "$(TARGET_DIR)"
+	mkdir -p $(TARGET_DIR)
+	cd backend && GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) CGO_ENABLED=1 go build -o ../$(TARGET_DIR)/platformctl ./cmd/platformctl
+
+package-release:
+	test -n "$(TARGET_DIR)"
+	test -n "$(RELEASE_TARBALL)"
+	mkdir -p $(TARGET_DIR)/docs
+	cp -R docs/runbooks $(TARGET_DIR)/docs/runbooks
+	tar -czf $(RELEASE_TARBALL) -C $(TARGET_DIR) .
 
 web-build:
 	cd web && npm run build

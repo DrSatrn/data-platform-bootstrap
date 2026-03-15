@@ -223,6 +223,29 @@ Current priority order
 	•	Keep operator runbooks aligned with the real release process.
 	•	Prefer release discipline over new surface-area growth.
 
+V3 Operations Addendum
+
+Use this addendum over the older release-gate-only notes.
+
+Current Model 3 lane
+	•	Model 3 now owns backend ops surfaces and release automation, not just
+	release docs.
+	•	The active prompt is `prompts/v3-model3-platform.md`.
+
+Latest completed Model 3 work
+	•	Added webhook alerting for failed pipeline runs and assets that enter the
+	`stale` freshness state.
+	•	Added `/api/v1/system/metrics` with Prometheus-formatted Go runtime,
+	queue, worker, and HTTP latency metrics.
+	•	Expanded `.github/workflows/ci.yml` so tags matching `v*` package
+	cross-compiled `platformctl` tarballs with `docs/runbooks/`.
+	•	Fixed the missing `github.com/go-sql-driver/mysql` module dependency so
+	execution and app package tests compile again.
+
+Next Model 3 focus
+	•	Keep the new ops surfaces verified while the other v3 lanes land.
+	•	Use tagged-release validation as the next release-manager checkpoint.
+
 Non-negotiable engineering goals
 
 This project must strongly prioritize the following:

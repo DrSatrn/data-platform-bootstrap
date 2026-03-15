@@ -4,10 +4,12 @@ import { deriveColumns, firstMetricField, formatValue, widgetPlacementStyle } fr
 
 export function WidgetRenderer({
   widget,
-  series
+  series,
+  onExportCSV
 }: {
   widget: DashboardWidget;
   series: Array<Record<string, string | number>>;
+  onExportCSV: (widgetID: string) => Promise<void>;
 }) {
   const columns = deriveColumns(series);
 
@@ -15,7 +17,12 @@ export function WidgetRenderer({
     <article className="card dashboard-widget" style={widgetPlacementStyle(widget)}>
       <div className="row-between">
         <h3>{widget.name}</h3>
-        <span className="badge">{widget.dataset_ref ?? widget.metric_ref}</span>
+        <div className="inline-actions">
+          <span className="badge">{widget.dataset_ref ?? widget.metric_ref}</span>
+          <button className="mini-button" onClick={() => void onExportCSV(widget.id)} type="button">
+            Export CSV
+          </button>
+        </div>
       </div>
       {widget.description ? <p className="muted">{widget.description}</p> : null}
       {series.length === 0 ? (

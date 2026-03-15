@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -38,7 +39,7 @@ func TestRunIngestUsesManifestDeclaredSourceAndTarget(t *testing.T) {
 		},
 	}
 
-	if err := runner.runIngest("run_ingest", job); err != nil {
+	if err := runner.runIngest(context.Background(), "run_ingest", job); err != nil {
 		t.Fatalf("runIngest returned error: %v", err)
 	}
 

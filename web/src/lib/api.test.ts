@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deleteJSON, fetchJSON, patchJSON, postJSON } from "./api";
+import { deleteJSON, downloadFile, fetchJSON, patchJSON, postJSON } from "./api";
 
 describe("api helpers", () => {
   afterEach(() => {
@@ -76,5 +76,41 @@ describe("api helpers", () => {
       },
       body: JSON.stringify({ username: "alice", action: "set_active" })
     });
+  });
+
+  it("downloadFile fetches with auth and clicks a temporary link", async () => {
+    const clickMock = vi.fn();
+    const createElementMock = vi.fn().mockReturnValue({
+      click: clickMock,
+      href: "",
+      download: ""
+    });
+    const createObjectURLMock = vi.fn().mockReturnValue("blob:download");
+    const revokeObjectURLMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(["month,value\n2026-01,1"])
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", {
+      URL: {
+        createObjectURL: createObjectURLMock,
+        revokeObjectURL: revokeObjectURLMock
+      },
+      document: {
+        createElement: createElementMock
+      }
+    });
+
+    await downloadFile("/api/v1/analytics/export?dataset=mart_monthly_cashflow", "cashflow.csv", "viewer-token");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/analytics/export?dataset=mart_monthly_cashflow", {
+      headers: {
+        Authorization: "Bearer viewer-token"
+      }
+    });
+    expect(createObjectURLMock).toHaveBeenCalled();
+    expect(clickMock).toHaveBeenCalled();
+    expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:download");
   });
 });

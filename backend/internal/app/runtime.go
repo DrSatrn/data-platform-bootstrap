@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/admin"
+	"github.com/streanor/data-platform/backend/internal/alerting"
 	"github.com/streanor/data-platform/backend/internal/analytics"
 	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/authz"
@@ -97,7 +98,11 @@ func RunScheduler(ctx context.Context) error {
 	}
 	catalog := metadata.NewCatalog()
 	control := orchestration.NewControlService(loader, persistence.store, persistence.queue)
-	service := scheduler.NewService(cfg.SchedulerTick, loader, persistence.store, control, catalog, persistence.metadata, logger, cfg.DataRoot)
+	service := scheduler.NewService(cfg.SchedulerTick, loader, persistence.store, control, catalog, persistence.metadata, alerting.NewDispatcher(alerting.Settings{
+		Environment:      cfg.Environment,
+		AssetWarningURLs: cfg.AssetWarningWebhookURLs,
+		WebhookTimeout:   cfg.AlertWebhookTimeout,
+	}, nil), logger, cfg.DataRoot)
 
 	logger.Info("starting scheduler loop", slog.Duration("tick", cfg.SchedulerTick))
 	return service.Run(ctx)
@@ -156,12 +161,14 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux.Handle("/api/v1/catalog/profile", authz.RequireRole(authService, authz.RoleViewer, metadata.NewProfileHandler(profileService)))
 	mux.Handle("/api/v1/quality", authz.RequireRole(authService, authz.RoleViewer, quality.NewHandler(qualityService)))
 	mux.Handle("/api/v1/analytics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewHandler(analyticsService)))
+	mux.Handle("/api/v1/analytics/export", authz.RequireRole(authService, authz.RoleViewer, analytics.NewExportHandler(analyticsService)))
 	mux.Handle("/api/v1/metrics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewMetricCatalogHandler(loader, analyticsService)))
 	mux.Handle("/api/v1/opsview", authz.RequireRole(authService, authz.RoleViewer, opsview.NewHandler(persistence.store, persistence.artifacts)))
 	mux.Handle("/api/v1/reports", authz.RequireRole(authService, authz.RoleViewer, reporting.NewHandler(persistence.reports, authService, persistence.audit)))
 	mux.Handle("/api/v1/artifacts", authz.RequireRole(authService, authz.RoleViewer, storage.NewHandler(persistence.artifacts)))
 	mux.Handle("/api/v1/system/overview", authz.RequireRole(authService, authz.RoleViewer, observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService, persistence.modes)))
 	mux.Handle("/api/v1/system/logs", authz.RequireRole(authService, authz.RoleViewer, observability.NewRecentLogsHandler(telemetry)))
+	mux.Handle("/api/v1/system/metrics", authz.RequireRole(authService, authz.RoleViewer, observability.NewMetricsHandler(telemetry, queueSnapshots)))
 	mux.Handle("/api/v1/system/audit", authz.RequireRole(authService, authz.RoleViewer, audit.NewHandler(persistence.audit)))
 	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService, persistence.audit))
 

@@ -3,9 +3,16 @@
 // reporting surface starts behaving more like a real product than a static
 // report.
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../auth/useAuth";
-import { deleteJSON, fetchJSON, postJSON } from "../../lib/api";
+import { deleteJSON, downloadFile, fetchJSON, postJSON } from "../../lib/api";
+import {
+  buildDashboardQueryState,
+  buildWidgetAnalyticsParams,
+  parseDashboardQueryState,
+  type DashboardViewFilters
+} from "./queryState";
 
 export type DashboardWidget = {
   id: string;
@@ -18,6 +25,7 @@ export type DashboardWidget = {
   x_axis?: string;
   y_axis?: string;
   limit?: number;
+  group_by?: string[];
   filters?: {
     from_month?: string;
     to_month?: string;
@@ -74,6 +82,7 @@ export type DashboardData = {
   dashboards: DashboardDefinition[];
   draft: DashboardDefinition | null;
   widgetData: Record<string, QueryPayload["query"]>;
+  viewFilters: DashboardViewFilters;
   isEditing: boolean;
   isSaving: boolean;
   error: string | null;
@@ -86,11 +95,12 @@ export type DashboardData = {
   cancelEditing: () => void;
   updateDraft: (field: "name" | "description" | "owner" | "shared_role" | "tags", value: string) => void;
   updateDashboardFilter: (field: "from_month" | "to_month" | "category", value: string) => void;
+  updateViewFilter: (field: "from_month" | "to_month" | "category", value: string) => void;
   addPreset: () => void;
   removePreset: (presetID: string) => void;
   updatePreset: (presetID: string, field: "name" | "description", value: string) => void;
   updatePresetFilter: (presetID: string, field: "from_month" | "to_month" | "category", value: string) => void;
-  updateWidget: (widgetID: string, field: keyof DashboardWidget, value: string | number) => void;
+  updateWidget: (widgetID: string, field: keyof DashboardWidget, value: string | number | string[]) => void;
   updateWidgetFilter: (widgetID: string, field: "from_month" | "to_month" | "category", value: string) => void;
   addWidget: () => void;
   removeWidget: (widgetID: string) => void;
@@ -100,6 +110,7 @@ export type DashboardData = {
   createDashboard: () => void;
   duplicateDashboard: () => void;
   deleteDashboard: () => Promise<void>;
+  exportWidgetCSV: (widgetID: string) => Promise<void>;
   saveDashboard: () => Promise<void>;
 };
 
@@ -116,10 +127,13 @@ const emptyWidget = (): DashboardWidget => ({
 });
 
 export function useDashboardData(): DashboardData {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryState = useMemo(() => parseDashboardQueryState(searchParams), [searchParams]);
   const { loading, token, session } = useAuth();
   const [dashboards, setDashboards] = useState<DashboardDefinition[]>([]);
-  const [selectedDashboardID, setSelectedDashboardID] = useState<string | null>(null);
-  const [selectedPresetID, setSelectedPresetID] = useState<string | null>(null);
+  const [selectedDashboardID, setSelectedDashboardID] = useState<string | null>(queryState.dashboardID);
+  const [selectedPresetID, setSelectedPresetID] = useState<string | null>(queryState.presetID);
+  const [viewFilters, setViewFilters] = useState<DashboardViewFilters>(queryState.filters);
   const [widgetData, setWidgetData] = useState<Record<string, QueryPayload["query"]>>({});
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -151,6 +165,17 @@ export function useDashboardData(): DashboardData {
   }, [loading, session]);
 
   useEffect(() => {
+    const nextQuery = buildDashboardQueryState({
+      dashboardID: selectedDashboardID,
+      presetID: selectedPresetID,
+      filters: viewFilters
+    });
+    if (nextQuery.toString() !== searchParams.toString()) {
+      setSearchParams(nextQuery, { replace: true });
+    }
+  }, [searchParams, selectedDashboardID, selectedPresetID, setSearchParams, viewFilters]);
+
+  useEffect(() => {
     if (!previewDashboard) {
       setWidgetData({});
       return;
@@ -160,17 +185,19 @@ export function useDashboardData(): DashboardData {
       return;
     }
     void hydrateDashboard(previewDashboard);
-  }, [previewDashboard, selectedPreset, session]);
+  }, [previewDashboard, selectedPreset, session, viewFilters]);
 
   async function loadDashboards(preferredID?: string) {
     try {
       const reports = await fetchJSON<ReportsPayload>("/api/v1/reports");
       const normalized = reports.dashboards.map((dashboard) => normalizeDashboardDefinition(dashboard));
       setDashboards(normalized);
-      const nextDashboardID = preferredID ?? selectedDashboardID ?? reports.dashboards[0]?.id ?? null;
+      const nextDashboardID = preferredID ?? selectedDashboardID ?? queryState.dashboardID ?? reports.dashboards[0]?.id ?? null;
       setSelectedDashboardID(nextDashboardID);
       const nextDashboard = normalized.find((item) => item.id === nextDashboardID) ?? normalized[0] ?? null;
-      setSelectedPresetID(nextDashboard?.presets?.[0]?.id ?? null);
+      const nextPresetID = queryState.presetID ?? nextDashboard?.presets?.[0]?.id ?? null;
+      setSelectedPresetID(nextPresetID);
+      setViewFilters(resolveViewFilters(nextDashboard, nextPresetID, queryState.filters));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown dashboard error");
@@ -181,31 +208,11 @@ export function useDashboardData(): DashboardData {
     try {
       const entries = await Promise.all(
         activeDashboard.widgets.map(async (widget) => {
-          const params = new URLSearchParams();
-          if (widget.metric_ref) {
-            params.set("metric", widget.metric_ref);
-          }
-          if (widget.dataset_ref) {
-            params.set("dataset", widget.dataset_ref);
-          }
-          if (widget.limit) {
-            params.set("limit", String(widget.limit));
-          }
           const mergedFilters = {
-            ...(activeDashboard.default_filters ?? {}),
-            ...(selectedPreset?.filters ?? {}),
+            ...viewFilters,
             ...(widget.filters ?? {})
           };
-          if (mergedFilters.from_month) {
-            params.set("from_month", mergedFilters.from_month);
-          }
-          if (mergedFilters.to_month) {
-            params.set("to_month", mergedFilters.to_month);
-          }
-          if (mergedFilters.category) {
-            params.set("category", mergedFilters.category);
-          }
-
+          const params = buildWidgetAnalyticsParams(widget, mergedFilters);
           const query = await fetchJSON<QueryPayload>(`/api/v1/analytics?${params.toString()}`);
           return [widget.id, query.query] as const;
         })
@@ -220,7 +227,9 @@ export function useDashboardData(): DashboardData {
   function selectDashboard(dashboardID: string) {
     setSelectedDashboardID(dashboardID);
     const nextDashboard = dashboards.find((item) => item.id === dashboardID) ?? null;
-    setSelectedPresetID(nextDashboard?.presets?.[0]?.id ?? null);
+    const nextPresetID = nextDashboard?.presets?.[0]?.id ?? null;
+    setSelectedPresetID(nextPresetID);
+    setViewFilters(resolveViewFilters(nextDashboard, nextPresetID, {}));
     setIsEditing(false);
     setDraft(null);
     setSaveError(null);
@@ -228,6 +237,14 @@ export function useDashboardData(): DashboardData {
 
   function selectPreset(presetID: string) {
     setSelectedPresetID(presetID || null);
+    setViewFilters(resolveViewFilters(previewDashboard, presetID || null, {}));
+  }
+
+  function updateViewFilter(field: "from_month" | "to_month" | "category", value: string) {
+    setViewFilters((current) => ({
+      ...current,
+      [field]: value || undefined
+    }));
   }
 
   function startEditing() {
@@ -389,7 +406,7 @@ export function useDashboardData(): DashboardData {
     );
   }
 
-  function updateWidget(widgetID: string, field: keyof DashboardWidget, value: string | number) {
+  function updateWidget(widgetID: string, field: keyof DashboardWidget, value: string | number | string[]) {
     setDraft((current) => {
       if (!current) {
         return current;
@@ -557,11 +574,25 @@ export function useDashboardData(): DashboardData {
     }
   }
 
+  async function exportWidgetCSV(widgetID: string) {
+    const activeDashboard = previewDashboard;
+    const widget = activeDashboard?.widgets.find((item) => item.id === widgetID);
+    if (!widget) {
+      return;
+    }
+    const params = buildWidgetAnalyticsParams(widget, {
+      ...viewFilters,
+      ...(widget.filters ?? {})
+    });
+    await downloadFile(`/api/v1/analytics/export?${params.toString()}`, `${widget.id}.csv`, token.trim() || undefined);
+  }
+
   return {
     dashboard,
     dashboards,
     draft,
     widgetData,
+    viewFilters,
     isEditing,
     isSaving,
     error,
@@ -574,6 +605,7 @@ export function useDashboardData(): DashboardData {
     cancelEditing,
     updateDraft,
     updateDashboardFilter,
+    updateViewFilter,
     addPreset,
     removePreset,
     updatePreset,
@@ -588,6 +620,7 @@ export function useDashboardData(): DashboardData {
     createDashboard,
     duplicateDashboard,
     deleteDashboard,
+    exportWidgetCSV,
     saveDashboard
   };
 }
@@ -618,4 +651,17 @@ function widgetLayout(widget: DashboardWidget) {
 function defaultWidgetPlacement(widgets: DashboardWidget[]) {
   const widget = widgets[widgets.length - 1];
   return ensureWidgetLayout(widget, widgets.length - 1);
+}
+
+function resolveViewFilters(
+  dashboard: DashboardDefinition | null,
+  presetID: string | null,
+  explicitFilters: DashboardViewFilters
+): DashboardViewFilters {
+  const preset = dashboard?.presets?.find((item) => item.id === presetID) ?? null;
+  return {
+    ...(dashboard?.default_filters ?? {}),
+    ...(preset?.filters ?? {}),
+    ...explicitFilters
+  };
 }

@@ -30,6 +30,7 @@ let mockDashboardState: any = {
       series: [{ month: "2026-03", net_cashflow: 1200 }]
     }
   },
+  viewFilters: {},
   isEditing: false,
   isSaving: false,
   error: null,
@@ -42,6 +43,7 @@ let mockDashboardState: any = {
   cancelEditing: vi.fn(),
   updateDraft: vi.fn(),
   updateDashboardFilter: vi.fn(),
+  updateViewFilter: vi.fn(),
   addPreset: vi.fn(),
   removePreset: vi.fn(),
   updatePreset: vi.fn(),
@@ -56,6 +58,7 @@ let mockDashboardState: any = {
   createDashboard: vi.fn(),
   duplicateDashboard: vi.fn(),
   deleteDashboard: vi.fn(),
+  exportWidgetCSV: vi.fn(),
   saveDashboard: vi.fn()
 };
 

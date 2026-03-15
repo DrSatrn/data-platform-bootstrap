@@ -19,6 +19,7 @@ export function DashboardPage() {
     dashboards,
     draft,
     widgetData,
+    viewFilters,
     isEditing,
     isSaving,
     error,
@@ -31,6 +32,7 @@ export function DashboardPage() {
     cancelEditing,
     updateDraft,
     updateDashboardFilter,
+    updateViewFilter,
     addPreset,
     removePreset,
     updatePreset,
@@ -45,6 +47,7 @@ export function DashboardPage() {
     createDashboard,
     duplicateDashboard,
     deleteDashboard,
+    exportWidgetCSV,
     saveDashboard
   } = useDashboardData();
 
@@ -86,8 +89,10 @@ export function DashboardPage() {
         selectPreset={selectPreset}
         selectedPresetID={selectedPresetID}
         updateDashboardFilter={updateDashboardFilter}
+        updateViewFilter={updateViewFilter}
         updatePreset={updatePreset}
         updatePresetFilter={updatePresetFilter}
+        viewFilters={viewFilters}
       />
 
       {isEditing && draft ? (
@@ -148,7 +153,7 @@ export function DashboardPage() {
         </article>
       ) : null}
 
-      <DashboardGrid widgetData={widgetData} widgets={sortWidgets(activeDashboard?.widgets ?? [])} />
+      <DashboardGrid exportWidgetCSV={exportWidgetCSV} widgetData={widgetData} widgets={sortWidgets(activeDashboard?.widgets ?? [])} />
     </section>
   );
 }

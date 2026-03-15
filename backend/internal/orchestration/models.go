@@ -61,9 +61,13 @@ const (
 // job. Paths stay explicit in the manifest so new domains do not require
 // runner code changes.
 type IngestSpec struct {
-	SourceRef    string `json:"source_ref" yaml:"source_ref"`
-	TargetPath   string `json:"target_path" yaml:"target_path"`
-	ArtifactPath string `json:"artifact_path,omitempty" yaml:"artifact_path,omitempty"`
+	SourceRef     string `json:"source_ref" yaml:"source_ref"`
+	TargetPath    string `json:"target_path" yaml:"target_path"`
+	ArtifactPath  string `json:"artifact_path,omitempty" yaml:"artifact_path,omitempty"`
+	SourceKind    string `json:"source_kind,omitempty" yaml:"source_kind,omitempty"`
+	ConnectionEnv string `json:"connection_env,omitempty" yaml:"connection_env,omitempty"`
+	Query         string `json:"query,omitempty" yaml:"query,omitempty"`
+	Format        string `json:"format,omitempty" yaml:"format,omitempty"`
 }
 
 // BootstrapSpec declares one SQL bootstrap step that loads a landed file into

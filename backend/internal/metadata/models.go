@@ -14,6 +14,7 @@ type DataAsset struct {
 	SourceRefs        []string  `json:"source_refs" yaml:"source_refs"`
 	Columns           []Column  `json:"columns" yaml:"columns"`
 	Freshness         Freshness `json:"freshness" yaml:"freshness"`
+	Retention         Retention `json:"retention" yaml:"retention"`
 	FreshnessStatus   Status    `json:"freshness_status"`
 	Coverage          Coverage  `json:"coverage"`
 	Lineage           Lineage   `json:"lineage"`
@@ -33,6 +34,14 @@ type Column struct {
 type Freshness struct {
 	ExpectedWithin string `json:"expected_within" yaml:"expected_within"`
 	WarnAfter      string `json:"warn_after" yaml:"warn_after"`
+}
+
+// Retention captures how long runtime materializations and run-scoped evidence
+// should be kept before the retention purge workflow may remove them.
+type Retention struct {
+	Materializations string `json:"materializations,omitempty" yaml:"materializations,omitempty"`
+	RunArtifacts     string `json:"run_artifacts,omitempty" yaml:"run_artifacts,omitempty"`
+	RunHistory       string `json:"run_history,omitempty" yaml:"run_history,omitempty"`
 }
 
 // Status describes the current observed freshness state for an asset. It is

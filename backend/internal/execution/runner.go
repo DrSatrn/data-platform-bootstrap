@@ -15,8 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/streanor/data-platform/backend/internal/alerting"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/externaltools"
+	"github.com/streanor/data-platform/backend/internal/ingestion"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/python"
@@ -26,15 +28,19 @@ import (
 
 // Runner executes one queued pipeline run.
 type Runner struct {
-	cfg    config.Settings
-	loader manifests.Loader
-	store  orchestration.Store
-	files  *storage.Service
-	sql    *transforms.Engine
-	python *python.Runner
-	tools  *externaltools.Runner
-	logger *slog.Logger
-	repo   string
+	cfg                    config.Settings
+	loader                 manifests.Loader
+	store                  orchestration.Store
+	files                  *storage.Service
+	ingest                 *ingestion.Exporter
+	sql                    *transforms.Engine
+	python                 *python.Runner
+	tools                  *externaltools.Runner
+	alerts                 *alerting.Dispatcher
+	logger                 *slog.Logger
+	repo                   string
+	sleep                  func(context.Context, time.Duration) error
+	executeAttemptOverride func(context.Context, *orchestration.PipelineRun, orchestration.Job, string) error
 }
 
 // NewRunner constructs an execution runner.
@@ -44,6 +50,7 @@ func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration
 		loader: loader,
 		store:  store,
 		files:  files,
+		ingest: ingestion.NewExporter(),
 		sql:    transforms.NewEngine(cfg.DuckDBPath, cfg.SQLRoot),
 		python: python.NewRunner(cfg),
 		tools: externaltools.NewRunner(externaltools.Settings{
@@ -53,8 +60,14 @@ func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration
 			PySparkBinary:  cfg.PySparkBinary,
 			DefaultTimeout: cfg.ExternalToolTimeout,
 		}),
+		alerts: alerting.NewDispatcher(alerting.Settings{
+			Environment:    cfg.Environment,
+			RunFailureURLs: cfg.RunFailureWebhookURLs,
+			WebhookTimeout: cfg.AlertWebhookTimeout,
+		}, nil),
 		logger: logger,
 		repo:   externalToolRepoRoot(cfg),
+		sleep:  sleepWithContext,
 	}
 }
 
@@ -106,6 +119,7 @@ func (r *Runner) Execute(ctx context.Context, request orchestration.RunRequest) 
 				run.FinishedAt = &now
 				r.appendEvent(&run, "error", "pipeline run failed", map[string]string{"job_id": job.ID, "error": err.Error()})
 				_ = r.store.SavePipelineRun(run)
+				r.notifyRunFailure(ctx, *pipeline, run, job.ID)
 				return err
 			}
 			completed[job.ID] = true
@@ -132,7 +146,6 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	jobRun := findJobRun(run, job.ID)
 	now := time.Now().UTC()
 	jobRun.Status = orchestration.RunStatusRunning
-	jobRun.Attempts++
 	jobRun.StartedAt = &now
 	r.appendEvent(run, "info", "job started", map[string]string{"job_id": job.ID, "job_type": string(job.Type)})
 	if err := r.store.SavePipelineRun(*run); err != nil {
@@ -140,21 +153,39 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	}
 
 	var err error
-	switch job.Type {
-	case orchestration.JobTypeIngest:
-		err = r.runIngest(run.ID, job)
-	case orchestration.JobTypeTransformSQL:
-		err = r.runSQLTransform(run.ID, job)
-	case orchestration.JobTypeTransformPy:
-		err = r.runPythonTransform(ctx, run.ID, run.PipelineID, job)
-	case orchestration.JobTypeQualityCheck:
-		err = r.runQualityCheck(run.ID, job)
-	case orchestration.JobTypePublishMetric:
-		err = r.runMetricsPublish(run.ID, job)
-	case orchestration.JobTypeExternalTool:
-		err = r.runExternalTool(ctx, run, job)
-	default:
-		err = fmt.Errorf("unsupported job type %s", job.Type)
+	totalAttempts := job.Retries + 1
+	if totalAttempts < 1 {
+		totalAttempts = 1
+	}
+	for attempt := 1; attempt <= totalAttempts; attempt++ {
+		jobRun.Attempts = attempt
+		idempotencyKey := jobIdempotencyKey(run.ID, job.ID, attempt)
+		r.appendEvent(run, "info", "job attempt started", map[string]string{
+			"job_id":          job.ID,
+			"attempt":         strconv.Itoa(attempt),
+			"idempotency_key": idempotencyKey,
+		})
+		err = r.executeJobAttempt(ctx, run, job, idempotencyKey)
+		if err == nil {
+			break
+		}
+		if attempt >= totalAttempts {
+			break
+		}
+		backoff := retryBackoff(r.cfg.JobRetryBaseDelay, attempt)
+		r.appendEvent(run, "warn", "job attempt failed; scheduling retry", map[string]string{
+			"job_id":          job.ID,
+			"attempt":         strconv.Itoa(attempt),
+			"retry_in":        backoff.String(),
+			"idempotency_key": idempotencyKey,
+			"error":           err.Error(),
+		})
+		if saveErr := r.store.SavePipelineRun(*run); saveErr != nil {
+			return saveErr
+		}
+		if sleepErr := r.sleep(ctx, backoff); sleepErr != nil {
+			return sleepErr
+		}
 	}
 
 	finished := time.Now().UTC()
@@ -174,16 +205,56 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	return r.store.SavePipelineRun(*run)
 }
 
-func (r *Runner) runIngest(runID string, job orchestration.Job) error {
+func (r *Runner) executeJobAttempt(ctx context.Context, run *orchestration.PipelineRun, job orchestration.Job, idempotencyKey string) error {
+	if r.executeAttemptOverride != nil {
+		return r.executeAttemptOverride(ctx, run, job, idempotencyKey)
+	}
+	switch job.Type {
+	case orchestration.JobTypeIngest:
+		return r.runIngest(ctx, run.ID, job)
+	case orchestration.JobTypeTransformSQL:
+		return r.runSQLTransform(run.ID, job)
+	case orchestration.JobTypeTransformPy:
+		return r.runPythonTransform(ctx, run.ID, run.PipelineID, job, idempotencyKey)
+	case orchestration.JobTypeQualityCheck:
+		return r.runQualityCheck(run.ID, job)
+	case orchestration.JobTypePublishMetric:
+		return r.runMetricsPublish(run.ID, job)
+	case orchestration.JobTypeExternalTool:
+		return r.runExternalTool(ctx, run, job, idempotencyKey)
+	default:
+		return fmt.Errorf("unsupported job type %s", job.Type)
+	}
+}
+
+func (r *Runner) runIngest(ctx context.Context, runID string, job orchestration.Job) error {
 	if job.Ingest == nil {
 		return fmt.Errorf("ingest job %s is missing an ingest block", job.ID)
 	}
-	return r.copySampleFile(
-		runID,
-		job.Ingest.SourceRef,
-		filepath.Join(r.cfg.DataRoot, filepath.FromSlash(job.Ingest.TargetPath)),
-		artifactPathOrDefault(job.Ingest.ArtifactPath, job.Ingest.TargetPath),
-	)
+	switch normalizeIngestKind(job.Ingest.SourceKind) {
+	case "postgres", "mysql":
+		targetPath := filepath.Join(r.cfg.DataRoot, filepath.FromSlash(job.Ingest.TargetPath))
+		if err := r.ingest.ExportQueryToCSV(ctx, ingestion.DatabaseSpec{
+			Driver:        job.Ingest.SourceKind,
+			ConnectionEnv: job.Ingest.ConnectionEnv,
+			Query:         job.Ingest.Query,
+			TargetPath:    targetPath,
+		}); err != nil {
+			return err
+		}
+		bytes, err := os.ReadFile(targetPath)
+		if err != nil {
+			return fmt.Errorf("read database ingest target %s: %w", targetPath, err)
+		}
+		return r.writeRunScopedArtifact(runID, artifactPathOrDefault(job.Ingest.ArtifactPath, job.Ingest.TargetPath), bytes)
+	default:
+		return r.copySampleFile(
+			runID,
+			job.Ingest.SourceRef,
+			filepath.Join(r.cfg.DataRoot, filepath.FromSlash(job.Ingest.TargetPath)),
+			artifactPathOrDefault(job.Ingest.ArtifactPath, job.Ingest.TargetPath),
+		)
+	}
 }
 
 func (r *Runner) runSQLTransform(runID string, job orchestration.Job) error {
@@ -207,14 +278,20 @@ func (r *Runner) runSQLTransform(runID string, job orchestration.Job) error {
 	return r.writeTransformArtifacts(runID, job.Outputs)
 }
 
-func (r *Runner) runPythonTransform(ctx context.Context, runID, pipelineID string, job orchestration.Job) error {
+func (r *Runner) runPythonTransform(ctx context.Context, runID, pipelineID string, job orchestration.Job, idempotencyKey string) error {
 	if job.Command == "" {
 		return fmt.Errorf("python transform %s is missing a command", job.ID)
 	}
+	labels := make(map[string]string, len(job.Labels)+1)
+	for key, value := range job.Labels {
+		labels[key] = value
+	}
+	labels["platform_idempotency_key"] = idempotencyKey
 	result, err := r.python.Run(ctx, pipelineID, job, python.TaskRequest{
 		RunID:          runID,
 		PipelineID:     pipelineID,
 		JobID:          job.ID,
+		IdempotencyKey: idempotencyKey,
 		Command:        job.Command,
 		DataRoot:       r.cfg.DataRoot,
 		ArtifactRoot:   r.cfg.ArtifactRoot,
@@ -222,7 +299,7 @@ func (r *Runner) runPythonTransform(ctx context.Context, runID, pipelineID strin
 		SQLRoot:        r.cfg.SQLRoot,
 		Inputs:         job.Inputs,
 		Outputs:        job.Outputs,
-		Labels:         job.Labels,
+		Labels:         labels,
 	})
 	if err != nil {
 		return err
@@ -351,6 +428,23 @@ func (r *Runner) appendEvent(run *orchestration.PipelineRun, level, message stri
 	r.logger.Info(message, slog.String("level", level), slog.Any("fields", fields))
 }
 
+func (r *Runner) notifyRunFailure(ctx context.Context, pipeline orchestration.Pipeline, run orchestration.PipelineRun, jobID string) {
+	if r.alerts == nil {
+		return
+	}
+	if err := r.alerts.NotifyRunFailure(ctx, alerting.RunFailureEvent{
+		RunID:      run.ID,
+		PipelineID: run.PipelineID,
+		Pipeline:   pipeline.Name,
+		Trigger:    run.Trigger,
+		JobID:      jobID,
+		Error:      run.Error,
+		FailedAt:   derefTime(run.FinishedAt),
+	}); err != nil {
+		r.logger.Warn("failed to post run failure webhook", slog.String("run_id", run.ID), slog.String("pipeline_id", run.PipelineID), slog.String("error", err.Error()))
+	}
+}
+
 func findJobRun(run *orchestration.PipelineRun, jobID string) *orchestration.JobRun {
 	for index := range run.JobRuns {
 		if run.JobRuns[index].JobID == jobID {
@@ -379,6 +473,13 @@ func qualityResult(jobID string, row map[string]any) (string, int) {
 		key = "duplicate_count"
 	}
 	return key, intFromRow(row[key])
+}
+
+func derefTime(value *time.Time) time.Time {
+	if value == nil {
+		return time.Time{}
+	}
+	return value.UTC()
 }
 
 func intFromRow(value any) int {
@@ -450,7 +551,7 @@ func (r *Runner) writeMetricArtifact(runID, metricID string) error {
 	})
 }
 
-func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.PipelineRun, job orchestration.Job) error {
+func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.PipelineRun, job orchestration.Job, idempotencyKey string) error {
 	if job.ExternalTool == nil {
 		return fmt.Errorf("external tool job %s is missing configuration", job.ID)
 	}
@@ -462,12 +563,13 @@ func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.Pipelin
 	}
 
 	result, err := r.tools.Run(ctx, externaltools.RunRequest{
-		RunID:      run.ID,
-		RepoRoot:   r.repo,
-		PipelineID: run.PipelineID,
-		JobID:      job.ID,
-		Timeout:    timeout,
-		Spec:       spec,
+		RunID:          run.ID,
+		RepoRoot:       r.repo,
+		PipelineID:     run.PipelineID,
+		JobID:          job.ID,
+		IdempotencyKey: idempotencyKey,
+		Timeout:        timeout,
+		Spec:           spec,
 	})
 	for _, event := range result.Events {
 		r.appendEvent(run, event.Level, event.Message, mergeEventFields(event.Fields, map[string]string{"job_id": job.ID}))
@@ -480,11 +582,12 @@ func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.Pipelin
 	}
 	if err != nil {
 		r.appendEvent(run, "error", "external tool failed", map[string]string{
-			"job_id":        job.ID,
-			"tool":          firstNonEmpty(result.Tool, spec.Tool),
-			"action":        firstNonEmpty(result.Action, spec.Action),
-			"failure_class": result.FailureClass,
-			"error":         err.Error(),
+			"job_id":          job.ID,
+			"tool":            firstNonEmpty(result.Tool, spec.Tool),
+			"action":          firstNonEmpty(result.Action, spec.Action),
+			"failure_class":   result.FailureClass,
+			"idempotency_key": idempotencyKey,
+			"error":           err.Error(),
 		})
 		return fmt.Errorf("external tool %s %s failed: %w", spec.Tool, spec.Action, err)
 	}
@@ -498,10 +601,11 @@ func (r *Runner) runExternalTool(ctx context.Context, run *orchestration.Pipelin
 		}
 	}
 	r.appendEvent(run, "info", "external tool finished", map[string]string{
-		"job_id":         job.ID,
-		"tool":           firstNonEmpty(result.Tool, spec.Tool),
-		"action":         firstNonEmpty(result.Action, spec.Action),
-		"artifact_count": strconv.Itoa(len(result.Artifacts)),
+		"job_id":          job.ID,
+		"tool":            firstNonEmpty(result.Tool, spec.Tool),
+		"action":          firstNonEmpty(result.Action, spec.Action),
+		"artifact_count":  strconv.Itoa(len(result.Artifacts)),
+		"idempotency_key": idempotencyKey,
 	})
 	return nil
 }
@@ -621,6 +725,49 @@ func parseJobTimeout(value string) (time.Duration, error) {
 		return 0, fmt.Errorf("parse job timeout %q: %w", value, err)
 	}
 	return timeout, nil
+}
+
+func retryBackoff(base time.Duration, attempt int) time.Duration {
+	if base <= 0 {
+		base = 250 * time.Millisecond
+	}
+	if attempt < 1 {
+		attempt = 1
+	}
+	delay := base
+	for index := 1; index < attempt; index++ {
+		if delay >= 8*time.Second {
+			return 8 * time.Second
+		}
+		delay *= 2
+	}
+	if delay > 8*time.Second {
+		return 8 * time.Second
+	}
+	return delay
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func jobIdempotencyKey(runID, jobID string, attempt int) string {
+	return fmt.Sprintf("%s:%s:%d", runID, jobID, attempt)
+}
+
+func normalizeIngestKind(value string) string {
+	kind := strings.ToLower(strings.TrimSpace(value))
+	if kind == "" {
+		return "file"
+	}
+	return kind
 }
 
 func mergeEventFields(primary, defaults map[string]string) map[string]string {

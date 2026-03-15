@@ -26,7 +26,7 @@ func TestRunExternalToolFailsForMissingBinary(t *testing.T) {
 	run := &orchestration.PipelineRun{ID: "run_missing_binary", PipelineID: "personal_finance_dbt_pipeline"}
 	job := externalToolJob(projectRef, profilesRef)
 
-	err := runner.runExternalTool(context.Background(), run, job)
+	err := runner.runExternalTool(context.Background(), run, job, "run_missing_binary:build_finance_dbt:1")
 	if err == nil || !strings.Contains(err.Error(), "unavailable") {
 		t.Fatalf("expected missing binary failure, got %v", err)
 	}
@@ -51,7 +51,7 @@ func TestRunExternalToolFailsForNonZeroExitAndMirrorsLogs(t *testing.T) {
 	run := &orchestration.PipelineRun{ID: "run_non_zero", PipelineID: "personal_finance_dbt_pipeline"}
 	job := externalToolJob(projectRef, profilesRef)
 
-	err := runner.runExternalTool(context.Background(), run, job)
+	err := runner.runExternalTool(context.Background(), run, job, "run_command_failure:build_finance_dbt:1")
 	if err == nil || !strings.Contains(err.Error(), "exit code 7") {
 		t.Fatalf("expected non-zero exit failure, got %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRunExternalToolFailsWhenRequiredArtifactIsMissing(t *testing.T) {
 	run := &orchestration.PipelineRun{ID: "run_missing_artifact", PipelineID: "personal_finance_dbt_pipeline"}
 	job := externalToolJob(projectRef, profilesRef)
 
-	err := runner.runExternalTool(context.Background(), run, job)
+	err := runner.runExternalTool(context.Background(), run, job, "run_missing_artifact:build_finance_dbt:1")
 	if err == nil || !strings.Contains(err.Error(), "declared artifact") {
 		t.Fatalf("expected missing artifact failure, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestRunExternalToolFailsForInvalidRepoRelativeRefs(t *testing.T) {
 	run := &orchestration.PipelineRun{ID: "run_invalid_ref", PipelineID: "personal_finance_dbt_pipeline"}
 	job := externalToolJob("../unsafe-project", profilesRef)
 
-	err := runner.runExternalTool(context.Background(), run, job)
+	err := runner.runExternalTool(context.Background(), run, job, "run_invalid_timeout:build_finance_dbt:1")
 	if err == nil || !strings.Contains(err.Error(), "repo-relative") {
 		t.Fatalf("expected repo-relative validation failure, got %v", err)
 	}

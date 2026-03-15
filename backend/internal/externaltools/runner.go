@@ -74,6 +74,9 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (Result, error) {
 	command := exec.CommandContext(runCtx, plan.Binary, plan.Args...)
 	command.Dir = plan.WorkDir
 	command.Env = append(command.Environ(), plan.Env...)
+	if strings.TrimSpace(request.IdempotencyKey) != "" {
+		command.Env = append(command.Env, "PLATFORM_IDEMPOTENCY_KEY="+request.IdempotencyKey)
+	}
 	commandLine := strings.Join(append([]string{plan.Binary}, plan.Args...), " ")
 
 	var stdout bytes.Buffer
@@ -91,18 +94,20 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (Result, error) {
 				Level:   "info",
 				Message: "external tool selected",
 				Fields: map[string]string{
-					"tool":   plan.Tool,
-					"job_id": request.JobID,
-					"action": plan.Action,
+					"tool":            plan.Tool,
+					"job_id":          request.JobID,
+					"action":          plan.Action,
+					"idempotency_key": request.IdempotencyKey,
 				},
 			},
 			{
 				Level:   "info",
 				Message: "external tool command started",
 				Fields: map[string]string{
-					"tool":    plan.Tool,
-					"job_id":  request.JobID,
-					"command": commandLine,
+					"tool":            plan.Tool,
+					"job_id":          request.JobID,
+					"command":         commandLine,
+					"idempotency_key": request.IdempotencyKey,
 				},
 			},
 		},

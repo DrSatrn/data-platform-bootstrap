@@ -26,12 +26,13 @@ type Settings struct {
 
 // RunRequest contains the context needed to execute one external tool job.
 type RunRequest struct {
-	RepoRoot   string
-	RunID      string
-	PipelineID string
-	JobID      string
-	Timeout    time.Duration
-	Spec       orchestration.ExternalToolSpec
+	RepoRoot       string
+	RunID          string
+	PipelineID     string
+	JobID          string
+	IdempotencyKey string
+	Timeout        time.Duration
+	Spec           orchestration.ExternalToolSpec
 }
 
 // Artifact describes one discovered output file after a successful run.

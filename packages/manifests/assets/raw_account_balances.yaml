@@ -15,6 +15,10 @@ documentation_refs:
 freshness:
   expected_within: 6h
   warn_after: 8h
+retention:
+  materializations: 336h
+  run_artifacts: 168h
+  run_history: 168h
 columns:
   - name: account_id
     type: text

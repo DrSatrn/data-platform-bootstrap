@@ -13,6 +13,10 @@ documentation_refs:
 freshness:
   expected_within: 6h
   warn_after: 8h
+retention:
+  materializations: 240h
+  run_artifacts: 120h
+  run_history: 168h
 columns:
   - name: transaction_id
     type: text

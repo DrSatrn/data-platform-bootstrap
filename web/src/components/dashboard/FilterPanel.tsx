@@ -1,4 +1,5 @@
 import type { DashboardDefinition, DashboardPreset } from "../../features/dashboard/useDashboardData";
+import type { DashboardViewFilters } from "../../features/dashboard/queryState";
 
 export function FilterPanel({
   activeDashboard,
@@ -7,7 +8,9 @@ export function FilterPanel({
   isEditing,
   draft,
   canEdit,
+  viewFilters,
   updateDashboardFilter,
+  updateViewFilter,
   addPreset,
   removePreset,
   updatePreset,
@@ -19,7 +22,9 @@ export function FilterPanel({
   isEditing: boolean;
   draft: DashboardDefinition | null;
   canEdit: boolean;
+  viewFilters: DashboardViewFilters;
   updateDashboardFilter: (field: "from_month" | "to_month" | "category", value: string) => void;
+  updateViewFilter: (field: "from_month" | "to_month" | "category", value: string) => void;
   addPreset: () => void;
   removePreset: (presetID: string) => void;
   updatePreset: (presetID: string, field: "name" | "description", value: string) => void;
@@ -42,20 +47,38 @@ export function FilterPanel({
           </div>
         </div>
         <p className="muted">
-          Dashboard-wide filters apply before widget-specific filters so teams can reuse one saved layout across multiple reporting contexts.
+          Dashboard-wide filters apply before widget-specific filters so teams can reuse one saved layout across multiple reporting contexts. The active reporting view now stays reflected in the URL for sharing and restore.
         </p>
         <div className="form-grid">
           <label className="stack">
             <span className="muted">Default from month</span>
-            <input className="terminal-input" disabled={!isEditing} onChange={(event) => updateDashboardFilter("from_month", event.target.value)} placeholder="YYYY-MM" value={activeDashboard?.default_filters?.from_month ?? ""} />
+            <input
+              className="terminal-input"
+              disabled={isEditing && !canEdit}
+              onChange={(event) => (isEditing ? updateDashboardFilter("from_month", event.target.value) : updateViewFilter("from_month", event.target.value))}
+              placeholder="YYYY-MM"
+              value={isEditing ? activeDashboard?.default_filters?.from_month ?? "" : viewFilters.from_month ?? ""}
+            />
           </label>
           <label className="stack">
             <span className="muted">Default to month</span>
-            <input className="terminal-input" disabled={!isEditing} onChange={(event) => updateDashboardFilter("to_month", event.target.value)} placeholder="YYYY-MM" value={activeDashboard?.default_filters?.to_month ?? ""} />
+            <input
+              className="terminal-input"
+              disabled={isEditing && !canEdit}
+              onChange={(event) => (isEditing ? updateDashboardFilter("to_month", event.target.value) : updateViewFilter("to_month", event.target.value))}
+              placeholder="YYYY-MM"
+              value={isEditing ? activeDashboard?.default_filters?.to_month ?? "" : viewFilters.to_month ?? ""}
+            />
           </label>
           <label className="stack">
             <span className="muted">Default category</span>
-            <input className="terminal-input" disabled={!isEditing} onChange={(event) => updateDashboardFilter("category", event.target.value)} placeholder="Food" value={activeDashboard?.default_filters?.category ?? ""} />
+            <input
+              className="terminal-input"
+              disabled={isEditing && !canEdit}
+              onChange={(event) => (isEditing ? updateDashboardFilter("category", event.target.value) : updateViewFilter("category", event.target.value))}
+              placeholder="Food"
+              value={isEditing ? activeDashboard?.default_filters?.category ?? "" : viewFilters.category ?? ""}
+            />
           </label>
         </div>
       </article>

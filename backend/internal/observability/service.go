@@ -15,6 +15,19 @@ const (
 	maxRecentCommands = 100
 )
 
+var httpLatencyBuckets = []time.Duration{
+	5 * time.Millisecond,
+	10 * time.Millisecond,
+	25 * time.Millisecond,
+	50 * time.Millisecond,
+	100 * time.Millisecond,
+	250 * time.Millisecond,
+	500 * time.Millisecond,
+	time.Second,
+	2500 * time.Millisecond,
+	5 * time.Second,
+}
+
 // LogEntry captures one structured application log event.
 type LogEntry struct {
 	Time    time.Time         `json:"time"`
@@ -54,6 +67,22 @@ type Snapshot struct {
 	RuntimeLabels    map[string]string `json:"runtime_labels"`
 }
 
+// MetricsSnapshot captures Prometheus-friendly counters and histogram buckets.
+type MetricsSnapshot struct {
+	StartedAt                  time.Time
+	TotalRequests              int
+	TotalErrors                int
+	HTTPRequestDurationCount   int
+	HTTPRequestDurationSum     float64
+	HTTPRequestDurationBuckets []HistogramBucket
+}
+
+// HistogramBucket is one cumulative bucket in the latency histogram.
+type HistogramBucket struct {
+	UpperBoundSeconds float64
+	Count             int
+}
+
 // Service is the in-process telemetry registry.
 type Service struct {
 	mu             sync.RWMutex
@@ -65,13 +94,17 @@ type Service struct {
 	recentRequests []RequestEntry
 	recentLogs     []LogEntry
 	recentCommands []CommandEntry
+	latencyBuckets []int
+	latencyCount   int
+	latencySum     float64
 }
 
 // NewService creates a telemetry registry with startup time captured.
 func NewService() *Service {
 	return &Service{
-		startedAt:     time.Now().UTC(),
-		requestCounts: map[string]int{},
+		startedAt:      time.Now().UTC(),
+		requestCounts:  map[string]int{},
+		latencyBuckets: make([]int, len(httpLatencyBuckets)),
 	}
 }
 
@@ -102,6 +135,7 @@ func (s *Service) RecordRequest(method, path string, statusCode int, duration ti
 		s.totalErrors++
 	}
 	s.requestCounts[path]++
+	s.observeLatency(duration)
 	s.recentRequests = appendTrimmed(
 		s.recentRequests,
 		maxRecentRequests,
@@ -158,6 +192,39 @@ func (s *Service) RecentLogs() []LogEntry {
 	defer s.mu.RUnlock()
 
 	return cloneLogs(s.recentLogs)
+}
+
+// MetricsSnapshot returns the current counters and latency histogram in a
+// Prometheus-friendly shape.
+func (s *Service) MetricsSnapshot() MetricsSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	buckets := make([]HistogramBucket, 0, len(httpLatencyBuckets))
+	for index, upperBound := range httpLatencyBuckets {
+		buckets = append(buckets, HistogramBucket{
+			UpperBoundSeconds: upperBound.Seconds(),
+			Count:             s.latencyBuckets[index],
+		})
+	}
+	return MetricsSnapshot{
+		StartedAt:                  s.startedAt,
+		TotalRequests:              s.totalRequests,
+		TotalErrors:                s.totalErrors,
+		HTTPRequestDurationCount:   s.latencyCount,
+		HTTPRequestDurationSum:     s.latencySum,
+		HTTPRequestDurationBuckets: buckets,
+	}
+}
+
+func (s *Service) observeLatency(duration time.Duration) {
+	s.latencyCount++
+	s.latencySum += duration.Seconds()
+	for index, upperBound := range httpLatencyBuckets {
+		if duration <= upperBound {
+			s.latencyBuckets[index]++
+		}
+	}
 }
 
 func appendTrimmed[T any](items []T, limit int, next T) []T {

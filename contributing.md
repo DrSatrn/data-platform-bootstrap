@@ -110,6 +110,22 @@ make smoke
 
 If `make smoke` passes, your toolchain is working.
 
+### Starting and Stopping the Stack
+
+For regular development or operation, you'll need to turn the service on and off:
+
+**To bring the platform online:**
+```bash
+make bootstrap
+```
+This boots the full Docker Compose stack (Postgres, API, Worker, Scheduler, Web). The frontend is accessible at `http://localhost:3000`.
+
+**To bring the platform offline:**
+```bash
+make down
+```
+This stops the stack but keeps your data intact.
+
 ---
 
 ## The Golden Rule: Verify Before You Push

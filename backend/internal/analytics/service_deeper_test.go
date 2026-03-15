@@ -91,6 +91,24 @@ func TestFinalizeQueryResultDoesNotOverTrimLargeLimits(t *testing.T) {
 	}
 }
 
+func TestQueryDatasetSupportsMultiDimensionGroupBy(t *testing.T) {
+	root := t.TempDir()
+	writeAnalyticsSampleData(t, root)
+
+	service := NewService(root, filepath.Join(root, "materialized"), filepath.Join(root, "duckdb", "platform.duckdb"), filepath.Join(root, "missing-sql"))
+	result, err := service.QueryDataset("mart_budget_vs_actual", QueryOptions{GroupBy: "month,category"})
+	if err != nil {
+		t.Fatalf("query multi-dimension group by: %v", err)
+	}
+	if len(result.Series) == 0 {
+		t.Fatalf("expected grouped rows, got %+v", result.Series)
+	}
+	first := result.Series[0]
+	if first["month"] == nil || first["category"] == nil {
+		t.Fatalf("expected grouped dimensions to be preserved, got %+v", first)
+	}
+}
+
 func writeAnalyticsSampleData(t *testing.T, sampleRoot string) {
 	t.Helper()
 	dataDir := filepath.Join(sampleRoot, "personal_finance")

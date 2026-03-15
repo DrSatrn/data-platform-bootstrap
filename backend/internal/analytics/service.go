@@ -5,6 +5,7 @@
 package analytics
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -93,6 +94,25 @@ func (s *Service) QueryMetric(metricID string, options QueryOptions) (QueryResul
 // dashboard landing view.
 func (s *Service) SampleDashboard() (QueryResult, error) {
 	return s.queryMonthlyCashflow(QueryOptions{})
+}
+
+// ExportDatasetCSV returns one curated dataset serialized as CSV using the
+// same constrained query path as the JSON analytics API.
+func (s *Service) ExportDatasetCSV(dataset string, options QueryOptions) ([]byte, error) {
+	result, err := s.QueryDataset(dataset, options)
+	if err != nil {
+		return nil, err
+	}
+	return encodeQueryResultCSV(result)
+}
+
+// ExportMetricCSV returns one curated metric query serialized as CSV.
+func (s *Service) ExportMetricCSV(metricID string, options QueryOptions) ([]byte, error) {
+	result, err := s.QueryMetric(metricID, options)
+	if err != nil {
+		return nil, err
+	}
+	return encodeQueryResultCSV(result)
 }
 
 func (s *Service) queryMonthlyCashflow(options QueryOptions) (QueryResult, error) {
@@ -690,22 +710,33 @@ func schemaForDataset(dataset string) (datasetSchema, error) {
 }
 
 func applyGrouping(rows []map[string]any, schema datasetSchema, options QueryOptions) ([]map[string]any, error) {
-	if options.GroupBy == "" {
+	groupByFields := parseGroupByFields(options.GroupBy)
+	if len(groupByFields) == 0 {
 		return rows, nil
 	}
-	if !containsString(schema.dimensions, options.GroupBy) {
-		return nil, fmt.Errorf("group_by %q is not supported for this dataset", options.GroupBy)
+	for _, field := range groupByFields {
+		if !containsString(schema.dimensions, field) {
+			return nil, fmt.Errorf("group_by %q is not supported for this dataset", field)
+		}
 	}
 
 	grouped := map[string]map[string]any{}
 	for _, row := range rows {
-		key := stringValue(row[options.GroupBy])
-		if key == "" {
-			key = "(empty)"
+		keyParts := make([]string, 0, len(groupByFields))
+		for _, field := range groupByFields {
+			value := stringValue(row[field])
+			if value == "" {
+				value = "(empty)"
+			}
+			keyParts = append(keyParts, value)
 		}
+		key := strings.Join(keyParts, "\x1f")
 		current, ok := grouped[key]
 		if !ok {
-			current = map[string]any{options.GroupBy: key}
+			current = map[string]any{}
+			for index, field := range groupByFields {
+				current[field] = keyParts[index]
+			}
 			for _, measure := range schema.measures {
 				current[measure] = 0.0
 			}
@@ -722,6 +753,99 @@ func applyGrouping(rows []map[string]any, schema datasetSchema, options QueryOpt
 		out = append(out, grouped[key])
 	}
 	return out, nil
+}
+
+func parseGroupByFields(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	fields := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		field := strings.TrimSpace(part)
+		if field == "" {
+			continue
+		}
+		if _, exists := seen[field]; exists {
+			continue
+		}
+		seen[field] = struct{}{}
+		fields = append(fields, field)
+	}
+	return fields
+}
+
+func encodeQueryResultCSV(result QueryResult) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	columns := orderedCSVColumns(result)
+	if len(columns) == 0 {
+		return []byte{}, nil
+	}
+	if err := writer.Write(columns); err != nil {
+		return nil, fmt.Errorf("write csv header: %w", err)
+	}
+	for _, row := range result.Series {
+		record := make([]string, 0, len(columns))
+		for _, column := range columns {
+			record = append(record, stringValue(row[column]))
+		}
+		if err := writer.Write(record); err != nil {
+			return nil, fmt.Errorf("write csv row: %w", err)
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, fmt.Errorf("flush csv writer: %w", err)
+	}
+	return buffer.Bytes(), nil
+}
+
+func orderedCSVColumns(result QueryResult) []string {
+	present := map[string]struct{}{}
+	for _, row := range result.Series {
+		for key := range row {
+			present[key] = struct{}{}
+		}
+	}
+	if len(present) == 0 {
+		groupByFields := parseGroupByFields(result.GroupBy)
+		if len(groupByFields) > 0 {
+			return append(groupByFields, result.AvailableMeasures...)
+		}
+		return append(append([]string{}, result.AvailableDimensions...), result.AvailableMeasures...)
+	}
+
+	columns := []string{}
+	appendIfPresent := func(items []string) {
+		for _, item := range items {
+			if _, ok := present[item]; !ok {
+				continue
+			}
+			if containsString(columns, item) {
+				continue
+			}
+			columns = append(columns, item)
+		}
+	}
+
+	groupByFields := parseGroupByFields(result.GroupBy)
+	appendIfPresent(groupByFields)
+	appendIfPresent(result.AvailableDimensions)
+	appendIfPresent(result.AvailableMeasures)
+
+	extra := make([]string, 0, len(present))
+	for key := range present {
+		if containsString(columns, key) {
+			continue
+		}
+		extra = append(extra, key)
+	}
+	sort.Strings(extra)
+	columns = append(columns, extra...)
+	return columns
 }
 
 func sortRows(rows []map[string]any, options QueryOptions) []map[string]any {

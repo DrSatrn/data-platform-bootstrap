@@ -70,6 +70,29 @@ export async function patchJSON<TResponse, TRequest>(path: string, payload: TReq
   return (await response.json()) as TResponse;
 }
 
+export async function downloadFile(path: string, filename: string, token?: string): Promise<void> {
+  const resolvedToken = token ?? browserToken();
+  const response = await fetch(path, {
+    headers: {
+      ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {})
+    }
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed for ${path}: ${response.status}`);
+  }
+  const blob = await response.blob();
+  if (typeof window === "undefined") {
+    return;
+  }
+  const url = window.URL.createObjectURL(blob);
+  const anchor = window.document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(url);
+}
+
 function browserToken() {
   if (typeof window === "undefined") {
     return undefined;

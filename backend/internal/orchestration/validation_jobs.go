@@ -31,14 +31,41 @@ func validateIngestJob(job Job) error {
 	if strings.TrimSpace(job.TransformRef) != "" {
 		return fmt.Errorf("ingest jobs must not set transform_ref")
 	}
-	if !isRepoRelativeRef(job.Ingest.SourceRef) {
-		return fmt.Errorf("ingest.source_ref must be repo-relative")
-	}
 	if !isDataRelativePath(job.Ingest.TargetPath) {
 		return fmt.Errorf("ingest.target_path must be data-root-relative")
 	}
 	if artifactPath := strings.TrimSpace(job.Ingest.ArtifactPath); artifactPath != "" && !isDataRelativePath(artifactPath) {
 		return fmt.Errorf("ingest.artifact_path must be data-root-relative")
+	}
+	switch normalizeIngestSourceKind(job.Ingest.SourceKind) {
+	case "file":
+		if !isRepoRelativeRef(job.Ingest.SourceRef) {
+			return fmt.Errorf("ingest.source_ref must be repo-relative for file ingest")
+		}
+		if strings.TrimSpace(job.Ingest.ConnectionEnv) != "" {
+			return fmt.Errorf("ingest.connection_env is only valid for database ingest")
+		}
+		if strings.TrimSpace(job.Ingest.Query) != "" {
+			return fmt.Errorf("ingest.query is only valid for database ingest")
+		}
+	case "postgres", "mysql":
+		if strings.TrimSpace(job.Ingest.ConnectionEnv) == "" {
+			return fmt.Errorf("database ingest must declare connection_env")
+		}
+		if strings.TrimSpace(job.Ingest.Query) == "" {
+			return fmt.Errorf("database ingest must declare query")
+		}
+		switch strings.ToLower(strings.TrimSpace(job.Ingest.Format)) {
+		case "", "csv":
+		default:
+			return fmt.Errorf("database ingest format %q is unsupported; use csv", job.Ingest.Format)
+		}
+		targetPath := strings.ToLower(strings.TrimSpace(job.Ingest.TargetPath))
+		if !strings.HasSuffix(targetPath, ".csv") {
+			return fmt.Errorf("database ingest target_path must end with .csv")
+		}
+	default:
+		return fmt.Errorf("unsupported ingest.source_kind %q", job.Ingest.SourceKind)
 	}
 	return nil
 }
@@ -88,4 +115,12 @@ func isDataRelativePath(path string) bool {
 		return false
 	}
 	return true
+}
+
+func normalizeIngestSourceKind(value string) string {
+	kind := strings.ToLower(strings.TrimSpace(value))
+	if kind == "" {
+		return "file"
+	}
+	return kind
 }

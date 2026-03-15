@@ -57,7 +57,7 @@ func TestRunExternalToolMirrorsLogsAndArtifacts(t *testing.T) {
 		},
 	}
 
-	if err := runner.runExternalTool(context.Background(), run, job); err != nil {
+	if err := runner.runExternalTool(context.Background(), run, job, "run_1:build_finance_dbt:1"); err != nil {
 		t.Fatalf("runExternalTool returned error: %v", err)
 	}
 

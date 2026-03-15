@@ -29,12 +29,13 @@ import (
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/quality"
 	"github.com/streanor/data-platform/backend/internal/reporting"
+	"github.com/streanor/data-platform/backend/internal/retention"
 	"gopkg.in/yaml.v3"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: platformctl validate-manifests | migrate | benchmark | backup | remote [--server URL] [--token TOKEN] <command>")
+		fmt.Println("usage: platformctl validate-manifests | migrate | benchmark | backup | retention | remote [--server URL] [--token TOKEN] <command>")
 		os.Exit(1)
 	}
 
@@ -59,6 +60,11 @@ func main() {
 	case "backup":
 		if err := runBackup(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "backup command failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "retention":
+		if err := runRetention(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "retention command failed: %v\n", err)
 			os.Exit(1)
 		}
 	case "remote":
@@ -290,6 +296,21 @@ func validateAssets(assets []metadata.DataAsset, owners map[string]metadata.Owne
 		if _, err := time.ParseDuration(asset.Freshness.WarnAfter); err != nil {
 			errors = append(errors, fmt.Sprintf("asset %s has invalid freshness.warn_after: %v", asset.ID, err))
 		}
+		for _, retentionCheck := range []struct {
+			name  string
+			value string
+		}{
+			{name: "retention.materializations", value: asset.Retention.Materializations},
+			{name: "retention.run_artifacts", value: asset.Retention.RunArtifacts},
+			{name: "retention.run_history", value: asset.Retention.RunHistory},
+		} {
+			if strings.TrimSpace(retentionCheck.value) == "" {
+				continue
+			}
+			if _, err := time.ParseDuration(retentionCheck.value); err != nil {
+				errors = append(errors, fmt.Sprintf("asset %s has invalid %s: %v", asset.ID, retentionCheck.name, err))
+			}
+		}
 		columnNames := map[string]struct{}{}
 		for _, column := range asset.Columns {
 			if column.Name == "" {
@@ -316,6 +337,83 @@ func validateAssets(assets []metadata.DataAsset, owners map[string]metadata.Owne
 		}
 	}
 	return errors
+}
+
+func runRetention(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: platformctl retention purge [--manifest-root PATH] [--data-root PATH] [--artifact-root PATH] [--postgres-dsn DSN] [--skip-postgres] [--now RFC3339] [--default-run-history TTL] [--default-run-artifacts TTL]")
+	}
+	if args[0] != "purge" {
+		return fmt.Errorf("unknown retention command %q", args[0])
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	command := flag.NewFlagSet("retention purge", flag.ContinueOnError)
+	manifestRoot := command.String("manifest-root", cfg.ManifestRoot, "manifest root containing assets and pipelines")
+	dataRoot := command.String("data-root", cfg.DataRoot, "data root containing materializations and run snapshots")
+	artifactRoot := command.String("artifact-root", cfg.ArtifactRoot, "artifact root containing run-scoped evidence")
+	postgresDSN := command.String("postgres-dsn", cfg.PostgresDSN, "optional postgres dsn used for mirrored control-plane cleanup")
+	skipPostgres := command.Bool("skip-postgres", false, "skip postgres cleanup even if a dsn is configured")
+	nowRaw := command.String("now", "", "override current time in RFC3339 format")
+	defaultRunHistory := command.Duration("default-run-history", 7*24*time.Hour, "fallback run history retention when asset manifests do not declare one")
+	defaultRunArtifacts := command.Duration("default-run-artifacts", 7*24*time.Hour, "fallback run artifact retention when asset manifests do not declare one")
+	if err := command.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	if strings.TrimSpace(*nowRaw) != "" {
+		parsed, err := time.Parse(time.RFC3339, *nowRaw)
+		if err != nil {
+			return fmt.Errorf("parse --now: %w", err)
+		}
+		now = parsed.UTC()
+	}
+
+	loader := manifests.NewLoader(*manifestRoot)
+	assets, err := loader.LoadAssets()
+	if err != nil {
+		return err
+	}
+	pipelines, err := loader.LoadPipelines()
+	if err != nil {
+		return err
+	}
+
+	var dbExec retention.DBExecutor
+	if !*skipPostgres && strings.TrimSpace(*postgresDSN) != "" {
+		conn, err := db.Open(*postgresDSN)
+		if err == nil {
+			if pingErr := conn.PingContext(context.Background()); pingErr == nil {
+				dbExec = conn
+				defer conn.Close()
+			} else {
+				_ = conn.Close()
+			}
+		}
+	}
+
+	service := retention.NewService(retention.Settings{
+		DataRoot:              *dataRoot,
+		ArtifactRoot:          *artifactRoot,
+		Now:                   now,
+		DefaultRunHistoryTTL:  *defaultRunHistory,
+		DefaultRunArtifactTTL: *defaultRunArtifacts,
+	}, dbExec)
+	report, err := service.Purge(context.Background(), assets, pipelines)
+	if err != nil {
+		return err
+	}
+	bytes, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode retention report: %w", err)
+	}
+	fmt.Println(string(bytes))
+	return nil
 }
 
 func validateMetrics(metrics []analytics.MetricDefinition, owners map[string]metadata.Owner, assets map[string]metadata.DataAsset) []string {

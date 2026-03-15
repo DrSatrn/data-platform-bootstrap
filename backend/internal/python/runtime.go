@@ -22,6 +22,7 @@ type TaskRequest struct {
 	RunID          string            `json:"run_id"`
 	PipelineID     string            `json:"pipeline_id"`
 	JobID          string            `json:"job_id"`
+	IdempotencyKey string            `json:"idempotency_key,omitempty"`
 	Command        string            `json:"command"`
 	DataRoot       string            `json:"data_root"`
 	ArtifactRoot   string            `json:"artifact_root"`
@@ -96,6 +97,7 @@ func (r *Runner) Run(ctx context.Context, pipelineID string, job orchestration.J
 		"PLATFORM_TASK_REQUEST_PATH="+requestPath,
 		"PLATFORM_TASK_RESULT_PATH="+resultPath,
 		"PLATFORM_PIPELINE_ID="+pipelineID,
+		"PLATFORM_IDEMPOTENCY_KEY="+request.IdempotencyKey,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {

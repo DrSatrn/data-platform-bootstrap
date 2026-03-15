@@ -39,6 +39,22 @@ If something goes wrong:
 3. if you need the packaged stack instead, switch to
    [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
 
+## Bringing the Service Online and Offline
+
+If you just want to run the platform (without development debugging or testing), use the packaged Docker Compose stack:
+
+**To bring the service online:**
+```sh
+make bootstrap
+```
+*This starts the API, worker, scheduler, frontend, and PostgreSQL database. It also automatically runs schema migrations.*
+
+**To bring the service offline:**
+```sh
+make down
+```
+*This gracefully stops and removes the Docker containers. Your data is safely preserved in the database volume for the next run.*
+
 ## Which Document Should You Use?
 
 - I want the project explained first:

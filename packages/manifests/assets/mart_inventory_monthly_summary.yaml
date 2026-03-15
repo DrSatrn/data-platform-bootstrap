@@ -15,6 +15,10 @@ documentation_refs:
 freshness:
   expected_within: 6h
   warn_after: 12h
+retention:
+  materializations: 720h
+  run_artifacts: 240h
+  run_history: 240h
 columns:
   - name: month
     type: text

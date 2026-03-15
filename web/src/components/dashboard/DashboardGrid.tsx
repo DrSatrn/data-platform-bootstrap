@@ -3,15 +3,17 @@ import { WidgetRenderer } from "./WidgetRenderer";
 
 export function DashboardGrid({
   widgets,
-  widgetData
+  widgetData,
+  exportWidgetCSV
 }: {
   widgets: DashboardWidget[];
   widgetData: Record<string, { series: Array<Record<string, string | number>> }>;
+  exportWidgetCSV: (widgetID: string) => Promise<void>;
 }) {
   return (
     <div className="dashboard-grid wide-card">
       {widgets.map((widget) => (
-        <WidgetRenderer key={widget.id} widget={widget} series={widgetData[widget.id]?.series ?? []} />
+        <WidgetRenderer key={widget.id} widget={widget} onExportCSV={exportWidgetCSV} series={widgetData[widget.id]?.series ?? []} />
       ))}
     </div>
   );

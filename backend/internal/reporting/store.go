@@ -76,6 +76,7 @@ type DashboardWidget struct {
 	XAxis       string       `json:"x_axis,omitempty" yaml:"x_axis"`
 	YAxis       string       `json:"y_axis,omitempty" yaml:"y_axis"`
 	Limit       int          `json:"limit,omitempty" yaml:"limit"`
+	GroupBy     []string     `json:"group_by,omitempty" yaml:"group_by"`
 	Filters     WidgetQuery  `json:"filters,omitempty" yaml:"filters"`
 	Layout      WidgetLayout `json:"layout,omitempty" yaml:"layout"`
 }

@@ -5,20 +5,28 @@ import type { DashboardWidget } from "../../features/dashboard/useDashboardData"
 export const datasetOptions = [
   "mart_monthly_cashflow",
   "mart_category_spend",
-  "mart_budget_vs_actual"
+  "mart_budget_vs_actual",
+  "mart_inventory_monthly_summary"
 ];
 
-export const metricOptions = ["metrics_savings_rate", "metrics_category_variance"];
+export const metricOptions = ["metrics_savings_rate", "metrics_category_variance", "metrics_inventory_net_change"];
 
 export const axisOptions = [
   "month",
   "category",
+  "sku",
+  "warehouse",
   "total_income",
   "total_expense",
   "net_cashflow",
   "actual_spend",
   "budget_amount",
-  "variance_amount"
+  "variance_amount",
+  "receipts",
+  "issues",
+  "net_quantity",
+  "closing_quantity",
+  "movement_count"
 ];
 
 export function deriveColumns(series: Array<Record<string, string | number>>) {

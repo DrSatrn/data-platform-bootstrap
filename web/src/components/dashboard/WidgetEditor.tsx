@@ -19,7 +19,7 @@ export function WidgetEditor({
   nudgeWidget: (widgetID: string, axis: "x" | "y", delta: -1 | 1) => void;
   resizeWidget: (widgetID: string, axis: "w" | "h", delta: -1 | 1) => void;
   removeWidget: (widgetID: string) => void;
-  updateWidget: (widgetID: string, field: keyof DashboardWidget, value: string | number) => void;
+  updateWidget: (widgetID: string, field: keyof DashboardWidget, value: string | number | string[]) => void;
   updateWidgetFilter: (widgetID: string, field: "from_month" | "to_month" | "category", value: string) => void;
 }) {
   return (
@@ -124,6 +124,24 @@ export function WidgetEditor({
             onChange={(event) => updateWidget(widget.id, "limit", Number(event.target.value) || 0)}
             type="number"
             value={widget.limit ?? 12}
+          />
+        </label>
+        <label className="stack">
+          <span className="muted">Group by</span>
+          <input
+            className="terminal-input"
+            onChange={(event) =>
+              updateWidget(
+                widget.id,
+                "group_by",
+                event.target.value
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+              )
+            }
+            placeholder="month, category"
+            value={(widget.group_by ?? []).join(", ")}
           />
         </label>
         <label className="stack wide-field">

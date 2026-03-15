@@ -70,3 +70,44 @@ func TestValidatePipelineRejectsPublishMetricWithoutMetricRefs(t *testing.T) {
 		t.Fatal("expected publish_metric validation error")
 	}
 }
+
+func TestValidatePipelineAcceptsDatabaseIngestJobs(t *testing.T) {
+	pipeline := Pipeline{
+		ID: "database_ingest_pipeline",
+		Jobs: []Job{{
+			ID:   "ingest_balances_postgres",
+			Type: JobTypeIngest,
+			Ingest: &IngestSpec{
+				SourceKind:    "postgres",
+				ConnectionEnv: "PLATFORM_SOURCE_FINANCE_POSTGRES_DSN",
+				Query:         "select account_id, balance from balances",
+				TargetPath:    "raw/raw_account_balances.csv",
+				ArtifactPath:  "raw/raw_account_balances.csv",
+				Format:        "csv",
+			},
+		}},
+	}
+
+	if err := ValidatePipeline(pipeline); err != nil {
+		t.Fatalf("expected database ingest pipeline to validate, got %v", err)
+	}
+}
+
+func TestValidatePipelineRejectsDatabaseIngestWithoutConnectionEnv(t *testing.T) {
+	pipeline := Pipeline{
+		ID: "broken_database_ingest",
+		Jobs: []Job{{
+			ID:   "ingest_mysql",
+			Type: JobTypeIngest,
+			Ingest: &IngestSpec{
+				SourceKind: "mysql",
+				Query:      "select * from inventory",
+				TargetPath: "raw/raw_inventory.csv",
+			},
+		}},
+	}
+
+	if err := ValidatePipeline(pipeline); err == nil {
+		t.Fatal("expected database ingest validation error")
+	}
+}

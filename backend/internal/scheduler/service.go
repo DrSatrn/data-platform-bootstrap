@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/streanor/data-platform/backend/internal/alerting"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
@@ -21,14 +22,16 @@ import (
 
 // Service owns the scheduling loop.
 type Service struct {
-	tick      time.Duration
-	loader    manifests.Loader
-	store     orchestration.Store
-	control   *orchestration.ControlService
-	catalog   *metadata.Catalog
-	metaStore metadata.Store
-	logger    *slog.Logger
-	statePath string
+	tick       time.Duration
+	loader     manifests.Loader
+	store      orchestration.Store
+	control    *orchestration.ControlService
+	catalog    *metadata.Catalog
+	metaStore  metadata.Store
+	alerts     *alerting.Dispatcher
+	logger     *slog.Logger
+	dataRoot   string
+	statePath  string
 	statusPath string
 }
 
@@ -50,18 +53,21 @@ func NewService(
 	control *orchestration.ControlService,
 	catalog *metadata.Catalog,
 	metaStore metadata.Store,
+	alerts *alerting.Dispatcher,
 	logger *slog.Logger,
 	dataRoot string,
 ) *Service {
 	return &Service{
-		tick:      tick,
-		loader:    loader,
-		store:     store,
-		control:   control,
-		catalog:   catalog,
-		metaStore: metaStore,
-		logger:    logger,
-		statePath: filepath.Join(dataRoot, "control_plane", "scheduler_state.json"),
+		tick:       tick,
+		loader:     loader,
+		store:      store,
+		control:    control,
+		catalog:    catalog,
+		metaStore:  metaStore,
+		alerts:     alerts,
+		logger:     logger,
+		dataRoot:   dataRoot,
+		statePath:  filepath.Join(dataRoot, "control_plane", "scheduler_state.json"),
 		statusPath: filepath.Join(dataRoot, "control_plane", "scheduler_status.json"),
 	}
 }
@@ -71,7 +77,7 @@ func (s *Service) Run(ctx context.Context) error {
 	ticker := time.NewTicker(s.tick)
 	defer ticker.Stop()
 
-	if err := s.refreshCatalog(); err != nil {
+	if err := s.refreshCatalog(ctx); err != nil {
 		_ = s.writeStatus(Status{RefreshedAt: time.Now().UTC(), LastError: err.Error()})
 		s.logger.Warn("initial scheduler refresh failed", slog.String("error", err.Error()))
 	}
@@ -82,7 +88,7 @@ func (s *Service) Run(ctx context.Context) error {
 			s.logger.Info("scheduler shutdown complete")
 			return nil
 		case <-ticker.C:
-			if err := s.refreshCatalog(); err != nil {
+			if err := s.refreshCatalog(ctx); err != nil {
 				_ = s.writeStatus(Status{RefreshedAt: time.Now().UTC(), LastError: err.Error()})
 				s.logger.Warn("scheduled refresh failed", slog.String("error", err.Error()))
 			}
@@ -90,7 +96,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Service) refreshCatalog() error {
+func (s *Service) refreshCatalog(ctx context.Context) error {
 	pipelines, err := s.loader.LoadPipelines()
 	if err != nil {
 		return err
@@ -105,6 +111,11 @@ func (s *Service) refreshCatalog() error {
 		s.logger.Warn("metadata projection refresh failed", slog.String("error", err.Error()))
 	}
 
+	now := time.Now().UTC()
+	for index := range assets {
+		assets[index].FreshnessStatus = metadata.ResolveFreshnessStatus(s.dataRoot, assets[index], now)
+		s.alertAssetStatus(ctx, assets[index])
+	}
 	s.catalog.ReplaceAssets(assets)
 	lastEnqueueAt, err := s.enqueueScheduledRuns(pipelines)
 	if err != nil {
@@ -124,6 +135,25 @@ func (s *Service) refreshCatalog() error {
 		slog.Int("asset_count", len(assets)),
 	)
 	return nil
+}
+
+func (s *Service) alertAssetStatus(ctx context.Context, asset metadata.DataAsset) {
+	if s.alerts == nil {
+		return
+	}
+	if err := s.alerts.ObserveAssetWarning(ctx, alerting.AssetWarningEvent{
+		AssetID:        asset.ID,
+		AssetName:      asset.Name,
+		State:          asset.FreshnessStatus.State,
+		Message:        asset.FreshnessStatus.Message,
+		LastUpdated:    asset.FreshnessStatus.LastUpdated,
+		LagSeconds:     asset.FreshnessStatus.LagSeconds,
+		ExpectedWithin: asset.Freshness.ExpectedWithin,
+		WarnAfter:      asset.Freshness.WarnAfter,
+		ObservedAt:     time.Now().UTC(),
+	}); err != nil {
+		s.logger.Warn("failed to post asset freshness webhook", slog.String("asset_id", asset.ID), slog.String("error", err.Error()))
+	}
 }
 
 func (s *Service) enqueueScheduledRuns(pipelines []orchestration.Pipeline) (*time.Time, error) {
