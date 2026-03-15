@@ -1,0 +1,42 @@
+[
+  {
+    "id": "dbt-finance:external_tools/build_finance_dbt/logs/stderr.log",
+    "title": "build_finance_dbt logs",
+    "kind": "log",
+    "path": "external_tools/build_finance_dbt/logs/stderr.log",
+    "source": "external_tool",
+    "importance": "high"
+  },
+  {
+    "id": "restore-drill:runs/run_1/recovery/verify-report.json",
+    "title": "Restore Drill",
+    "kind": "report",
+    "path": "runs/run_1/recovery/verify-report.json",
+    "source": "terminal_session",
+    "importance": "medium"
+  },
+  {
+    "id": "verify_restore_bundle:external_tools/verify_restore_bundle/logs/stdout.log",
+    "title": "verify_restore_bundle logs",
+    "kind": "log",
+    "path": "external_tools/verify_restore_bundle/logs/stdout.log",
+    "source": "external_tool",
+    "importance": "medium"
+  },
+  {
+    "id": "build_finance_dbt:external_tools/build_finance_dbt/target/run_results.json",
+    "title": "build_finance_dbt outputs",
+    "kind": "report",
+    "path": "external_tools/build_finance_dbt/target/run_results.json",
+    "source": "external_tool",
+    "importance": "medium"
+  },
+  {
+    "id": "verify_restore_bundle:external_tools/verify_restore_bundle/target/run_results.json",
+    "title": "verify_restore_bundle outputs",
+    "kind": "report",
+    "path": "external_tools/verify_restore_bundle/target/run_results.json",
+    "source": "external_tool",
+    "importance": "low"
+  }
+]

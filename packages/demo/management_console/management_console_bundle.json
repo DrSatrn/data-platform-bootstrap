@@ -1,0 +1,13 @@
+{
+  "scenario": {
+    "id": "external-tool-triage-and-recovery",
+    "label": "External Tool Triage And Recovery",
+    "notes": "Composite demo payload for the staged management console. One dbt failure and one successful recovery-oriented validation run are present together so the UI can exercise both triage and confidence flows."
+  },
+  "opsview_snapshot_path": "opsview_snapshot.json",
+  "operator_signals_path": "operator_signals.json",
+  "terminal_sessions_path": "terminal_session_detail.json",
+  "followups_path": "followups.json",
+  "runbook_dock_path": "runbook_dock.json",
+  "evidence_board_path": "evidence_board.json"
+}

@@ -6,14 +6,16 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../features/auth/useAuth";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DatasetsPage } from "../pages/DatasetsPage";
+import { ManagementPage } from "../pages/ManagementPage";
 import { MetricsPage } from "../pages/MetricsPage";
 import { PipelinesPage } from "../pages/PipelinesPage";
 import { SystemPage } from "../pages/SystemPage";
 
-type Route = "dashboard" | "metrics" | "pipelines" | "datasets" | "system";
+type Route = "dashboard" | "management" | "metrics" | "pipelines" | "datasets" | "system";
 
 const routes: Array<{ id: Route; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "management", label: "Management" },
   { id: "metrics", label: "Metrics" },
   { id: "pipelines", label: "Pipelines" },
   { id: "datasets", label: "Datasets" },
@@ -122,6 +124,8 @@ function renderRoute(route: Route) {
       return <DashboardPage />;
     case "metrics":
       return <MetricsPage />;
+    case "management":
+      return <ManagementPage />;
     case "pipelines":
       return <PipelinesPage />;
     case "datasets":

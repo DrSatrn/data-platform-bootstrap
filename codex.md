@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Completed Workstream 5 from `new-thread-eng-feedback.md`.
-	•	The benchmark suite now includes a concurrent manual-trigger load scenario instead of only endpoint latency timings.
-	•	Benchmark artifacts now capture queue visibility, queue depth peaks, scheduler heartbeat freshness, and explicit assertion results.
-	•	The System page now surfaces scheduler freshness so operators can see the same signal the benchmark gate enforces.
+	•	Completed the frontend completion and wiring pass for the staged management modules.
+	•	The web app now exposes a real Management route that reuses the staged workbench, terminal, evidence, runbook, follow-up, and opsview modules against live platform data.
+	•	A new `/api/v1/opsview` API seam now exposes backend-owned operator snapshots so the frontend does not need to regroup external-tool evidence from raw run data.
+	•	The packaged smoke path now verifies the new opsview API seam.
 
 Next workstep to execute
-	•	The engineer review contract is fully closed. The next work block should start with a deliberate review of the parallel dbt-runner work and then choose the next broader product slice.
+	•	The next work block should start with a deliberate review of the parallel dbt-runner work and then choose the next broader product slice.
 
 Session Close Handoff
 
@@ -85,44 +85,47 @@ Current state at session end
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
 	•	The repo now includes a first-party benchmark workflow that emits JSON release-gate reports from a running stack, including concurrent trigger load, queue visibility, and scheduler heartbeat assertions.
 	•	Full `go test ./...` is green again, including the previously in-flight external-tool areas.
+	•	The staged management-console modules are no longer isolated prototypes; they now back a real in-app operator workflow.
 
 Files changed in the latest workstep
-	•	Benchmark, scheduler visibility, and assertions:
-		•	`backend/cmd/platformctl/main.go`
-		•	`backend/cmd/platformctl/main_test.go`
-		•	`backend/internal/observability/handlers.go`
-		•	`backend/internal/observability/handlers_test.go`
-		•	`infra/scripts/benchmark_suite.sh`
-	•	Frontend operator visibility:
-		•	`web/src/features/system/useSystemData.ts`
-		•	`web/src/pages/SystemPage.tsx`
-		•	`web/src/pages/PageStates.test.tsx`
+	•	Backend management-console seam:
+		•	`backend/internal/opsview/handler.go`
+		•	`backend/internal/opsview/handler_test.go`
+		•	`backend/internal/app/runtime.go`
+	•	Frontend management integration:
+		•	`web/src/features/management/useManagementConsole.ts`
+		•	`web/src/pages/ManagementPage.tsx`
+		•	`web/src/pages/ManagementPage.test.tsx`
+		•	`web/src/app/App.tsx`
+		•	`web/src/app/App.test.tsx`
+		•	`web/src/features/management/console/ControlPlaneWorkspace.tsx`
+		•	`web/src/features/management/terminal/OperatorWorkbench.tsx`
+		•	`web/src/features/management/terminal/NextStepBoard.tsx`
+		•	`web/src/features/management/externalTools/ExternalToolRunInspector.tsx`
 	•	Docs and handoff sync:
 		•	`README.md`
-		•	`docs/architecture/runtime-wiring.md`
-		•	`docs/runbooks/benchmarking.md`
 		•	`docs/runbooks/operator-manual.md`
-		•	`infra/scripts/README.md`
-		•	`new-thread-eng-feedback.md`
+		•	`docs/product/management-console-blueprint.md`
+		•	`docs/product/management-console-integration-map.md`
+		•	`docs/product/opsview-ui-bridge.md`
+		•	`docs/reference/opsview-read-models.md`
+		•	`web/src/features/management/README.md`
+		•	`infra/scripts/compose_smoke.sh`
 		•	`plan.md`
 		•	`codex.md`
 
 Validated at end of session
 	•	Targeted benchmark and observability packages passed:
-		•	`go test ./internal/observability ./cmd/platformctl`
+		•	`go test ./internal/opsview ./internal/app`
 	•	Full backend suite passed:
 		•	`go test ./...`
 	•	`go run ./cmd/platformctl validate-manifests` passed
 	•	`npm test` passed
 	•	`npm run build` passed
 	•	`git diff --check` passed
-	•	Packaged Compose smoke passed and left the stack up long enough for benchmarking:
-		•	`PLATFORM_COMPOSE_KEEP=1 sh infra/scripts/compose_smoke.sh`
-	•	The new benchmark gate passed against the live packaged stack:
-		•	`sh infra/scripts/benchmark_suite.sh`
-		•	report: `var/benchmarks/benchmark-20260315T055127Z.json`
-		•	load scenario: `4/4` triggers accepted, queue visible in `19.90ms`
-		•	scheduler heartbeat freshness: `6.59s` lag against a `90s` budget
+	•	Packaged Compose smoke passed with the new management seam:
+		•	`sh infra/scripts/compose_smoke.sh`
+		•	the smoke now asserts `/api/v1/opsview` returns `attention_rollup`
 
 Important fixes made during this session
 	•	The runtime no longer treats dashboard manifests as the live mutable store when PostgreSQL is enabled.
@@ -157,6 +160,7 @@ Biggest remaining gaps
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
 	•	The benchmark suite is now a real release gate, but it is still not a long-running soak or large-scale performance certification matrix.
+	•	The new Management route is integrated, but richer terminal session persistence and deeper artifact content inspection are still future work.
 
 Read these first in the next session
 	•	`README.md`

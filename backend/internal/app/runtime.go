@@ -21,6 +21,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/observability"
+	"github.com/streanor/data-platform/backend/internal/opsview"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"github.com/streanor/data-platform/backend/internal/python"
 	"github.com/streanor/data-platform/backend/internal/quality"
@@ -156,6 +157,7 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux.Handle("/api/v1/quality", authz.RequireRole(authService, authz.RoleViewer, quality.NewHandler(qualityService)))
 	mux.Handle("/api/v1/analytics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewHandler(analyticsService)))
 	mux.Handle("/api/v1/metrics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewMetricCatalogHandler(loader, analyticsService)))
+	mux.Handle("/api/v1/opsview", authz.RequireRole(authService, authz.RoleViewer, opsview.NewHandler(persistence.store, persistence.artifacts)))
 	mux.Handle("/api/v1/reports", authz.RequireRole(authService, authz.RoleViewer, reporting.NewHandler(persistence.reports, authService, persistence.audit)))
 	mux.Handle("/api/v1/artifacts", authz.RequireRole(authService, authz.RoleViewer, storage.NewHandler(persistence.artifacts)))
 	mux.Handle("/api/v1/system/overview", authz.RequireRole(authService, authz.RoleViewer, observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService, persistence.modes)))

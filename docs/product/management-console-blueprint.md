@@ -3,8 +3,12 @@
 This document is an additive blueprint for a future first-party management
 surface inside the web app.
 
-It is intentionally unwired and should be treated as guide-wire material for
-parallel implementation work.
+Status note:
+
+- the core Management route is now wired into the live product
+- this document remains useful as product intent and structure guidance
+- any references to "future" or "unwired" here should be read as historical
+  context for the staged build-out, not as the current product state
 
 ## Product Goal
 

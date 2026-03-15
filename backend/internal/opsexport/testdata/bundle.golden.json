@@ -1,0 +1,69 @@
+{
+  "version": "opsexport.v1",
+  "generated_at": "2026-03-15T13:00:00Z",
+  "snapshot_count": 1,
+  "rollup": {
+    "total_runs": 1,
+    "failed_runs": 1,
+    "running_runs": 0,
+    "succeeded_runs": 0,
+    "runs_with_external_tool_failures": 1,
+    "runs_missing_evidence": 0,
+    "external_tool_job_count": 1
+  },
+  "snapshots": [
+    {
+      "run_id": "run_fixture",
+      "pipeline_id": "personal_finance_dbt_pipeline",
+      "status": "failed",
+      "trigger": "manual_api",
+      "updated_at": "2026-03-15T12:00:00Z",
+      "job_count": 1,
+      "failed_job_count": 1,
+      "external_tool_runs": [
+        {
+          "run_id": "run_fixture",
+          "pipeline_id": "personal_finance_dbt_pipeline",
+          "job_id": "build_finance_dbt",
+          "tool": "dbt",
+          "action": "build",
+          "status": "failed",
+          "failure_class": "execution_failed",
+          "events": null,
+          "log_artifacts": null,
+          "output_artifacts": null,
+          "evidence": {
+            "run_id": "",
+            "total_artifacts": 0,
+            "log_artifact_count": 0,
+            "output_artifact_count": 0,
+            "artifact_paths": null,
+            "log_paths": null,
+            "output_paths": null
+          }
+        }
+      ],
+      "evidence_groups": [
+        {
+          "key": "external_tool_logs:build_finance_dbt",
+          "kind": "external_tool_logs",
+          "label": "External Tool Logs: build_finance_dbt",
+          "artifact_count": 2,
+          "artifact_paths": [
+            "external_tools/build_finance_dbt/logs/stderr.log",
+            "external_tools/build_finance_dbt/logs/stdout.log"
+          ]
+        }
+      ],
+      "attention": {
+        "total_jobs": 1,
+        "failed_jobs": 1,
+        "running_jobs": 0,
+        "succeeded_jobs": 0,
+        "jobs_missing_logs": 0,
+        "jobs_missing_outputs": 1
+      },
+      "has_external_tool_runs": true
+    }
+  ]
+}

@@ -3,6 +3,13 @@
 This note connects the new backend `opsview` read-model package to the staged
 management-console frontend modules.
 
+Status note:
+
+- the bridge is now live in the Management route through the `/api/v1/opsview`
+  API seam
+- the guidance below still explains why the responsibilities stay split across
+  backend read models, API assembly, and frontend presentation
+
 ## Why This Exists
 
 Model 3 now provides a backend-only, pure read-model layer under:

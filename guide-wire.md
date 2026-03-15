@@ -77,6 +77,7 @@ core repo cleanup:
 - `backend/internal/opsview/external_tool_summary_test.go`
 - `backend/internal/opsview/snapshot_builders_test.go`
 - `backend/internal/opsview/golden_snapshot_test.go`
+- `backend/internal/opsexport/bundle_test.go`
 - `backend/internal/storage/handler_external_tool_test.go`
 - `backend/internal/storage/handler_external_tool_read_test.go`
 
@@ -91,6 +92,7 @@ core repo cleanup:
 - `docs/tutorials/trace-one-pipeline-complete.md`
 - `docs/reference/external-tool-jobs.md`
 - `docs/reference/opsview-read-models.md`
+- `docs/reference/opsexport-bundles.md`
 - `docs/product/web-terminal-blueprint.md`
 - `docs/product/operator-followup-blueprint.md`
 - `docs/product/management-console-integration-map.md`
@@ -394,6 +396,41 @@ Whether hot files were touched:
 - no specifically blocked files were touched
 - no shared runtime or handler files were edited in this tranche
 
+## Ops Export Tranche Status
+
+Exact new files in this tranche:
+
+- `backend/internal/opsexport/models.go`
+- `backend/internal/opsexport/bundle.go`
+- `backend/internal/opsexport/bundle_test.go`
+- `backend/internal/opsexport/testdata/bundle.golden.json`
+- `docs/reference/opsexport-bundles.md`
+
+What is now verifiably true:
+
+- there is a backend-only export layer above raw `opsview` snapshots
+- `opsview` snapshots and rollups can be converted into stable export bundles
+- export bundles can be serialized into indented JSON suitable for demos,
+  review, or future API publication work
+- golden JSON coverage exists for one representative export bundle payload
+
+What remains intentionally unfinished:
+
+- no handler, runtime, or CLI wiring publishes these export bundles yet
+- no frontend code consumes the new export package in this tranche
+- golden bundle JSON is additive coverage, not a final public contract
+
+Exact test commands run in this tranche:
+
+```bash
+cd backend && go test ./internal/opsexport ./internal/opsview
+```
+
+Whether blocked/shared files were touched:
+
+- no blocked files were touched
+- no shared runtime, handler, or frontend files were edited in this tranche
+
 ## Latest Coordination Assets
 
 The following additive-only assets were added to support the final frontend
@@ -404,8 +441,13 @@ collide with routed-page integration:
 - `docs/reference/management-console-demo-assets.md`
 - `packages/demo/management_console/README.md`
 - `packages/demo/management_console/opsview_snapshot.json`
+- `packages/demo/management_console/operator_signals.json`
 - `packages/demo/management_console/terminal_sessions.json`
+- `packages/demo/management_console/terminal_session_detail.json`
+- `packages/demo/management_console/followups.json`
 - `packages/demo/management_console/runbook_dock.json`
+- `packages/demo/management_console/evidence_board.json`
+- `packages/demo/management_console/management_console_bundle.json`
 
 These assets are intentionally non-canonical:
 

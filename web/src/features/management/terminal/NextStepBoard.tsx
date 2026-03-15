@@ -1,7 +1,18 @@
 import { mockFollowupDecks } from "./mockFollowups";
 import { ArtifactFollowupPanel } from "./ArtifactFollowupPanel";
+import type { FollowupAction } from "./followupPlanner";
 
-export function NextStepBoard() {
+type FollowupDeck = {
+  sessionID: string;
+  sessionTitle: string;
+  actions: FollowupAction[];
+};
+
+type NextStepBoardProps = {
+  decks?: FollowupDeck[];
+};
+
+export function NextStepBoard({ decks = mockFollowupDecks }: NextStepBoardProps) {
   return (
     <section style={shellStyle}>
       <div style={headerStyle}>
@@ -16,7 +27,7 @@ export function NextStepBoard() {
       </div>
 
       <div style={gridStyle}>
-        {mockFollowupDecks.map((deck) => (
+        {decks.map((deck) => (
           <div key={deck.sessionID} style={deckStyle}>
             <div style={deckHeaderStyle}>
               <strong>{deck.sessionTitle}</strong>

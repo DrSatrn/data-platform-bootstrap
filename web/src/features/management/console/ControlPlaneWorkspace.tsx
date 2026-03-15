@@ -1,9 +1,20 @@
 import { mockAttentionAssets, mockQueue, mockServiceStatus } from "../mockControlPlane";
 import { buildAttentionQueue, summarizeAttention } from "../inventory/assetAttention";
+import type { AssetAttentionCard, QueueSnapshotCard, ServiceStatusCard } from "../types";
 
-export function ControlPlaneWorkspace() {
-  const attention = summarizeAttention(mockAttentionAssets);
-  const orderedAttention = buildAttentionQueue(mockAttentionAssets);
+type ControlPlaneWorkspaceProps = {
+  attentionAssets?: AssetAttentionCard[];
+  queue?: QueueSnapshotCard[];
+  services?: ServiceStatusCard[];
+};
+
+export function ControlPlaneWorkspace({
+  attentionAssets = mockAttentionAssets,
+  queue = mockQueue,
+  services = mockServiceStatus
+}: ControlPlaneWorkspaceProps) {
+  const attention = summarizeAttention(attentionAssets);
+  const orderedAttention = buildAttentionQueue(attentionAssets);
 
   return (
     <section style={workspaceStyle}>
@@ -18,12 +29,12 @@ export function ControlPlaneWorkspace() {
         <div style={statRowStyle}>
           <StatCard label="Late Assets" value={String(attention.late)} />
           <StatCard label="Missing Assets" value={String(attention.missing)} />
-          <StatCard label="Queue Depth" value={String(mockQueue.length)} />
+          <StatCard label="Queue Depth" value={String(queue.length)} />
         </div>
       </div>
 
       <div style={serviceGridStyle}>
-        {mockServiceStatus.map((service) => (
+        {services.map((service) => (
           <article key={service.id} style={serviceCardStyle(service.state)}>
             <div style={rowBetweenStyle}>
               <strong>{service.label}</strong>
@@ -38,10 +49,10 @@ export function ControlPlaneWorkspace() {
         <article style={panelStyle}>
           <div style={rowBetweenStyle}>
             <h3 style={{ margin: 0 }}>Run Queue</h3>
-            <span style={miniBadgeStyle}>{mockQueue.length} active</span>
+            <span style={miniBadgeStyle}>{queue.length} active</span>
           </div>
           <div style={listStyle}>
-            {mockQueue.map((run) => (
+            {queue.map((run) => (
               <div key={run.runID} style={listItemStyle}>
                 <div style={rowBetweenStyle}>
                   <strong>{run.pipelineID}</strong>

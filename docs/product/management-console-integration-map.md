@@ -3,6 +3,13 @@
 This document explains how the additive management-console staging pieces can be
 wired together once the hot implementation threads settle.
 
+Status note:
+
+- the Management route now implements the first real integration pass using
+  these staged pieces
+- this file is still useful as a map of how the modules fit together, but it is
+  no longer purely hypothetical
+
 ## Goal
 
 The eventual in-app management surface should not be assembled as isolated

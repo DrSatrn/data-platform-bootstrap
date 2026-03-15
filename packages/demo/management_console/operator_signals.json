@@ -1,0 +1,30 @@
+[
+  {
+    "id": "opsview-total-jobs",
+    "label": "Tracked Jobs",
+    "tone": "healthy",
+    "value": "2",
+    "detail": "External-tool jobs summarized by the backend read-model layer."
+  },
+  {
+    "id": "opsview-failed-jobs",
+    "label": "Failed Jobs",
+    "tone": "critical",
+    "value": "1",
+    "detail": "build_finance_dbt failed (execution_failed)."
+  },
+  {
+    "id": "opsview-missing-logs",
+    "label": "Missing Logs",
+    "tone": "healthy",
+    "value": "0",
+    "detail": "Jobs without stdout/stderr evidence are harder to diagnose."
+  },
+  {
+    "id": "opsview-missing-outputs",
+    "label": "Missing Outputs",
+    "tone": "healthy",
+    "value": "0",
+    "detail": "Jobs without declared outputs need operator follow-up before trust."
+  }
+]

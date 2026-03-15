@@ -30,6 +30,7 @@ vi.mock("../features/auth/useAuth", () => ({
 }));
 
 vi.mock("../pages/DashboardPage", () => ({ DashboardPage: () => <div>Dashboard Stub</div> }));
+vi.mock("../pages/ManagementPage", () => ({ ManagementPage: () => <div>Management Stub</div> }));
 vi.mock("../pages/MetricsPage", () => ({ MetricsPage: () => <div>Metrics Stub</div> }));
 vi.mock("../pages/PipelinesPage", () => ({ PipelinesPage: () => <div>Pipelines Stub</div> }));
 vi.mock("../pages/DatasetsPage", () => ({ DatasetsPage: () => <div>Datasets Stub</div> }));

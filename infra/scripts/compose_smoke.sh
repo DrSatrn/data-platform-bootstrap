@@ -79,6 +79,7 @@ curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?d
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?metric=metrics_savings_rate" | grep -q '"savings_rate"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/analytics?metric=metrics_category_variance" | grep -q '"variance_amount"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/metrics" | grep -q '"metrics_category_variance"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/opsview" | grep -q '"attention_rollup"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/quality" | grep -q '"checks"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/reports" | grep -q '"finance_overview"'

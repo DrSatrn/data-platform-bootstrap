@@ -1,0 +1,39 @@
+[
+  {
+    "id": "restore-drill:record-recovery-evidence",
+    "title": "Promote recovery evidence",
+    "priority": "soon",
+    "rationale": "Successful recovery work should keep a visible verification artifact for later audit.",
+    "artifactPath": "runs/run_1/recovery/verify-report.json",
+    "runbookPath": "/docs/runbooks/backups.md"
+  },
+  {
+    "id": "restore-drill:open-runbook",
+    "title": "Open the linked runbook",
+    "priority": "watch",
+    "rationale": "Terminal work should carry the matching operating guide so the next operator step is explicit.",
+    "runbookPath": "/docs/runbooks/backups.md"
+  },
+  {
+    "id": "dbt-finance:inspect-failure",
+    "title": "Inspect failure output",
+    "priority": "now",
+    "rationale": "command failed with exit code 2",
+    "runbookPath": "/docs/runbooks/optional-external-tools.md"
+  },
+  {
+    "id": "dbt-finance:rerun-targeted-command",
+    "title": "Retry the targeted pipeline command",
+    "priority": "soon",
+    "rationale": "A failed pipeline-oriented terminal session should offer a narrow rerun before broad recovery work.",
+    "suggestedCommand": "dbt build --select monthly_cashflow",
+    "runbookPath": "/docs/runbooks/optional-external-tools.md"
+  },
+  {
+    "id": "dbt-finance:open-runbook",
+    "title": "Open the linked runbook",
+    "priority": "now",
+    "rationale": "Terminal work should carry the matching operating guide so the next operator step is explicit.",
+    "runbookPath": "/docs/runbooks/optional-external-tools.md"
+  }
+]

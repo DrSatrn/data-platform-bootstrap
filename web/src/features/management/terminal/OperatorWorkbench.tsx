@@ -2,25 +2,30 @@ import { useMemo, useState } from "react";
 
 import { defaultCommandCatalog, mockRunbooks } from "../mockControlPlane";
 import type { OperatorRole, TerminalCommandTemplate } from "../types";
+import type { RunbookShortcut } from "../types";
 import { filterCommands, groupCommandsByArea, topCommandSuggestions } from "./commandCatalog";
 
 type OperatorWorkbenchProps = {
   role?: OperatorRole;
   recentCommands?: string[];
+  commands?: TerminalCommandTemplate[];
+  runbooks?: RunbookShortcut[];
   onCommandSelect?: (command: TerminalCommandTemplate) => void;
 };
 
 export function OperatorWorkbench({
   role = "admin",
   recentCommands = ["status", "quality"],
+  commands = defaultCommandCatalog,
+  runbooks = mockRunbooks,
   onCommandSelect
 }: OperatorWorkbenchProps) {
   const [query, setQuery] = useState("");
-  const visibleCommands = useMemo(() => filterCommands(defaultCommandCatalog, query), [query]);
+  const visibleCommands = useMemo(() => filterCommands(commands, query), [commands, query]);
   const grouped = useMemo(() => groupCommandsByArea(visibleCommands), [visibleCommands]);
   const suggestions = useMemo(
-    () => topCommandSuggestions(defaultCommandCatalog, recentCommands, role, 4),
-    [recentCommands, role]
+    () => topCommandSuggestions(commands, recentCommands, role, 4),
+    [commands, recentCommands, role]
   );
 
   return (
@@ -63,7 +68,7 @@ export function OperatorWorkbench({
         <article style={cardStyle}>
           <h3 style={sectionTitleStyle}>Runbook Shortcuts</h3>
           <div style={listStyle}>
-            {mockRunbooks.map((runbook) => (
+            {runbooks.map((runbook) => (
               <div key={runbook.id} style={infoCardStyle}>
                 <strong>{runbook.label}</strong>
                 <span style={mutedStyle}>{runbook.path}</span>

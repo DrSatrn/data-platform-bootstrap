@@ -233,6 +233,18 @@ covers health, catalog, analytics, reports, system overview, the admin
 terminal status command, a concurrent manual-trigger load burst, queue
 visibility budgets, and scheduler heartbeat freshness.
 
+## Management Console
+
+The web app now includes a real Management route that brings together:
+
+- guided in-app terminal commands backed by the admin API
+- live control-plane posture and queue attention
+- backend-owned `opsview` summaries for external-tool activity
+- runbook docking, evidence surfacing, and follow-up planning in one operator
+  workflow
+
+This is intentionally product-oriented rather than a generic shell surface.
+
 ## Localhost Safety Defaults
 
 - API and web bindings are loopback-first by default.

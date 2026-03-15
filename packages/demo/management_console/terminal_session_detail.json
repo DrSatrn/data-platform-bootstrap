@@ -1,0 +1,76 @@
+[
+  {
+    "id": "restore-drill",
+    "title": "Restore Drill",
+    "scope": "recovery",
+    "status": "completed",
+    "currentCommand": "backup verify latest.tar.gz",
+    "lastExitCode": 0,
+    "recommendedRunbook": "/docs/runbooks/backups.md",
+    "pinnedArtifacts": [
+      "runs/run_1/recovery/verify-report.json"
+    ],
+    "entries": [
+      {
+        "id": "restore-drill:1",
+        "kind": "command",
+        "content": "backup verify latest.tar.gz",
+        "at": "2026-03-15T13:00:00Z"
+      },
+      {
+        "id": "restore-drill:2",
+        "kind": "stdout",
+        "content": "bundle checksum ok",
+        "at": "2026-03-15T13:00:06Z"
+      },
+      {
+        "id": "restore-drill:3",
+        "kind": "stdout",
+        "content": "archive contents verified",
+        "at": "2026-03-15T13:00:06Z"
+      },
+      {
+        "id": "restore-drill:4",
+        "kind": "system",
+        "content": "command completed successfully",
+        "at": "2026-03-15T13:00:06Z"
+      }
+    ]
+  },
+  {
+    "id": "dbt-finance",
+    "title": "DBT Finance Build",
+    "scope": "pipelines",
+    "status": "failed",
+    "currentCommand": "dbt build --select monthly_cashflow",
+    "lastExitCode": 2,
+    "recommendedRunbook": "/docs/runbooks/optional-external-tools.md",
+    "pinnedArtifacts": [],
+    "entries": [
+      {
+        "id": "dbt-finance:1",
+        "kind": "command",
+        "content": "dbt build --select monthly_cashflow",
+        "at": "2026-03-15T13:04:00Z"
+      },
+      {
+        "id": "dbt-finance:2",
+        "kind": "stdout",
+        "content": "1 of 3 models built",
+        "at": "2026-03-15T13:04:09Z"
+      },
+      {
+        "id": "dbt-finance:3",
+        "kind": "stderr",
+        "content": "monthly_cashflow.sql failed because source relation was missing",
+        "at": "2026-03-15T13:04:09Z"
+      },
+      {
+        "id": "dbt-finance:4",
+        "kind": "system",
+        "content": "command failed with exit code 2",
+        "at": "2026-03-15T13:04:09Z"
+      }
+    ]
+  }
+]

@@ -260,6 +260,8 @@ go run ./cmd/platformctl backup restore --file ../var/backups/<bundle-name>.tar.
 
 - check `http://127.0.0.1:8080/healthz`
 - check the System page
+- check the Management page for queue posture, guided command state, and recent
+  operator evidence
 - check `platformctl remote status`
 - confirm queue, run, and backup summary cards look sane in the System page
 

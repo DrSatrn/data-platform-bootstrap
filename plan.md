@@ -68,13 +68,15 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Completed Workstream 5 from `new-thread-eng-feedback.md`.
-- Expanded the benchmark suite beyond endpoint latency into a real release gate
-  with concurrent manual triggers, queue visibility budgets, and scheduler
-  heartbeat freshness assertions.
-- `/api/v1/system/overview` now exposes `scheduler_summary`, and the System
-  page renders that operator-facing freshness signal.
-- The engineer review contract is now fully checked off end to end.
+- Completed the frontend completion and wiring pass for the staged management
+  modules.
+- Added a real `/api/v1/opsview` backend seam so the frontend can consume
+  backend-owned operator summaries instead of rebuilding them from raw run
+  events in the browser.
+- Wired the staged management console, guided terminal, evidence board,
+  runbook dock, follow-up board, and external-tool inspection modules into the
+  live product through a new Management route.
+- Kept exact artifact paths and failure classes visible in the operator flows.
 
 ## Next Likely Follow-On Work
 
@@ -82,7 +84,7 @@ The next highest-leverage gap is platform hardening:
   landing in the external-tool area.
 - Decide whether the next platform pass should focus on broader connector and
   execution depth, richer governance features, or a stronger release/upgrade
-  workflow.
+  workflow on top of the new management surface.
 
 ## Deferred / Prompt-Requiring Tests
 
