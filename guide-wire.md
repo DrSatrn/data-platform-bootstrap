@@ -54,6 +54,7 @@ core repo cleanup:
 ### Tests
 
 - `backend/internal/config/config_env_test.go`
+- `backend/internal/config/external_tool_config_test.go`
 - `backend/internal/storage/service_test.go`
 - `backend/internal/manifests/loader_test.go`
 - `backend/internal/manifests/external_tool_loader_test.go`
@@ -61,12 +62,14 @@ core repo cleanup:
 - `backend/internal/orchestration/external_tool_validation_test.go`
 - `backend/internal/externaltools/dbt_test.go`
 - `backend/internal/externaltools/runner_test.go`
+- `backend/internal/execution/external_tool_test.go`
 
 ### Docs
 
 - `docs/runbooks/config-reality.md`
 - `docs/runbooks/access-matrix.md`
 - `docs/runbooks/local-host-run.md`
+- `docs/runbooks/optional-external-tools.md`
 - `docs/tutorials/trace-one-pipeline-complete.md`
 - `docs/reference/external-tool-jobs.md`
 
@@ -144,13 +147,16 @@ Standalone package added for the next tranche:
 Verification for the external-tool tranche:
 
 ```bash
-cd backend && go test ./internal/orchestration ./internal/manifests ./internal/externaltools ./internal/execution
+cd backend && go test ./internal/config ./internal/manifests ./internal/orchestration ./internal/externaltools ./internal/execution
 ```
 
 Current status from this tranche:
 
-- targeted backend tests passed for `internal/orchestration`,
-  `internal/manifests`, `internal/externaltools`, and `internal/execution`
+- targeted backend tests passed for `internal/config`,
+  `internal/manifests`, `internal/orchestration`,
+  `internal/externaltools`, and `internal/execution`
+- execution-level coverage now verifies external tool log and artifact mirroring
+  through `backend/internal/execution/external_tool_test.go`
 
 ## Integration Queue
 

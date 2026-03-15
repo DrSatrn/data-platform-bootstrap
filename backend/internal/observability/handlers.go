@@ -38,6 +38,16 @@ type BackupInventory interface {
 	ListBundles() ([]backup.BundleFile, error)
 }
 
+// PersistenceMode explains which subsystem is authoritative in the current
+// runtime and what fallback or mirrored behavior still exists.
+type PersistenceMode struct {
+	SourceOfTruth string   `json:"source_of_truth"`
+	ReadPath      string   `json:"read_path"`
+	WritePath     string   `json:"write_path"`
+	Mirrors       []string `json:"mirrors,omitempty"`
+	Fallback      string   `json:"fallback,omitempty"`
+}
+
 // OverviewHandler returns a system summary payload.
 type OverviewHandler struct {
 	cfg        config.Settings
@@ -47,6 +57,7 @@ type OverviewHandler struct {
 	runHistory orchestration.Store
 	queue      QueueSnapshotter
 	backups    BackupInventory
+	modes      map[string]PersistenceMode
 }
 
 // NewOverviewHandler constructs the system overview handler.
@@ -58,6 +69,7 @@ func NewOverviewHandler(
 	runHistory orchestration.Store,
 	queue QueueSnapshotter,
 	backups BackupInventory,
+	modes map[string]PersistenceMode,
 ) http.Handler {
 	return &OverviewHandler{
 		cfg:        cfg,
@@ -67,6 +79,7 @@ func NewOverviewHandler(
 		runHistory: runHistory,
 		queue:      queue,
 		backups:    backups,
+		modes:      modes,
 	}
 }
 
@@ -119,6 +132,7 @@ func (h *OverviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"run_summary":     summarizeRuns(runHistory),
 		"queue_summary":   queueSummary,
 		"backup_summary":  backupSummary,
+		"persistence_modes": h.modes,
 		"telemetry": h.service.Snapshot(map[string]string{
 			"environment": h.cfg.Environment,
 			"api_base":    h.cfg.APIBaseURL,

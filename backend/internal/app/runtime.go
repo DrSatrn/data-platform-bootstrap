@@ -36,6 +36,7 @@ type runtimePersistence struct {
 	reports   reporting.Store
 	audit     audit.Store
 	metadata  metadata.Store
+	modes     map[string]observability.PersistenceMode
 }
 
 // RunAPI starts the HTTP control-plane server.
@@ -152,7 +153,7 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux.Handle("/api/v1/metrics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewMetricCatalogHandler(loader, analyticsService)))
 	mux.Handle("/api/v1/reports", authz.RequireRole(authService, authz.RoleViewer, reporting.NewHandler(persistence.reports, authService, persistence.audit)))
 	mux.Handle("/api/v1/artifacts", authz.RequireRole(authService, authz.RoleViewer, storage.NewHandler(persistence.artifacts)))
-	mux.Handle("/api/v1/system/overview", authz.RequireRole(authService, authz.RoleViewer, observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService)))
+	mux.Handle("/api/v1/system/overview", authz.RequireRole(authService, authz.RoleViewer, observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store, queueSnapshots, backupService, persistence.modes)))
 	mux.Handle("/api/v1/system/logs", authz.RequireRole(authService, authz.RoleViewer, observability.NewRecentLogsHandler(telemetry)))
 	mux.Handle("/api/v1/system/audit", authz.RequireRole(authService, authz.RoleViewer, audit.NewHandler(persistence.audit)))
 	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService, persistence.audit))
@@ -202,6 +203,41 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			reports:   reportStore,
 			audit:     auditStore,
 			metadata:  nil,
+			modes: map[string]observability.PersistenceMode{
+				"runs": {
+					SourceOfTruth: "filesystem",
+					ReadPath:      "filesystem run snapshots",
+					WritePath:     "filesystem run snapshots",
+				},
+				"queue": {
+					SourceOfTruth: "filesystem",
+					ReadPath:      "filesystem queue requests",
+					WritePath:     "filesystem queue requests",
+				},
+				"artifacts": {
+					SourceOfTruth: "filesystem",
+					ReadPath:      "filesystem artifacts",
+					WritePath:     "filesystem artifacts",
+					Fallback:      "filesystem scan",
+				},
+				"dashboards": {
+					SourceOfTruth: "filesystem",
+					ReadPath:      "filesystem dashboard store",
+					WritePath:     "filesystem dashboard store",
+					Fallback:      "memory store if filesystem is unavailable",
+				},
+				"audit": {
+					SourceOfTruth: "filesystem",
+					ReadPath:      "filesystem audit log",
+					WritePath:     "filesystem audit log",
+					Fallback:      "memory store if filesystem is unavailable",
+				},
+				"metadata": {
+					SourceOfTruth: "manifest loader",
+					ReadPath:      "manifest loader",
+					WritePath:     "manifest loader only; no persisted projection",
+				},
+			},
 		}, nil
 	}
 
@@ -223,6 +259,48 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 		reports:   reportStore,
 		audit:     auditStore,
 		metadata:  controlPlane.Metadata,
+		modes: map[string]observability.PersistenceMode{
+			"runs": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres run_snapshots",
+				WritePath:     "postgres first, filesystem mirror",
+				Mirrors:       []string{"filesystem run snapshots"},
+				Fallback:      "filesystem snapshots if postgres is unavailable at startup",
+			},
+			"queue": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres queue_requests",
+				WritePath:     "postgres queue_requests",
+				Fallback:      "filesystem queue when postgres is unavailable at startup",
+			},
+			"artifacts": {
+				SourceOfTruth: "filesystem bytes",
+				ReadPath:      "postgres artifact index, then filesystem scan",
+				WritePath:     "filesystem bytes with postgres metadata index",
+				Mirrors:       []string{"postgres artifact_snapshots"},
+				Fallback:      "filesystem scan if metadata rows are absent",
+			},
+			"dashboards": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres dashboards",
+				WritePath:     "postgres first, filesystem mirror",
+				Mirrors:       []string{"filesystem dashboard store"},
+				Fallback:      "filesystem dashboards if postgres is unavailable at startup",
+			},
+			"audit": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres audit_events, then filesystem audit log",
+				WritePath:     "postgres first, filesystem mirror",
+				Mirrors:       []string{"filesystem audit log"},
+				Fallback:      "filesystem audit log if postgres is unavailable at startup",
+			},
+			"metadata": {
+				SourceOfTruth: "postgres projection",
+				ReadPath:      "postgres data_assets and asset_columns",
+				WritePath:     "manifest projection on startup and scheduler ticks",
+				Fallback:      "manifest loader when the projection is empty or postgres is unavailable",
+			},
+		},
 	}, nil
 }
 

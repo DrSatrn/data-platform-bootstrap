@@ -43,6 +43,16 @@ type OverviewPayload = {
     latest_bundle_path?: string;
     latest_bundle_bytes?: number;
   };
+  persistence_modes: Record<
+    string,
+    {
+      source_of_truth: string;
+      read_path: string;
+      write_path: string;
+      mirrors?: string[];
+      fallback?: string;
+    }
+  >;
   telemetry: {
     uptime_seconds: number;
     total_requests: number;

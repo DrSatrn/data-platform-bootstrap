@@ -22,6 +22,7 @@ export function SystemPage() {
     },
     {} as Record<string, number>
   );
+  const persistenceModes = Object.entries(overview.persistence_modes ?? {});
 
   return (
     <section className="page-grid">
@@ -75,6 +76,23 @@ export function SystemPage() {
         <p className="muted">Missing quality: {catalog?.summary.assets_missing_quality ?? 0}</p>
         <p className="muted">Assets with PII: {catalog?.summary.assets_containing_pii ?? 0}</p>
         <p className="muted">Lineage edges: {catalog?.summary.lineage_edges ?? 0}</p>
+      </article>
+      <article className="card wide-card">
+        <h2>Source Of Truth</h2>
+        <div className="stack">
+          {persistenceModes.map(([subsystem, mode]) => (
+            <div className="subcard" key={subsystem}>
+              <div className="row-between">
+                <strong>{subsystem}</strong>
+                <span className="badge">{mode.source_of_truth}</span>
+              </div>
+              <p className="muted">Read path: {mode.read_path}</p>
+              <p className="muted">Write path: {mode.write_path}</p>
+              {mode.mirrors && mode.mirrors.length > 0 ? <p className="muted">Mirrors: {mode.mirrors.join(", ")}</p> : null}
+              {mode.fallback ? <p className="muted">Fallback: {mode.fallback}</p> : null}
+            </div>
+          ))}
+        </div>
       </article>
       <article className="card wide-card">
         <h2>Failure Watch</h2>
