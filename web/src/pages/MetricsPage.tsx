@@ -1,13 +1,18 @@
 // MetricsPage exposes the semantic metric registry, filter controls, and
 // preview data so analysts can browse the serving layer without editing a
 // dashboard first.
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useMetrics } from "../features/metrics/useMetrics";
 
 export function MetricsPage() {
   const { metrics, error, selectedMetricID, selectedMetric, setSelectedMetricID, filters, updateFilter, preview } = useMetrics();
 
   if (error) {
-    return <section className="panel">Metrics error: {error}</section>;
+    return <ErrorMessage message={error} title="Metrics error" />;
+  }
+  if (!selectedMetric && metrics.length === 0) {
+    return <LoadingSpinner label="Loading metrics..." />;
   }
 
   return (

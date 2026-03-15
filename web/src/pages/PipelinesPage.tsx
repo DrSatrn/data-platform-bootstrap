@@ -3,6 +3,8 @@
 // usually need both the static shape and the latest execution outcome together.
 import { useState } from "react";
 
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useAuth } from "../features/auth/useAuth";
 import { usePipelines } from "../features/pipelines/usePipelines";
 import { useRunArtifacts } from "../features/pipelines/useRunArtifacts";
@@ -14,10 +16,10 @@ export function PipelinesPage() {
   const { artifacts, error: artifactError } = useRunArtifacts(selectedRunID);
 
   if (error) {
-    return <section className="panel">Pipelines error: {error}</section>;
+    return <ErrorMessage message={error} title="Pipelines error" />;
   }
   if (!data) {
-    return <section className="panel">Loading pipelines...</section>;
+    return <LoadingSpinner label="Loading pipelines..." />;
   }
 
   return (

@@ -1,6 +1,7 @@
 // These tests cover the shell-level auth rendering so the browser keeps making
 // the current access model obvious to operators as RBAC evolves.
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 let mockAuth = {
@@ -40,9 +41,24 @@ import { App } from "./App";
 
 describe("App", () => {
   it("renders the resolved session and access guidance", () => {
-    const html = renderToStaticMarkup(<App />);
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
     expect(html).toContain("alice");
     expect(html).toContain("viewer");
     expect(html).toContain("Native sessions are the normal path");
+  });
+
+  it("renders the page for a direct route", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={["/pipelines"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(html).toContain("Pipelines Stub");
+    expect(html).toContain("/pipelines");
   });
 });

@@ -178,6 +178,53 @@ Read these first in the next session
 	•	`docs/runbooks/benchmarking.md`
 	•	`docs/runbooks/localhost-e2e.md`
 
+V1 Review Handoff Addendum
+
+Use this addendum over the older next-session notes when coordinating current
+work.
+
+Current release posture
+	•	The principal v1 review has been completed and the repo is judged to be
+	closer to a credible self-hosted v1 than a prototype, but not yet release
+	ready.
+	•	Three-model coordination is now active:
+		•	Model 1 owns backend hardening and test coverage.
+		•	Model 2 owns frontend consolidation and polish.
+		•	Model 3 owns platform, infra, CI/CD, docs, and release readiness.
+	•	The reviewer-controlled chokepoints remain:
+		•	`backend/internal/app/runtime.go`
+		•	`web/src/app/App.tsx`
+		•	`infra/compose/docker-compose.yml`
+		•	`Makefile`
+
+Updated read these first
+	•	`v1-review-coordination-plan.md`
+	•	`prompts/coordinator.md`
+	•	`guide-wire.md`
+	•	`plan.md`
+	•	`README.md`
+	•	`docs/runbooks/quickstart.md`
+	•	`docs/runbooks/operator-manual.md`
+	•	`docs/runbooks/localhost-e2e.md`
+	•	`docs/runbooks/benchmarking.md`
+
+Biggest remaining gaps from the v1 review
+	•	The frontend still needs real URL routing to feel like a production web
+	app.
+	•	Core frontend pages still need stronger test coverage and consolidation of
+	large page files.
+	•	`backend/internal/transforms/engine.go` needs stronger test coverage on the
+	DuckDB execution path.
+	•	CI/CD and release verification need to be trustworthy and automated.
+	•	UAT remains the final gate and should be executed only after Model 1 and
+	Model 2 completion is explicitly documented.
+
+Current priority order
+	•	Keep coordination docs accurate.
+	•	Keep CI minimal and working.
+	•	Let Model 1 and Model 2 finish their bounded work without collisions.
+	•	Run full UAT only when both completion notes exist.
+
 Non-negotiable engineering goals
 
 This project must strongly prioritize the following:

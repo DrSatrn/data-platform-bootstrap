@@ -29,6 +29,10 @@ textarea {
   font: inherit;
 }
 
+a {
+  color: inherit;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -83,6 +87,7 @@ textarea {
   color: inherit;
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease;
+  text-decoration: none;
 }
 
 .nav-button:hover,
@@ -110,6 +115,11 @@ textarea {
 .card,
 .panel {
   padding: 24px;
+}
+
+.error-panel {
+  border-color: rgba(168, 73, 38, 0.26);
+  background: rgba(255, 244, 239, 0.92);
 }
 
 .subcard {
@@ -181,6 +191,21 @@ textarea {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 3px solid rgba(216, 134, 50, 0.18);
+  border-top-color: #d78632;
+  animation: platform-spin 0.9s linear infinite;
 }
 
 .form-grid {
@@ -345,6 +370,12 @@ textarea {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(114, 89, 63, 0.1);
+}
+
+@keyframes platform-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 960px) {

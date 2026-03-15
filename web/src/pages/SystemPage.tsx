@@ -1,10 +1,13 @@
 // SystemPage gathers platform diagnostics so operators can quickly understand
 // whether the stack is healthy and whether data trust signals need attention.
+import { useState } from "react";
+
 import { AdminTerminal } from "../components/AdminTerminal";
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useAuth } from "../features/auth/useAuth";
 import { useIdentityAdmin } from "../features/system/useIdentityAdmin";
 import { useSystemData } from "../features/system/useSystemData";
-import { useState } from "react";
 
 export function SystemPage() {
   const { session } = useAuth();
@@ -18,10 +21,10 @@ export function SystemPage() {
   const [passwordResets, setPasswordResets] = useState<Record<string, string>>({});
 
   if (error) {
-    return <section className="panel">System error: {error}</section>;
+    return <ErrorMessage message={error} title="System error" />;
   }
   if (!health || !overview || !catalog) {
-    return <section className="panel">Loading system view...</section>;
+    return <LoadingSpinner label="Loading system view..." />;
   }
 
   const freshnessStates = (catalog?.assets ?? []).reduce(

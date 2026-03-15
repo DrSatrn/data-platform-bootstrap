@@ -4,6 +4,8 @@
 // asset on the right.
 import { useEffect, useState } from "react";
 
+import { ErrorMessage } from "../components/ErrorMessage";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useAuth } from "../features/auth/useAuth";
 import { Asset, AssetProfile, DrilldownQuery, useDatasets } from "../features/datasets/useDatasets";
 
@@ -28,7 +30,10 @@ export function DatasetsPage() {
   } = useDatasets();
 
   if (error) {
-    return <section className="panel">Datasets error: {error}</section>;
+    return <ErrorMessage message={error} title="Datasets error" />;
+  }
+  if (!data) {
+    return <LoadingSpinner label="Loading datasets..." />;
   }
 
   return (

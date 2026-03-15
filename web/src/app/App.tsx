@@ -1,8 +1,10 @@
 // The App component defines the primary information architecture for the
 // platform UI. The design favors a focused internal-tool layout that surfaces
 // operational context and curated analytics without decorative clutter.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useAuth } from "../features/auth/useAuth";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DatasetsPage } from "../pages/DatasetsPage";
@@ -11,27 +13,29 @@ import { MetricsPage } from "../pages/MetricsPage";
 import { PipelinesPage } from "../pages/PipelinesPage";
 import { SystemPage } from "../pages/SystemPage";
 
-type Route = "dashboard" | "management" | "metrics" | "pipelines" | "datasets" | "system";
-
-const routes: Array<{ id: Route; label: string }> = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "management", label: "Management" },
-  { id: "metrics", label: "Metrics" },
-  { id: "pipelines", label: "Pipelines" },
-  { id: "datasets", label: "Datasets" },
-  { id: "system", label: "System" }
+const routes = [
+  { path: "/dashboard", label: "Dashboard" },
+  { path: "/management", label: "Management" },
+  { path: "/metrics", label: "Metrics" },
+  { path: "/pipelines", label: "Pipelines" },
+  { path: "/datasets", label: "Datasets" },
+  { path: "/system", label: "System" }
 ];
 
 export function App() {
-  const [route, setRoute] = useState<Route>("dashboard");
+  const location = useLocation();
   const { token, setToken, clearToken, login, logout, session, loading, error } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const currentLabel = useMemo(
+    () => routes.find((item) => location.pathname === "/" ? item.path === "/dashboard" : item.path === location.pathname)?.label ?? "Dashboard",
+    [location.pathname]
+  );
 
   useEffect(() => {
-    document.title = `Data Platform | ${routes.find((item) => item.id === route)?.label}`;
-  }, [route]);
+    document.title = `Data Platform | ${currentLabel}`;
+  }, [currentLabel]);
 
   async function handleLogin() {
     if (!username.trim() || !password) {
@@ -102,37 +106,30 @@ export function App() {
         </div>
         <nav className="nav">
           {routes.map((item) => (
-            <button
-              key={item.id}
-              className={item.id === route ? "nav-button active" : "nav-button"}
-              onClick={() => setRoute(item.id)}
-              type="button"
+            <NavLink
+              key={item.path}
+              className={({ isActive }) => (isActive ? "nav-button active" : "nav-button")}
+              to={item.path}
             >
               {item.label}
-            </button>
+            </NavLink>
           ))}
         </nav>
       </aside>
-      <main className="content">{renderRoute(route)}</main>
+      <main className="content">
+        <ErrorBoundary>
+          <Routes>
+            <Route element={<Navigate replace to="/dashboard" />} path="/" />
+            <Route element={<DashboardPage />} path="/dashboard" />
+            <Route element={<ManagementPage />} path="/management" />
+            <Route element={<MetricsPage />} path="/metrics" />
+            <Route element={<PipelinesPage />} path="/pipelines" />
+            <Route element={<DatasetsPage />} path="/datasets" />
+            <Route element={<SystemPage />} path="/system" />
+            <Route element={<Navigate replace to="/dashboard" />} path="*" />
+          </Routes>
+        </ErrorBoundary>
+      </main>
     </div>
   );
-}
-
-function renderRoute(route: Route) {
-  switch (route) {
-    case "dashboard":
-      return <DashboardPage />;
-    case "metrics":
-      return <MetricsPage />;
-    case "management":
-      return <ManagementPage />;
-    case "pipelines":
-      return <PipelinesPage />;
-    case "datasets":
-      return <DatasetsPage />;
-    case "system":
-      return <SystemPage />;
-    default:
-      return <DashboardPage />;
-  }
 }
