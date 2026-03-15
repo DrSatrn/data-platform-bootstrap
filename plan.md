@@ -66,13 +66,18 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Added Python-backed dataset profiling behind the Go metadata API with cached
-  profile artifacts under the data root.
-- Exposed runtime dataset profiles through `/api/v1/catalog/profile`.
-- Surfaced row counts, observed column types, null counts, ranges, and sample
-  values in the React Datasets page.
-- Added profile-service cache tests and updated the operator/runtime manuals for
-  the new profiling path.
+- Exposed subsystem source-of-truth details through `/api/v1/system/overview`
+  so operators can see which storage backend is authoritative for runs, queue,
+  artifacts, dashboards, audit, and metadata in the current runtime.
+- Added router-level auth regression tests that prove viewer/admin enforcement
+  for catalog, analytics, artifacts, audit, logs, system overview, and admin
+  terminal endpoints.
+- Tightened the operator docs so the control-plane story is explicit rather
+  than implied, including the System page `Source Of Truth` card and clearer
+  control-plane ownership notes in the runtime manual.
+- Extended host-run configuration to include explicit external-tool defaults in
+  the typed config layer and local `.env` example without widening feature
+  breadth.
 
 ## Deferred / Prompt-Requiring Tests
 

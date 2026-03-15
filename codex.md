@@ -54,10 +54,10 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added Python-backed dataset profiling behind the Go metadata API with cached profile snapshots under the local data root.
-	•	Exposed `/api/v1/catalog/profile` so the Datasets page can request runtime row counts, observed types, null counts, ranges, and sample values for the selected asset.
-	•	Extended the React Datasets page into a richer metadata workbench with runtime profile summaries and observed column-level detail.
-	•	Added profile-service cache tests and updated the operator/runtime manuals to document the new profiling flow.
+	•	Exposed subsystem source-of-truth details through `/api/v1/system/overview`, including runs, queue, artifacts, dashboards, audit, and metadata.
+	•	Added router-level auth regression tests that verify viewer/admin enforcement for catalog, analytics, artifacts, audit, logs, system overview, and the admin terminal.
+	•	Tightened the docs around control-plane ownership so operators can confirm the current runtime mode from the System page instead of inferring it from logs.
+	•	Extended typed host-run config and `.env.example` with explicit external-tool runtime defaults while keeping the control plane Go-owned.
 
 Next workstep to execute
 	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.

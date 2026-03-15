@@ -54,7 +54,8 @@ Writes:
 - run snapshots
 - audit events
 - dashboard changes
-- metadata projection when the catalog path is exercised
+- metadata projection at startup and on scheduler refresh when PostgreSQL-backed
+  metadata is enabled
 - system overview summaries derived from runs, queue state, and backup inventory
 - cached dataset profile snapshots under `data/profiles/` when the catalog UI
   requests runtime profiling
@@ -207,6 +208,38 @@ Current normalized tables include:
 
 These are the current bridge between the local-first runtime and a more
 enterprise-style control plane.
+
+## Authoritative State By Subsystem
+
+This is the runtime contract the docs and System page should agree on.
+
+### When PostgreSQL is enabled
+
+- runs:
+  source of truth is PostgreSQL `run_snapshots`
+  filesystem remains a write mirror and fallback bootstrap path
+- queue:
+  source of truth is PostgreSQL `queue_requests`
+  filesystem queue is fallback only
+- artifacts:
+  source of truth for bytes is the filesystem artifact root
+  PostgreSQL stores artifact metadata/index rows only
+- dashboards:
+  source of truth is PostgreSQL `dashboards`
+  filesystem dashboard storage is a mirror and local-first fallback
+- audit:
+  source of truth is PostgreSQL `audit_events`
+  filesystem audit log is a mirror and fallback
+- metadata:
+  source of truth is PostgreSQL projection tables
+  manifests are projected on startup and scheduler refresh, then used as fallback
+  only if the projection is empty or PostgreSQL is unavailable
+
+### When PostgreSQL is not enabled
+
+- runs, queue, dashboards, audit, and artifacts all operate from filesystem-backed stores
+- metadata reads directly from repo-managed manifests
+- the product remains runnable, but the preferred normalized control-plane path is not active
 
 ## Layer Map
 

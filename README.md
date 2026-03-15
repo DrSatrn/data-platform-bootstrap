@@ -44,7 +44,9 @@ category spend, and budget variance.
 When PostgreSQL has been migrated and is reachable, the runtime now prefers a
 PostgreSQL-backed control plane for run snapshots, queue state, and artifact
 metadata. The filesystem path remains the local-first fallback when PostgreSQL
-is unavailable.
+is unavailable. The live source-of-truth breakdown is exposed in
+`GET /api/v1/system/overview` and rendered in the System page as the
+`Source Of Truth` card.
 
 ## Configuration Reality
 

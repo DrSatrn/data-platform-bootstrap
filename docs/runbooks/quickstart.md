@@ -126,6 +126,9 @@ curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/v1/session
 ```
 
+After you sign in with a viewer-or-higher token, open the System page and
+confirm the `Source Of Truth` card matches the runtime you intended to start.
+
 If this fails, check next:
 
 1. `docker compose -f infra/compose/docker-compose.yml ps`

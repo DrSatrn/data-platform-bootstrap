@@ -3,10 +3,15 @@
 package observability
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/backup"
+	"github.com/streanor/data-platform/backend/internal/config"
+	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 )
 
@@ -46,5 +51,84 @@ func TestSummarizeQueueAndBackups(t *testing.T) {
 	backups := summarizeBackups([]backup.BundleFile{{Path: "/tmp/latest.tar.gz", SizeBytes: 42}})
 	if backups.BundleCount != 1 || backups.LatestBundlePath == "" || backups.LatestBundleBytes != 42 {
 		t.Fatalf("unexpected backup summary: %#v", backups)
+	}
+}
+
+type pipelineLoaderStub struct {
+	pipelines []orchestration.Pipeline
+}
+
+func (s pipelineLoaderStub) LoadPipelines() ([]orchestration.Pipeline, error) {
+	return s.pipelines, nil
+}
+
+type assetLoaderStub struct {
+	assets []metadata.DataAsset
+}
+
+func (s assetLoaderStub) LoadAssets() ([]metadata.DataAsset, error) {
+	return s.assets, nil
+}
+
+type runStoreStub struct {
+	runs []orchestration.PipelineRun
+}
+
+func (s runStoreStub) ListPipelineRuns() ([]orchestration.PipelineRun, error) {
+	return s.runs, nil
+}
+
+func (s runStoreStub) SavePipelineRun(orchestration.PipelineRun) error {
+	return nil
+}
+
+func (s runStoreStub) GetPipelineRun(string) (orchestration.PipelineRun, bool, error) {
+	return orchestration.PipelineRun{}, false, nil
+}
+
+type queueStub struct {
+	requests []orchestration.QueueSnapshot
+}
+
+func (s queueStub) ListRequests() ([]orchestration.QueueSnapshot, error) {
+	return s.requests, nil
+}
+
+type backupInventoryStub struct {
+	bundles []backup.BundleFile
+}
+
+func (s backupInventoryStub) ListBundles() ([]backup.BundleFile, error) {
+	return s.bundles, nil
+}
+
+func TestOverviewHandlerIncludesPersistenceModes(t *testing.T) {
+	handler := NewOverviewHandler(
+		config.Settings{Environment: "test", HTTPAddr: ":8080", WebAddr: ":3000", APIBaseURL: "http://127.0.0.1:8080"},
+		NewService(),
+		pipelineLoaderStub{pipelines: []orchestration.Pipeline{{ID: "finance"}}},
+		assetLoaderStub{assets: []metadata.DataAsset{{ID: "mart_cashflow"}}},
+		runStoreStub{runs: []orchestration.PipelineRun{{ID: "run_1", Status: orchestration.RunStatusSucceeded, StartedAt: time.Now().UTC()}}},
+		queueStub{requests: []orchestration.QueueSnapshot{{Status: "queued"}}},
+		backupInventoryStub{bundles: []backup.BundleFile{{Path: "/tmp/backup.tar.gz", SizeBytes: 42}}},
+		map[string]PersistenceMode{
+			"runs": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres run_snapshots",
+				WritePath:     "postgres first, filesystem mirror",
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/system/overview", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"persistence_modes"`) || !strings.Contains(body, `"source_of_truth":"postgres"`) {
+		t.Fatalf("expected persistence modes in response, got %s", body)
 	}
 }

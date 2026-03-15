@@ -123,15 +123,15 @@ func (h *OverviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.WriteJSON(w, http.StatusOK, map[string]any{
-		"environment":     h.cfg.Environment,
-		"http_addr":       h.cfg.HTTPAddr,
-		"web_addr":        h.cfg.WebAddr,
-		"known_pipelines": len(pipelines),
-		"known_assets":    len(assets),
-		"run_history":     len(runHistory),
-		"run_summary":     summarizeRuns(runHistory),
-		"queue_summary":   queueSummary,
-		"backup_summary":  backupSummary,
+		"environment":       h.cfg.Environment,
+		"http_addr":         h.cfg.HTTPAddr,
+		"web_addr":          h.cfg.WebAddr,
+		"known_pipelines":   len(pipelines),
+		"known_assets":      len(assets),
+		"run_history":       len(runHistory),
+		"run_summary":       summarizeRuns(runHistory),
+		"queue_summary":     queueSummary,
+		"backup_summary":    backupSummary,
 		"persistence_modes": h.modes,
 		"telemetry": h.service.Snapshot(map[string]string{
 			"environment": h.cfg.Environment,

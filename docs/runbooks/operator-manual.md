@@ -24,8 +24,7 @@ Host requirements:
 - Apple Silicon compatible toolchain
 - host C/C++ build tools because DuckDB uses CGO
 
-You already installed the main host toolchains, which is enough for normal dev
-and validation flows.
+Verify them with `make doctor` before assuming the host is ready.
 
 ## First Build
 
@@ -51,6 +50,23 @@ What that does:
 
 If a command uses `platformctl remote`, it is admin-only because it goes
 through the admin terminal endpoint.
+
+## Control-Plane Source Of Truth
+
+Use the `Source Of Truth` card on the System page or `GET /api/v1/system/overview`
+when you need to confirm which backend is authoritative for each subsystem.
+
+Current intended behavior:
+
+- runs: PostgreSQL primary when available, filesystem mirror/fallback
+- queue: PostgreSQL primary when available, filesystem fallback
+- artifacts: filesystem bytes are authoritative, PostgreSQL is metadata/index only
+- dashboards: PostgreSQL primary when available, filesystem mirror/fallback
+- audit: PostgreSQL primary when available, filesystem mirror/fallback
+- metadata: PostgreSQL projection when available, manifest loader fallback
+
+If the running stack disagrees with that summary, trust the System page or
+`/api/v1/system/overview` over this document.
 
 ## Main Ways To Run The Platform
 

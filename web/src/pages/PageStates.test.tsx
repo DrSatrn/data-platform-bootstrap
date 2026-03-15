@@ -65,7 +65,8 @@ let mockSystemState: any = {
     telemetry: { uptime_seconds: 1, total_requests: 1, total_errors: 0, total_commands: 0, request_counts: {}, recent_log_summary: [] },
     run_summary: { total_runs: 0, queued_runs: 0, running_runs: 0, succeeded_runs: 0, failed_runs: 0, completed_last_24_hours: 0, failed_last_24_hours: 0, average_duration_seconds: 0 },
     queue_summary: { queued: 0, active: 0, completed: 0, total: 0 },
-    backup_summary: { bundle_count: 0 }
+    backup_summary: { bundle_count: 0 },
+    persistence_modes: {}
   },
   logs: { logs: [] },
   audit: { events: [] },
@@ -157,7 +158,8 @@ describe("operator page states", () => {
         telemetry: { uptime_seconds: 1, total_requests: 1, total_errors: 0, total_commands: 0, request_counts: {}, recent_log_summary: [] },
         run_summary: { total_runs: 0, queued_runs: 0, running_runs: 0, succeeded_runs: 0, failed_runs: 0, completed_last_24_hours: 0, failed_last_24_hours: 0, average_duration_seconds: 0 },
         queue_summary: { queued: 0, active: 0, completed: 0, total: 0 },
-        backup_summary: { bundle_count: 0 }
+        backup_summary: { bundle_count: 0 },
+        persistence_modes: {}
       },
       logs: { logs: [] },
       audit: { events: [] },
