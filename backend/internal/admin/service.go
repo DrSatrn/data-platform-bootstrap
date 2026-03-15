@@ -6,11 +6,14 @@ package admin
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/streanor/data-platform/backend/internal/authz"
+	"github.com/streanor/data-platform/backend/internal/backup"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/observability"
@@ -37,6 +40,7 @@ type Service struct {
 	reports   reporting.Store
 	artifacts *storage.Service
 	telemetry *observability.Service
+	backup    *backup.Service
 }
 
 // NewService constructs a new admin command service.
@@ -49,6 +53,7 @@ func NewService(
 	reports reporting.Store,
 	artifacts *storage.Service,
 	telemetry *observability.Service,
+	backupService *backup.Service,
 ) *Service {
 	return &Service{
 		cfg:       cfg,
@@ -59,6 +64,7 @@ func NewService(
 		reports:   reports,
 		artifacts: artifacts,
 		telemetry: telemetry,
+		backup:    backupService,
 	}
 }
 
@@ -89,6 +95,9 @@ func (s *Service) Execute(command string, actor authz.Principal) Result {
 			"logs [limit]",
 			"trigger <pipeline_id>",
 			"artifacts <run_id>",
+			"backups",
+			"backup create",
+			"backup verify <bundle-name-or-path>",
 		}}
 	case "status":
 		snapshot := s.telemetry.Snapshot(map[string]string{"environment": s.cfg.Environment})
@@ -227,6 +236,73 @@ func (s *Service) Execute(command string, actor authz.Principal) Result {
 			lines = append(lines, fmt.Sprintf("%s | %d bytes", artifact.RelativePath, artifact.SizeBytes))
 		}
 		result = Result{Command: command, Success: true, Output: lines}
+	case "backups":
+		if s.backup == nil {
+			result = Result{Command: command, Success: false, Output: []string{"backup service is unavailable"}}
+			break
+		}
+		bundles, err := s.backup.ListBundles()
+		if err != nil {
+			result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+			break
+		}
+		if len(bundles) == 0 {
+			result = Result{Command: command, Success: true, Output: []string{"no backup bundles recorded yet"}}
+			break
+		}
+		lines := make([]string, 0, len(bundles))
+		for _, bundle := range bundles {
+			lines = append(lines, fmt.Sprintf("%s | %d bytes", bundle.Path, bundle.SizeBytes))
+		}
+		result = Result{Command: command, Success: true, Output: lines}
+	case "backup":
+		if s.backup == nil {
+			result = Result{Command: command, Success: false, Output: []string{"backup service is unavailable"}}
+			break
+		}
+		if len(args) == 0 {
+			result = Result{Command: command, Success: false, Output: []string{"usage: backup create | backup verify <bundle-name-or-path>"}}
+			break
+		}
+		switch args[0] {
+		case "create":
+			created, err := s.backup.Create("")
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{
+				fmt.Sprintf("bundle_path: %s", created.Path),
+				fmt.Sprintf("pipeline_runs: %d", created.Manifest.Counts.PipelineRuns),
+				fmt.Sprintf("dashboards: %d", created.Manifest.Counts.Dashboards),
+				fmt.Sprintf("data_assets: %d", created.Manifest.Counts.DataAssets),
+				fmt.Sprintf("bundle_files: %d", created.Manifest.Counts.BundleFiles),
+			}}
+		case "verify":
+			if len(args) < 2 {
+				result = Result{Command: command, Success: false, Output: []string{"usage: backup verify <bundle-name-or-path>"}}
+				break
+			}
+			path, err := s.resolveBackupPath(args[1])
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			manifest, err := s.backup.Verify(path)
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{
+				fmt.Sprintf("bundle_path: %s", path),
+				fmt.Sprintf("generated_at: %s", manifest.GeneratedAt.Format(time.RFC3339)),
+				fmt.Sprintf("pipeline_runs: %d", manifest.Counts.PipelineRuns),
+				fmt.Sprintf("queue_requests: %d", manifest.Counts.QueueRequests),
+				fmt.Sprintf("bundle_files: %d", manifest.Counts.BundleFiles),
+			}}
+		default:
+			result = Result{Command: command, Success: false, Output: []string{"usage: backup create | backup verify <bundle-name-or-path>"}}
+		}
 	default:
 		result = Result{Command: command, Success: false, Output: []string{
 			fmt.Sprintf("unknown command %q", head),
@@ -240,4 +316,23 @@ func (s *Service) Execute(command string, actor authz.Principal) Result {
 	}
 	s.telemetry.RecordCommand(fmt.Sprintf("%s (%s)", command, actor.Subject), result.Success, preview)
 	return result
+}
+
+func (s *Service) resolveBackupPath(value string) (string, error) {
+	backupRoot := filepath.Clean(filepath.Join(s.cfg.DataRoot, "backups"))
+	if value == "" {
+		return "", fmt.Errorf("backup bundle path is required")
+	}
+	if filepath.IsAbs(value) {
+		clean := filepath.Clean(value)
+		if !strings.HasPrefix(clean, backupRoot+string(filepath.Separator)) && clean != backupRoot {
+			return "", fmt.Errorf("backup verification is limited to the configured backup directory")
+		}
+		return clean, nil
+	}
+	clean := filepath.Clean(value)
+	if clean == "." || strings.HasPrefix(clean, "..") {
+		return "", fmt.Errorf("invalid backup bundle path")
+	}
+	return filepath.Join(backupRoot, clean), nil
 }

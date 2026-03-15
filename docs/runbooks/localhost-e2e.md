@@ -33,7 +33,8 @@ make smoke
 
 That workflow starts API, worker, and scheduler on loopback, triggers a manual
 run after confirming the scheduler path, verifies the artifact API, exercises
-the admin terminal, and proves the `platformctl remote` CLI.
+the admin terminal, creates and verifies a real backup bundle, and proves the
+`platformctl remote` CLI.
 
 If the default smoke port is already occupied, choose another loopback port:
 
@@ -59,6 +60,12 @@ budgets for the current build:
 
 ```bash
 make benchmark
+```
+
+Capture a recovery point as part of the same validation pass:
+
+```bash
+make backup
 ```
 
 ## Recommended local startup

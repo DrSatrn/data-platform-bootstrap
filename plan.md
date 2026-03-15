@@ -7,8 +7,8 @@ agents to infer intent from a large git diff or chat transcript.
 ## Current Build Focus
 
 Move the project from a strong vertical slice into a more fully fledged
-internal platform product by prioritizing operational safety, access control,
-and stronger self-hosted platform discipline.
+internal platform product by prioritizing operational safety, recovery
+readiness, access control, and stronger self-hosted platform discipline.
 
 ## Why This Slice
 
@@ -25,6 +25,7 @@ The next highest-leverage gap is platform hardening:
 - access control needs to be real, not a single opaque admin token
 - metadata trust signals need to be operator-facing
 - validation needs to quantify performance, not just behavior
+- recovery needs to be concrete, not implied
 
 ## Current Plan
 
@@ -40,40 +41,42 @@ The next highest-leverage gap is platform hardening:
    - Use the audit layer as the foundation for later governance and recovery
      workflows.
 
-3. Metadata intelligence
+3. Metadata intelligence and persistence
    - Derive richer catalog coverage and lineage summaries from repo manifests.
    - Surface documentation coverage, quality coverage, freshness, and lineage
      context in the operator UI.
+   - Project the synchronized metadata catalog into PostgreSQL so the control
+     plane has durable dataset state.
 
 4. Validation and benchmark foundation
    - Add a first-party benchmark command to `platformctl`.
    - Add a repo-owned benchmark script that emits timestamped JSON reports.
    - Build a stronger future E2E validation baseline alongside smoke tests.
 
-5. Next likely follow-on work
+5. Recovery and backup foundation
+   - Add a first-party backup/export bundle format.
+   - Verify bundles in automation instead of assuming they are usable.
+   - Expose recovery primitives through the CLI and admin terminal.
+
+6. Next likely follow-on work
    - Report sharing/preset workflows, deeper dataset drill-downs, and broader
-   control-plane normalization in PostgreSQL.
+     control-plane normalization in PostgreSQL.
    - Expand the benchmark suite with scheduled-run, artifact, report-save, and
      queue latency budgets.
 
 ## Latest Completed Workstep
 
-- Added bearer-token RBAC with `viewer`, `editor`, and `admin` roles plus a
-  `/api/v1/session` endpoint.
-- Protected dashboard mutations, pipeline triggers, and admin terminal access
-  with role checks.
-- Added browser-side token/session awareness so the UI disables privileged
-  actions when the token is missing or under-privileged.
-- Added a persistent audit trail for privileged actions and surfaced it in the
-  System page.
-- Added derived catalog coverage, lineage, and trust summaries to the metadata
-  API.
-- Turned the Datasets page into a stronger metadata workbench with coverage,
-  lineage, governance, and column documentation context.
-- Added a first-party `platformctl benchmark` command plus
-  `infra/scripts/benchmark_suite.sh`.
-- Captured an initial benchmark baseline against the packaged stack under
-  `var/benchmarks/`.
+- Added a first-party backup/export subsystem under `backend/internal/backup`.
+- Added `platformctl backup create`, `platformctl backup verify`, and
+  `platformctl backup list`.
+- Added backup bundle commands to the built-in admin terminal.
+- Added the repo-owned `infra/scripts/backup_snapshot.sh` workflow and
+  `make backup`.
+- Extended both localhost and packaged Compose smoke workflows so they now
+  create and verify real backup bundles instead of only validating runtime
+  behavior.
+- Added a dedicated backups runbook and updated the operator docs so recovery
+  expectations are explicit.
 
 ## Deferred / Prompt-Requiring Tests
 
@@ -85,6 +88,7 @@ interactive pass is useful:
 - manual product review of information architecture and copy
 - exploratory testing of admin terminal commands and operator ergonomics
 - user preference review for default dashboard layouts and widget presets
+- manual disaster-recovery drill using an extracted backup bundle
 
 ## Update Rule
 

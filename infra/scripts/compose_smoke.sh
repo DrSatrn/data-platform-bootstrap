@@ -82,6 +82,9 @@ curl -fsS "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
 curl -fsS "$WEB_URL" | grep -q 'Data Platform'
 
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl remote --server http://127.0.0.1:8080 status >/dev/null
+docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl backup create --out /var/lib/platform/data/backups/compose-smoke-backup.tar.gz >/dev/null
+docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl backup verify --file /var/lib/platform/data/backups/compose-smoke-backup.tar.gz >/dev/null
+docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl remote --server http://127.0.0.1:8080 "backup verify compose-smoke-backup.tar.gz" >/dev/null
 
 echo "compose smoke test passed"
 echo "api_url=$API_URL"

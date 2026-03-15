@@ -4,6 +4,16 @@ This repository contains a local-first, self-hosted data orchestration and analy
 
 The implementation intentionally emphasizes teaching value. Code is organized around clear subsystem boundaries, package-level responsibility, explicit runtime behavior, and heavily documented entrypoints so the project can be studied as much as it can be used.
 
+## Documentation Map
+
+If you are new to the project, use this reading order:
+
+1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
+2. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
+3. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
+4. [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+5. [making-changes.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/making-changes.md)
+
 ## Product Goals
 
 - Reliable orchestration with schedules, dependencies, retries, audit history, and understandable failure handling.
@@ -80,6 +90,32 @@ The current audit scope covers:
 The audit feed is exposed at `/api/v1/system/audit`, shown in the System page,
 and mirrored into PostgreSQL when the DB-backed control plane is available.
 
+## Backups
+
+The platform now includes a first-party backup/export path built in-repo:
+
+- `platformctl backup create`
+- `platformctl backup verify`
+- `platformctl backup list`
+- admin terminal commands: `backups`, `backup create`, `backup verify <bundle>`
+
+Each backup bundle is a portable `.tar.gz` archive containing:
+
+- control-plane JSON exports for runs, queue state, dashboards, audit events,
+  metadata assets, and sanitized config
+- materialized local data and run artifacts when present
+- the DuckDB file
+- repo-managed manifest and dashboard snapshots
+- a checksummed `manifest.json`
+
+Use:
+
+```bash
+make backup
+```
+
+See [backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md) for details.
+
 ## Analytical SQL
 
 Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.
@@ -148,7 +184,8 @@ After the stack is healthy, the platform should be available on:
 The repo now includes a first-party localhost smoke script that starts an
 isolated API, worker, and scheduler stack on loopback, drives a scheduled run
 plus a manual run, verifies run-scoped artifacts, exercises the admin terminal
-API, and proves the `platformctl remote` CLI path.
+API, proves the `platformctl remote` CLI path, and now creates plus verifies a
+real backup bundle inside the isolated runtime root.
 
 ```bash
 make smoke
@@ -165,7 +202,7 @@ If `127.0.0.1:18080` is already in use, rerun with
 The repo also includes a packaged-deployment smoke workflow that boots Docker
 Compose, waits for migrations and health, validates the hosted web UI, and
 drives a real pipeline run through the API, worker, scheduler, analytics,
-quality, artifacts, and CLI layers:
+quality, artifacts, backup, and CLI layers:
 
 ```bash
 make compose-smoke

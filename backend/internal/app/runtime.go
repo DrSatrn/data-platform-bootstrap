@@ -14,6 +14,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/analytics"
 	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/authz"
+	"github.com/streanor/data-platform/backend/internal/backup"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/db"
 	"github.com/streanor/data-platform/backend/internal/execution"
@@ -33,6 +34,7 @@ type runtimePersistence struct {
 	artifacts *storage.Service
 	reports   reporting.Store
 	audit     audit.Store
+	metadata  metadata.Store
 }
 
 // RunAPI starts the HTTP control-plane server.
@@ -127,13 +129,18 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
-	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, persistence.reports, persistence.artifacts, telemetry)
+	var queueSnapshots backup.QueueSnapshotter
+	if snapshotter, ok := persistence.queue.(backup.QueueSnapshotter); ok {
+		queueSnapshots = snapshotter
+	}
+	backupService := backup.NewService(cfg, loader, persistence.store, queueSnapshots, persistence.reports, persistence.audit, persistence.metadata)
+	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, persistence.reports, persistence.artifacts, telemetry, backupService)
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
 	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
 	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit))
-	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot))
+	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
 	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService, persistence.audit))
@@ -187,6 +194,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			artifacts: fileArtifacts,
 			reports:   reportStore,
 			audit:     auditStore,
+			metadata:  nil,
 		}, nil
 	}
 
@@ -207,6 +215,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 		artifacts: storage.NewService(cfg.ArtifactRoot, controlPlane.ArtifactIdx),
 		reports:   reportStore,
 		audit:     auditStore,
+		metadata:  controlPlane.Metadata,
 	}, nil
 }
 

@@ -4,7 +4,7 @@
 
 SHELL := /bin/sh
 
-.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark
+.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup
 
 doctor:
 	@echo "Review codex.md before first build."
@@ -47,6 +47,9 @@ compose-smoke:
 
 benchmark:
 	sh infra/scripts/benchmark_suite.sh
+
+backup:
+	sh infra/scripts/backup_snapshot.sh
 
 bootstrap:
 	docker compose -f infra/compose/docker-compose.yml up -d --build

@@ -33,6 +33,7 @@ What has already been built
 	•	The platform now has a lightweight bearer-token RBAC layer with `viewer`, `editor`, and `admin` roles plus a `/api/v1/session` endpoint.
 	•	The browser now stores a local token, resolves the current session/capabilities, and disables privileged UI actions when the role is insufficient.
 	•	Privileged platform actions now write to a first-party audit trail exposed at `/api/v1/system/audit` and shown in the System page.
+	•	The metadata catalog can now be synchronized into PostgreSQL via the existing `data_assets` and `asset_columns` tables rather than living only as an in-memory manifest view.
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
@@ -42,6 +43,7 @@ What is still pending
 	•	Deepen the benchmark suite so it covers scheduled-run latency, artifact retrieval, report save/update paths, and higher-load scenarios.
 	•	Evolve the lightweight RBAC layer into a fuller identity/auth model when the self-hosted product needs multi-user administration and stronger audit semantics.
 	•	Expand the audit trail from privileged actions into broader governance history, incident annotations, and richer recovery tooling.
+	•	Broaden the PostgreSQL-backed metadata/control-plane model so more reads come from normalized repositories instead of opportunistic synchronization during request handling.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -52,17 +54,15 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added derived metadata coverage and lineage summaries to the catalog API so operators can see documentation coverage, quality coverage, freshness distribution, PII presence, and lineage edges directly.
-	•	Expanded the Datasets page into a richer catalog workbench with trust summary cards, coverage detail, upstream/downstream lineage, and governance-oriented metadata inspection.
-	•	Added a first-party benchmark command to `platformctl` and a repo-owned `benchmark_suite.sh` wrapper that writes timestamped JSON reports.
-	•	Hardened the benchmark flow so it fails loudly when the target stack is unreachable instead of producing misleading green output.
-	•	Captured a real packaged-stack benchmark baseline under `var/benchmarks/benchmark-20260315T011516Z.json`.
-	•	Added bearer-token RBAC with `viewer`, `editor`, and `admin` roles and protected dashboard mutation, manual pipeline trigger, and admin-terminal paths accordingly.
-	•	Added `/api/v1/session` plus browser-side token/session awareness so the self-hosted UI now understands capabilities instead of assuming a single all-powerful token.
-	•	Added a durable audit trail for privileged actions, PostgreSQL mirroring for audit events, and a System-page audit feed.
+	•	Added a first-party backup/export subsystem under `backend/internal/backup` that produces portable `.tar.gz` recovery bundles with checksummed manifests.
+	•	Added `platformctl backup create`, `platformctl backup verify`, and `platformctl backup list`.
+	•	Added `backups`, `backup create`, and `backup verify <bundle>` to the built-in admin terminal command surface.
+	•	Added the repo-owned `infra/scripts/backup_snapshot.sh` workflow plus `make backup`.
+	•	Extended both localhost and packaged Compose smoke workflows so they now create and verify real backup bundles instead of validating runtime behavior only.
+	•	Added a dedicated `docs/runbooks/backups.md` runbook and updated operator docs to reflect the new recovery path.
 
 Next workstep to execute
-	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, broader control-plane normalization in PostgreSQL, stronger auth/audit depth, and expanded benchmark/load validation coverage.
+	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, restore automation built on top of the new backup bundles, and broader benchmark/load validation coverage.
 
 Session Close Handoff
 
@@ -78,58 +78,31 @@ Current state at session end
 	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
 	•	The platform now supports lightweight bearer-token RBAC, with browser session awareness and protected write/admin endpoints.
 	•	The platform now records privileged actions in a durable audit trail, exposes them through the API, and renders them in the System page.
+	•	The platform can now persist the synchronized metadata catalog in PostgreSQL, which is a meaningful step away from purely in-memory control-plane metadata.
+	•	The platform now includes a first-party backup/export subsystem with CLI, admin-terminal, script, and runbook support, and the smoke workflows verify that those bundles can be created and validated successfully.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
 	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
 
 Files changed in the latest workstep
-	•	Metadata model, API, and tests:
-		•	`backend/internal/metadata/models.go`
-		•	`backend/internal/metadata/catalog.go`
-		•	`backend/internal/metadata/catalog_test.go`
-		•	`backend/internal/metadata/handler.go`
-	•	Benchmark command and tests:
-		•	`backend/cmd/platformctl/main.go`
-		•	`backend/cmd/platformctl/main_test.go`
-	•	Access control:
-		•	`backend/internal/authz/service.go`
-		•	`backend/internal/authz/handler.go`
-		•	`backend/internal/authz/service_test.go`
-		•	`backend/internal/authz/README.md`
-		•	`backend/internal/admin/handler.go`
-		•	`backend/internal/orchestration/handler.go`
-		•	`backend/internal/reporting/handler.go`
-		•	`backend/internal/config/config.go`
+	•	Backup subsystem:
+		•	`backend/internal/backup/service.go`
+		•	`backend/internal/backup/service_test.go`
+		•	`backend/internal/backup/README.md`
+		•	`backend/internal/orchestration/models.go`
+		•	`backend/internal/orchestration/queue.go`
+		•	`backend/internal/db/queue.go`
+		•	`backend/internal/admin/service.go`
 		•	`backend/internal/app/runtime.go`
-	•	Audit trail:
-		•	`backend/internal/audit/store.go`
-		•	`backend/internal/audit/handler.go`
-		•	`backend/internal/audit/store_test.go`
-		•	`backend/internal/audit/README.md`
-		•	`backend/internal/db/audit_store.go`
-		•	`infra/migrations/0004_audit_events.sql`
-	•	Frontend metadata surfaces:
-		•	`web/src/features/auth/useAuth.tsx`
-		•	`web/src/app/App.tsx`
-		•	`web/src/features/datasets/useDatasets.ts`
-		•	`web/src/pages/DatasetsPage.tsx`
-		•	`web/src/features/system/useSystemData.ts`
-		•	`web/src/pages/SystemPage.tsx`
-		•	`web/src/features/system/useAdminTerminal.ts`
-		•	`web/src/components/AdminTerminal.tsx`
-		•	`web/src/features/pipelines/usePipelines.ts`
-		•	`web/src/pages/PipelinesPage.tsx`
-		•	`web/src/features/dashboard/useDashboardData.ts`
-		•	`web/src/pages/DashboardPage.tsx`
-		•	`web/src/lib/api.ts`
-		•	`web/src/main.tsx`
-		•	`web/src/styles/global.css`
-	•	Benchmark workflow and docs:
+		•	`backend/cmd/platformctl/main.go`
+	•	Recovery workflows and docs:
+		•	`infra/scripts/backup_snapshot.sh`
 		•	`infra/scripts/benchmark_suite.sh`
 		•	`infra/scripts/localhost_smoke.sh`
 		•	`infra/scripts/compose_smoke.sh`
 		•	`infra/scripts/README.md`
+		•	`docs/runbooks/backups.md`
 		•	`docs/runbooks/benchmarking.md`
 		•	`docs/runbooks/bootstrap.md`
 		•	`docs/runbooks/localhost-e2e.md`
@@ -145,9 +118,12 @@ Validated at end of session
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18088 sh infra/scripts/localhost_smoke.sh`
+		•	`PLATFORM_SMOKE_PORT=18089 sh infra/scripts/localhost_smoke.sh`
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
+	•	Backup workflow passed:
+		•	`sh infra/scripts/backup_snapshot.sh`
+		•	output: `var/backups/platform-backup-20260315T020505Z.tar.gz`
 	•	Packaged-stack benchmark baseline passed:
 		•	`sh infra/scripts/benchmark_suite.sh`
 		•	output: `var/benchmarks/benchmark-20260315T011516Z.json`
@@ -158,13 +134,15 @@ Validated at end of session
 		•	output: `var/benchmarks/benchmark-20260315T013521Z.json`
 	•	Post-audit benchmark baseline passed:
 		•	output: `var/benchmarks/benchmark-20260315T014235Z.json`
+	•	Post-metadata-projection benchmark baseline passed:
+		•	output: `var/benchmarks/benchmark-20260315T015128Z.json`
+	•	Packaged PostgreSQL metadata projection proof passed:
+		•	after `/api/v1/catalog`, `select count(*) from data_assets;` returned `6`
 
 Important fixes made during this session
-	•	The benchmark command now fails when one or more targets record zero successful requests, preventing misleading green benchmark runs against dead stacks.
-	•	The benchmark wrapper now performs a health check up front so operator feedback is immediate when the target stack is not live.
-	•	A catalog summary bug was fixed so column totals come from derived coverage state rather than assuming raw column arrays are always present in the summary input.
-	•	The smoke workflows were updated to authenticate manual pipeline triggers after write paths were moved behind RBAC.
-	•	The benchmark suite now covers `/api/v1/system/audit` so the audit surface is part of the measured platform budget.
+	•	The backup workflow now uses explicit temporary Go caches under `/tmp`, which avoids host cache permission failures during sandboxed runs and makes the operator path more portable.
+	•	The admin terminal backup verification path is constrained to the configured backup directory so the built-in management surface cannot be used as a generic arbitrary-file probe.
+	•	The smoke workflows now assert backup creation and verification, which closes a meaningful recovery-readiness gap in the previous validation matrix.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -181,18 +159,20 @@ Important repo/runtime truths
 Best next session starting point
 	•	The cleanest next increment is deeper enterprise-readiness across validation and metadata-backed user experience.
 	•	The next agent can focus on:
+		•	restore automation on top of the new backup bundle format
 		•	dashboard presets/sharing workflows
 		•	richer widget-specific controls and layout behavior
 		•	more advanced dataset drill-downs and lineage visualization using the existing catalog API
 		•	deeper PostgreSQL normalization for reporting and metadata state
-		•	audit/event history around auth-sensitive actions
-		•	expanding the benchmark suite into load, queue, artifact, and scheduled-run latency budgets
+		•	expanding the benchmark suite into load, queue, artifact, save/update, and scheduled-run latency budgets
 
 Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
 	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
 	•	The access-control layer is real, but it is still a lightweight token model rather than a full user, team, session, and audit system.
 	•	The audit trail is now durable and useful, but it is still relatively narrow in scope and not yet a full governance/history subsystem.
+	•	The platform now has a real backup/export path, but not yet a one-command restore automation workflow.
+	•	The metadata catalog is now projectable into PostgreSQL, but most runtime reads still begin from manifests and synchronize on demand rather than reading from a fully normalized repository-first model.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.

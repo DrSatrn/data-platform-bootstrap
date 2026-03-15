@@ -88,3 +88,9 @@ type Summary struct {
 	TotalColumns         int            `json:"total_columns"`
 	LineageEdges         int            `json:"lineage_edges"`
 }
+
+// Store defines the persistence behavior for the synchronized metadata catalog.
+type Store interface {
+	SyncAssets([]DataAsset) error
+	ListAssets() ([]DataAsset, error)
+}

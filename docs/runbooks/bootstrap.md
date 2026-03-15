@@ -23,6 +23,7 @@ development and for the verified localhost smoke workflow.
 14. Use the Datasets page detail panel to inspect source refs, quality refs, docs refs, and column-level metadata for the selected asset.
 15. Run `make benchmark` after the stack is healthy to capture response budgets for the current build.
 16. Open the System page and confirm the audit trail shows recent pipeline, dashboard, and admin actions.
+17. Run `make backup` and verify a first-party recovery bundle can be created for the current environment.
 
 ## Token Guidance
 
@@ -43,9 +44,9 @@ make smoke
 ```
 
 That workflow starts API, worker, and scheduler against an isolated `/tmp`
-runtime root, verifies scheduled and manual runs, checks run artifacts, calls
-the admin terminal API, and proves the `platformctl remote` CLI against the
-live localhost API.
+runtime root, verifies scheduled and manual runs, checks run artifacts, creates
+and verifies a backup bundle, calls the admin terminal API, and proves the
+`platformctl remote` CLI against the live localhost API.
 
 ## Compose Path
 
@@ -65,3 +66,13 @@ service starts. Saved dashboard definitions are seeded from repo-managed
 dashboard manifests, can be edited directly from the browser, and are
 persisted under the local data root while PostgreSQL is available as a mirrored
 reporting persistence backend.
+
+## Recovery Follow-Up
+
+After a healthy bootstrap, capture a recovery point:
+
+```bash
+make backup
+```
+
+This now creates and verifies a portable platform backup bundle under `var/backups/`.

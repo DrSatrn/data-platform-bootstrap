@@ -118,3 +118,38 @@ func (q *RunQueue) Complete(claimed *orchestration.ClaimedRequest) error {
 	}
 	return nil
 }
+
+// ListRequests returns a point-in-time snapshot of queue rows for backup and
+// operational export workflows.
+func (q *RunQueue) ListRequests() ([]orchestration.QueueSnapshot, error) {
+	rows, err := q.conn.QueryContext(context.Background(), `
+		select run_id, pipeline_id, trigger_source, status, requested_at, claimed_at, completed_at
+		from queue_requests
+		order by requested_at asc
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list queue requests: %w", err)
+	}
+	defer rows.Close()
+
+	requests := []orchestration.QueueSnapshot{}
+	for rows.Next() {
+		var snapshot orchestration.QueueSnapshot
+		if err := rows.Scan(
+			&snapshot.RunID,
+			&snapshot.PipelineID,
+			&snapshot.Trigger,
+			&snapshot.Status,
+			&snapshot.RequestedAt,
+			&snapshot.ClaimedAt,
+			&snapshot.CompletedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan queue request: %w", err)
+		}
+		requests = append(requests, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate queue requests: %w", err)
+	}
+	return requests, nil
+}

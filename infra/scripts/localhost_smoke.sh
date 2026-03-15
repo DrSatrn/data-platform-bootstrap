@@ -179,11 +179,65 @@ printf "%s" "$reports_payload" | grep -q '"finance_overview"'
 budget_payload=$(curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual")
 printf "%s" "$budget_payload" | grep -q '"variance_amount"'
 
+BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"
+
+(
+  cd "$ROOT_DIR/backend"
+  env \
+    PLATFORM_ENV=development \
+    PLATFORM_HTTP_ADDR="127.0.0.1:${PORT}" \
+    PLATFORM_API_BASE_URL="$API_URL" \
+    PLATFORM_LOG_LEVEL=debug \
+    PLATFORM_DATA_ROOT="$DATA_ROOT" \
+    PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
+    PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
+    PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+    PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
+    PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
+    PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
+    PLATFORM_SCHEDULER_TICK=1s \
+    PLATFORM_WORKER_POLL=1s \
+    GOCACHE="$GOCACHE_DIR" \
+    GOMODCACHE="$GOMODCACHE_DIR" \
+    go run ./cmd/platformctl backup create --out "$BACKUP_PATH" >/dev/null
+)
+
+(
+  cd "$ROOT_DIR/backend"
+  env \
+    PLATFORM_ENV=development \
+    PLATFORM_HTTP_ADDR="127.0.0.1:${PORT}" \
+    PLATFORM_API_BASE_URL="$API_URL" \
+    PLATFORM_LOG_LEVEL=debug \
+    PLATFORM_DATA_ROOT="$DATA_ROOT" \
+    PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
+    PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
+    PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+    PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
+    PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
+    PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
+    PLATFORM_SCHEDULER_TICK=1s \
+    PLATFORM_WORKER_POLL=1s \
+    GOCACHE="$GOCACHE_DIR" \
+    GOMODCACHE="$GOMODCACHE_DIR" \
+    go run ./cmd/platformctl backup verify --file "$BACKUP_PATH" >/dev/null
+)
+
+test -f "$BACKUP_PATH"
+
 admin_payload=$(curl -fsS -X POST "$API_URL/api/v1/admin/terminal/execute" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -d "{\"command\":\"artifacts ${manual_run_id}\"}")
 printf "%s" "$admin_payload" | grep -q '"success":true'
+
+backup_payload=$(curl -fsS -X POST "$API_URL/api/v1/admin/terminal/execute" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -d '{"command":"backups"}')
+printf "%s" "$backup_payload" | grep -q 'localhost-smoke-backup.tar.gz'
 
 (
   cd "$ROOT_DIR/backend"
@@ -197,11 +251,12 @@ printf "%s" "$admin_payload" | grep -q '"success":true'
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     GOCACHE="$GOCACHE_DIR" \
     GOMODCACHE="$GOMODCACHE_DIR" \
-    go run ./cmd/platformctl remote "artifacts ${manual_run_id}" >/dev/null
+    go run ./cmd/platformctl remote "backup verify localhost-smoke-backup.tar.gz" >/dev/null
 )
 
 echo "localhost smoke test passed"
 echo "api_url=$API_URL"
 echo "manual_run_id=$manual_run_id"
+echo "backup_path=$BACKUP_PATH"
 echo "runtime_root=$RUNTIME_ROOT"
 echo "logs_root=$LOG_ROOT"

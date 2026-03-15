@@ -96,3 +96,16 @@ type RunEvent struct {
 	Message string            `json:"message"`
 	Fields  map[string]string `json:"fields"`
 }
+
+// QueueSnapshot describes one durable queue record for backup/export and
+// diagnostics. The runtime queue interface stays intentionally small, so this
+// snapshot type is consumed only by tooling that needs a fuller view.
+type QueueSnapshot struct {
+	RunID       string     `json:"run_id"`
+	PipelineID  string     `json:"pipeline_id"`
+	Trigger     string     `json:"trigger"`
+	Status      string     `json:"status"`
+	RequestedAt time.Time  `json:"requested_at"`
+	ClaimedAt   *time.Time `json:"claimed_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}

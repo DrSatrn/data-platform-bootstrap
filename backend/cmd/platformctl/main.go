@@ -18,15 +18,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/streanor/data-platform/backend/internal/audit"
+	"github.com/streanor/data-platform/backend/internal/backup"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/db"
 	"github.com/streanor/data-platform/backend/internal/manifests"
+	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
+	"github.com/streanor/data-platform/backend/internal/reporting"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: platformctl validate-manifests | migrate | benchmark | remote [--server URL] [--token TOKEN] <command>")
+		fmt.Println("usage: platformctl validate-manifests | migrate | benchmark | backup | remote [--server URL] [--token TOKEN] <command>")
 		os.Exit(1)
 	}
 
@@ -46,6 +50,11 @@ func main() {
 	case "benchmark":
 		if err := runBenchmark(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "benchmark failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "backup":
+		if err := runBackup(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "backup command failed: %v\n", err)
 			os.Exit(1)
 		}
 	case "remote":
@@ -128,6 +137,79 @@ func migrate() error {
 		return err
 	}
 	return nil
+}
+
+func runBackup(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH")
+	}
+
+	service, closeFn, err := newBackupService()
+	if err != nil {
+		return err
+	}
+	if closeFn != nil {
+		defer closeFn()
+	}
+
+	switch args[0] {
+	case "create":
+		flagSet := flag.NewFlagSet("backup create", flag.ContinueOnError)
+		out := flagSet.String("out", "", "optional backup bundle output path")
+		if err := flagSet.Parse(args[1:]); err != nil {
+			return err
+		}
+		result, err := service.Create(*out)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("backup bundle created: %s\n", result.Path)
+		fmt.Printf("pipeline_runs=%d dashboards=%d data_assets=%d bundle_files=%d\n",
+			result.Manifest.Counts.PipelineRuns,
+			result.Manifest.Counts.Dashboards,
+			result.Manifest.Counts.DataAssets,
+			result.Manifest.Counts.BundleFiles,
+		)
+		return nil
+	case "list":
+		bundles, err := service.ListBundles()
+		if err != nil {
+			return err
+		}
+		if len(bundles) == 0 {
+			fmt.Println("no backup bundles recorded yet")
+			return nil
+		}
+		for _, bundle := range bundles {
+			fmt.Printf("%s | %d bytes\n", bundle.Path, bundle.SizeBytes)
+		}
+		return nil
+	case "verify":
+		flagSet := flag.NewFlagSet("backup verify", flag.ContinueOnError)
+		filePath := flagSet.String("file", "", "backup bundle to verify")
+		if err := flagSet.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *filePath == "" {
+			return fmt.Errorf("--file is required")
+		}
+		manifest, err := service.Verify(*filePath)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("backup bundle verified: %s\n", *filePath)
+		fmt.Printf("generated_at=%s pipeline_runs=%d queue_requests=%d dashboards=%d data_assets=%d bundle_files=%d\n",
+			manifest.GeneratedAt.Format(time.RFC3339),
+			manifest.Counts.PipelineRuns,
+			manifest.Counts.QueueRequests,
+			manifest.Counts.Dashboards,
+			manifest.Counts.DataAssets,
+			manifest.Counts.BundleFiles,
+		)
+		return nil
+	default:
+		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH")
+	}
 }
 
 func runRemote(args []string) error {
@@ -354,4 +436,46 @@ func percentile(values []float64, target int) float64 {
 	}
 	weight := index - float64(lower)
 	return values[lower] + (values[upper]-values[lower])*weight
+}
+
+func newBackupService() (*backup.Service, func(), error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	loader := manifests.NewLoader(cfg.ManifestRoot)
+	runStore, err := orchestration.NewFileStore(cfg.DataRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	queue, err := orchestration.NewQueue(cfg.DataRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var reportStore reporting.Store
+	fileReports, err := reporting.NewFileStore(cfg.DataRoot, cfg.DashboardRoot)
+	if err == nil {
+		reportStore = fileReports
+	} else {
+		reportStore = reporting.NewMemoryStore()
+	}
+
+	var auditStore audit.Store
+	fileAudit, err := audit.NewFileStore(cfg.DataRoot)
+	if err == nil {
+		auditStore = fileAudit
+	} else {
+		auditStore = audit.NewMemoryStore()
+	}
+
+	var metadataStore metadata.Store
+	controlPlane, err := db.NewControlPlane(context.Background(), cfg.PostgresDSN)
+	if err == nil {
+		closeFn := func() { _ = controlPlane.Conn.Close() }
+		return backup.NewService(cfg, loader, controlPlane.RunStore, controlPlane.RunQueue, controlPlane.Dashboards, controlPlane.Audit, controlPlane.Metadata), closeFn, nil
+	}
+
+	return backup.NewService(cfg, loader, runStore, queue, reportStore, auditStore, metadataStore), nil, nil
 }

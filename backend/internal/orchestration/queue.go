@@ -88,6 +88,50 @@ func (q *Queue) Complete(claimed *ClaimedRequest) error {
 	return nil
 }
 
+// ListRequests returns a point-in-time snapshot of queued and active requests.
+// The file-backed queue does not retain completed requests, so this export is
+// intentionally scoped to currently pending work.
+func (q *Queue) ListRequests() ([]QueueSnapshot, error) {
+	requests := []QueueSnapshot{}
+	for _, source := range []struct {
+		dir    string
+		status string
+	}{
+		{dir: q.activeDir, status: "active"},
+		{dir: q.queuedDir, status: "queued"},
+	} {
+		entries, err := os.ReadDir(source.dir)
+		if err != nil {
+			return nil, fmt.Errorf("read queue dir %s: %w", source.dir, err)
+		}
+		sort.Slice(entries, func(left, right int) bool {
+			return entries[left].Name() < entries[right].Name()
+		})
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+				continue
+			}
+			bytes, err := os.ReadFile(filepath.Join(source.dir, entry.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("read queue request %s: %w", entry.Name(), err)
+			}
+			var request RunRequest
+			if err := json.Unmarshal(bytes, &request); err != nil {
+				return nil, fmt.Errorf("decode queue request %s: %w", entry.Name(), err)
+			}
+			snapshot := QueueSnapshot{
+				RunID:       request.RunID,
+				PipelineID:  request.PipelineID,
+				Trigger:     request.Trigger,
+				Status:      source.status,
+				RequestedAt: request.RequestedAt,
+			}
+			requests = append(requests, snapshot)
+		}
+	}
+	return requests, nil
+}
+
 func (q *Queue) claimFromDir(dir string, moveToActive bool) (*ClaimedRequest, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

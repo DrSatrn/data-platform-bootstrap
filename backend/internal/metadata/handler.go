@@ -24,14 +24,16 @@ type CatalogHandler struct {
 	loader   AssetLoader
 	catalog  *Catalog
 	dataRoot string
+	store    Store
 }
 
 // NewCatalogHandler constructs the metadata API handler.
-func NewCatalogHandler(loader AssetLoader, catalog *Catalog, dataRoot string) http.Handler {
+func NewCatalogHandler(loader AssetLoader, catalog *Catalog, dataRoot string, store Store) http.Handler {
 	return &CatalogHandler{
 		loader:   loader,
 		catalog:  catalog,
 		dataRoot: dataRoot,
+		store:    store,
 	}
 }
 
@@ -42,6 +44,13 @@ func (h *CatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"error": "failed to load assets",
 		})
 		return
+	}
+	if h.store != nil {
+		if err := h.store.SyncAssets(assets); err == nil {
+			if storedAssets, listErr := h.store.ListAssets(); listErr == nil && len(storedAssets) > 0 {
+				assets = storedAssets
+			}
+		}
 	}
 
 	h.catalog.ReplaceAssets(assets)
