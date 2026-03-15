@@ -68,6 +68,8 @@ func (s *Service) QueryDataset(dataset string, options QueryOptions) (QueryResul
 		return s.queryCategorySpend(options)
 	case "mart_budget_vs_actual":
 		return s.queryBudgetVariance(options)
+	case "mart_inventory_monthly_summary":
+		return s.queryInventoryMonthlySummary(options)
 	default:
 		return QueryResult{}, fmt.Errorf("unknown curated dataset %q", dataset)
 	}
@@ -80,6 +82,8 @@ func (s *Service) QueryMetric(metricID string, options QueryOptions) (QueryResul
 		return s.querySavingsRateMetric(options)
 	case "metrics_category_variance":
 		return s.queryCategoryVarianceMetric(options)
+	case "metrics_inventory_net_change":
+		return s.queryInventoryNetChangeMetric(options)
 	default:
 		return QueryResult{}, fmt.Errorf("unknown metric %q", metricID)
 	}
@@ -184,6 +188,44 @@ func (s *Service) queryCategoryVarianceMetric(options QueryOptions) (QueryResult
 		return QueryResult{}, err
 	}
 	return finalizeQueryResult("metrics_category_variance", rows, options)
+}
+
+func (s *Service) queryInventoryMonthlySummary(options QueryOptions) (QueryResult, error) {
+	query := `
+		select month, sku, warehouse, receipts, issues, net_quantity, closing_quantity, movement_count
+		from mart_inventory_monthly_summary
+	`
+	if rows, err := s.queryDuckDB(query, options, false, "month, sku, warehouse"); err == nil && len(rows) > 0 {
+		return finalizeQueryResult("mart_inventory_monthly_summary", rows, options)
+	}
+	if rows, err := s.loadArtifactRows(filepath.Join("mart", "mart_inventory_monthly_summary.json"), options); err == nil && len(rows) > 0 {
+		return finalizeQueryResult("mart_inventory_monthly_summary", rows, options)
+	}
+
+	rows, err := s.sampleInventoryMonthlySummary(options)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	return finalizeQueryResult("mart_inventory_monthly_summary", rows, options)
+}
+
+func (s *Service) queryInventoryNetChangeMetric(options QueryOptions) (QueryResult, error) {
+	query := `
+		select month, warehouse, net_quantity
+		from metrics_inventory_net_change
+	`
+	if rows, err := s.queryDuckDB(query, options, false, "month, warehouse"); err == nil && len(rows) > 0 {
+		return finalizeQueryResult("metrics_inventory_net_change", rows, options)
+	}
+	if rows, err := s.loadMetricArtifact("metrics_inventory_net_change", options); err == nil && len(rows) > 0 {
+		return finalizeQueryResult("metrics_inventory_net_change", rows, options)
+	}
+
+	rows, err := s.sampleInventoryNetChange(options)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	return finalizeQueryResult("metrics_inventory_net_change", rows, options)
 }
 
 func (s *Service) queryDuckDB(baseQuery string, options QueryOptions, includeCategory bool, orderBy string) ([]map[string]any, error) {
@@ -380,6 +422,13 @@ type sampleTransaction struct {
 	Amount   float64
 }
 
+type sampleInventoryMovement struct {
+	Month     string
+	SKU       string
+	Warehouse string
+	Quantity  float64
+}
+
 func (s *Service) sampleTransactions() ([]sampleTransaction, error) {
 	path := filepath.Join(s.sampleDataRoot, "personal_finance", "transactions.csv")
 	file, err := os.Open(path)
@@ -434,6 +483,114 @@ func (s *Service) sampleBudgets() (map[string]float64, error) {
 		budgets[record.Category] = record.MonthlyBudget
 	}
 	return budgets, nil
+}
+
+func (s *Service) sampleInventoryMovements() ([]sampleInventoryMovement, error) {
+	path := filepath.Join(s.sampleDataRoot, "inventory_operations", "stock_movements.csv")
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open inventory movements sample: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("read inventory movements sample: %w", err)
+	}
+
+	movements := make([]sampleInventoryMovement, 0, len(rows))
+	for index, row := range rows {
+		if index == 0 || len(row) < 5 {
+			continue
+		}
+		quantity, err := strconv.ParseFloat(strings.TrimSpace(row[4]), 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse inventory quantity on row %d: %w", index+1, err)
+		}
+		movements = append(movements, sampleInventoryMovement{
+			Month:     strings.TrimSpace(row[1])[:7],
+			SKU:       strings.TrimSpace(row[0]),
+			Warehouse: strings.TrimSpace(row[3]),
+			Quantity:  quantity,
+		})
+	}
+	return movements, nil
+}
+
+func (s *Service) sampleInventoryMonthlySummary(options QueryOptions) ([]map[string]any, error) {
+	movements, err := s.sampleInventoryMovements()
+	if err != nil {
+		return nil, err
+	}
+	type summary struct {
+		receipts      float64
+		issues        float64
+		netQuantity   float64
+		movementCount int
+	}
+	summaries := map[string]summary{}
+	for _, movement := range movements {
+		key := strings.Join([]string{movement.Month, movement.SKU, movement.Warehouse}, "|")
+		current := summaries[key]
+		if movement.Quantity >= 0 {
+			current.receipts += movement.Quantity
+		} else {
+			current.issues += -movement.Quantity
+		}
+		current.netQuantity += movement.Quantity
+		current.movementCount++
+		summaries[key] = current
+	}
+
+	keys := sortedKeys(summaries)
+	closingBySKU := map[string]float64{}
+	rows := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		parts := strings.Split(key, "|")
+		summary := summaries[key]
+		skuWarehouse := parts[1] + "|" + parts[2]
+		closingBySKU[skuWarehouse] += summary.netQuantity
+		rows = append(rows, map[string]any{
+			"month":            parts[0],
+			"sku":              parts[1],
+			"warehouse":        parts[2],
+			"receipts":         summary.receipts,
+			"issues":           summary.issues,
+			"net_quantity":     summary.netQuantity,
+			"closing_quantity": closingBySKU[skuWarehouse],
+			"movement_count":   summary.movementCount,
+		})
+	}
+	return filterRows(rows, options), nil
+}
+
+func (s *Service) sampleInventoryNetChange(options QueryOptions) ([]map[string]any, error) {
+	rows, err := s.sampleInventoryMonthlySummary(options)
+	if err != nil {
+		return nil, err
+	}
+	type bucket struct {
+		netQuantity float64
+	}
+	buckets := map[string]bucket{}
+	for _, row := range rows {
+		key := stringValue(row["month"]) + "|" + stringValue(row["warehouse"])
+		current := buckets[key]
+		current.netQuantity += numericValue(row["net_quantity"])
+		buckets[key] = current
+	}
+	keys := sortedKeys(buckets)
+	series := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		parts := strings.Split(key, "|")
+		series = append(series, map[string]any{
+			"month":        parts[0],
+			"warehouse":    parts[1],
+			"net_quantity": buckets[key].netQuantity,
+		})
+	}
+	return series, nil
 }
 
 func filterRows(rows []map[string]any, options QueryOptions) []map[string]any {
@@ -507,6 +664,11 @@ func schemaForDataset(dataset string) (datasetSchema, error) {
 			dimensions: []string{"month", "category"},
 			measures:   []string{"budget_amount", "actual_spend", "variance_amount"},
 		}, nil
+	case "mart_inventory_monthly_summary":
+		return datasetSchema{
+			dimensions: []string{"month", "sku", "warehouse"},
+			measures:   []string{"receipts", "issues", "net_quantity", "closing_quantity", "movement_count"},
+		}, nil
 	case "metrics_savings_rate":
 		return datasetSchema{
 			dimensions: []string{"month"},
@@ -516,6 +678,11 @@ func schemaForDataset(dataset string) (datasetSchema, error) {
 		return datasetSchema{
 			dimensions: []string{"month", "category"},
 			measures:   []string{"variance_amount"},
+		}, nil
+	case "metrics_inventory_net_change":
+		return datasetSchema{
+			dimensions: []string{"month", "warehouse"},
+			measures:   []string{"net_quantity"},
 		}, nil
 	default:
 		return datasetSchema{}, fmt.Errorf("unknown schema for dataset %q", dataset)

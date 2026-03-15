@@ -4,6 +4,8 @@
 package authz
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -13,6 +15,8 @@ type repositoryStub struct {
 	usersByUsername map[string]StoredUser
 	usersByID       map[string]User
 	sessionsByHash  map[string]sessionWithUser
+	touchErr        error
+	expiredSweeps   int
 }
 
 type sessionWithUser struct {
@@ -110,6 +114,9 @@ func (s *repositoryStub) GetSessionByTokenHash(tokenHash string) (SessionRecord,
 }
 
 func (s *repositoryStub) TouchSession(sessionID string, seenAt time.Time) error {
+	if s.touchErr != nil {
+		return s.touchErr
+	}
 	for hash, value := range s.sessionsByHash {
 		if value.session.ID == sessionID {
 			value.session.LastSeenAt = seenAt
@@ -125,6 +132,47 @@ func (s *repositoryStub) RevokeSession(sessionID string, revokedAt time.Time) er
 			value.session.RevokedAt = &revokedAt
 			s.sessionsByHash[hash] = value
 		}
+	}
+	return nil
+}
+
+func (s *repositoryStub) DeleteExpiredSessions(now time.Time) error {
+	s.expiredSweeps++
+	for hash, value := range s.sessionsByHash {
+		if value.session.ExpiresAt.Before(now) {
+			delete(s.sessionsByHash, hash)
+		}
+	}
+	return nil
+}
+
+func (s *repositoryStub) TrimActiveSessions(userID string, keepNewest int, now time.Time) error {
+	if keepNewest < 0 {
+		keepNewest = 0
+	}
+	type candidate struct {
+		hash  string
+		entry sessionWithUser
+	}
+	candidates := []candidate{}
+	for hash, value := range s.sessionsByHash {
+		if value.session.UserID != userID {
+			continue
+		}
+		if value.session.RevokedAt != nil || !value.session.ExpiresAt.After(now) {
+			continue
+		}
+		candidates = append(candidates, candidate{hash: hash, entry: value})
+	}
+	for len(candidates) > keepNewest {
+		oldestIndex := 0
+		for index := range candidates {
+			if candidates[index].entry.session.LastSeenAt.Before(candidates[oldestIndex].entry.session.LastSeenAt) {
+				oldestIndex = index
+			}
+		}
+		delete(s.sessionsByHash, candidates[oldestIndex].hash)
+		candidates = append(candidates[:oldestIndex], candidates[oldestIndex+1:]...)
 	}
 	return nil
 }
@@ -206,4 +254,114 @@ func TestLoginAndLogoutWithNativeSessions(t *testing.T) {
 	if postLogout.Principal.Role != RoleAnonymous {
 		t.Fatalf("expected revoked session to resolve anonymous, got %#v", postLogout.Principal)
 	}
+}
+
+func TestLoginSupportsLegacyPasswordHashes(t *testing.T) {
+	repository := newRepositoryStub()
+	service, err := NewService("bootstrap-token", "", repository, time.Hour)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	salt := "legacy-salt"
+	user := User{
+		ID:          "user_legacy",
+		Username:    "legacy-user",
+		DisplayName: "Legacy User",
+		Role:        RoleViewer,
+		IsActive:    true,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	repository.usersByUsername[user.Username] = StoredUser{
+		User:         user,
+		PasswordSalt: salt,
+		PasswordHash: deriveLegacyPasswordHash("legacy-password", salt),
+	}
+	repository.usersByID[user.ID] = user
+
+	login, err := service.Login("legacy-user", "legacy-password")
+	if err != nil {
+		t.Fatalf("legacy login: %v", err)
+	}
+	if login.Token == "" {
+		t.Fatalf("expected token for legacy login")
+	}
+}
+
+func TestLoginRateLimitsRepeatedFailuresByClientKey(t *testing.T) {
+	repository := newRepositoryStub()
+	service, err := NewService("bootstrap-token", "", repository, time.Hour)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	for attempt := 0; attempt < defaultFailedLoginLimit; attempt++ {
+		_, err := service.LoginWithKey("10.0.0.1", "unknown", "bad-password")
+		if err == nil || err != ErrInvalidCredentials {
+			t.Fatalf("expected invalid credentials on attempt %d, got %v", attempt+1, err)
+		}
+	}
+	_, err = service.LoginWithKey("10.0.0.1", "unknown", "bad-password")
+	if err == nil || err == ErrInvalidCredentials || err.Error() == "" {
+		t.Fatalf("expected rate limit error, got %v", err)
+	}
+}
+
+func TestLoginTrimsActiveSessionsToMaximum(t *testing.T) {
+	repository := newRepositoryStub()
+	service, err := NewService("bootstrap-token", "", repository, time.Hour)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if _, err := service.CreateUser("operator", "Operator", RoleEditor, "secret-password"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	for attempt := 0; attempt < defaultMaxActiveSessions+2; attempt++ {
+		if _, err := service.LoginWithKey("10.0.0.2", "operator", "secret-password"); err != nil {
+			t.Fatalf("login attempt %d: %v", attempt+1, err)
+		}
+	}
+
+	active := 0
+	now := time.Now().UTC()
+	for _, value := range repository.sessionsByHash {
+		if value.user.Username == "operator" && value.session.RevokedAt == nil && value.session.ExpiresAt.After(now) {
+			active++
+		}
+	}
+	if active != defaultMaxActiveSessions {
+		t.Fatalf("expected %d active sessions, got %d", defaultMaxActiveSessions, active)
+	}
+}
+
+func TestNewServiceSweepsExpiredSessionsAtStartup(t *testing.T) {
+	repository := newRepositoryStub()
+	now := time.Now().UTC()
+	repository.sessionsByHash["expired"] = sessionWithUser{
+		session: SessionRecord{ID: "expired", UserID: "user_bootstrap_admin", TokenHash: "expired", ExpiresAt: now.Add(-time.Minute)},
+		user:    User{ID: "user_bootstrap_admin", Username: "bootstrap-admin", Role: RoleAdmin, IsActive: true},
+	}
+
+	if _, err := NewService("bootstrap-token", "", repository, time.Hour); err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if repository.expiredSweeps == 0 {
+		t.Fatalf("expected startup expired-session sweep")
+	}
+	if _, ok := repository.sessionsByHash["expired"]; ok {
+		t.Fatalf("expected expired session to be removed during startup sweep")
+	}
+}
+
+func deriveLegacyPasswordHash(password, salt string) string {
+	seed := []byte(salt + ":" + password)
+	sum := sha256.Sum256(seed)
+	current := sum[:]
+	for range 120000 {
+		next := sha256.Sum256(current)
+		current = next[:]
+	}
+	return hex.EncodeToString(current)
 }

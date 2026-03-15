@@ -40,9 +40,11 @@ func (h *ProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(err.Error(), "asset ") {
 			status = http.StatusNotFound
 		}
-		shared.WriteJSON(w, status, map[string]any{
-			"error": err.Error(),
-		})
+		message := "failed to generate asset profile"
+		if status == http.StatusNotFound {
+			message = "asset profile not found"
+		}
+		shared.WriteError(w, status, message, err)
 		return
 	}
 

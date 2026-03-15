@@ -1,0 +1,13 @@
+# This metric manifest defines a warehouse-level inventory net-change metric.
+id: metrics_inventory_net_change
+name: Inventory Net Change
+description: Measures the net inventory movement per warehouse over time.
+owner: platform-team
+dataset_ref: mart_inventory_monthly_summary
+time_dimension: month
+dimensions:
+  - month
+  - warehouse
+measures:
+  - net_quantity
+default_visualization: line

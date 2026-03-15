@@ -39,6 +39,9 @@ type Job struct {
 	Inputs       []string          `json:"inputs" yaml:"inputs"`
 	Outputs      []string          `json:"outputs" yaml:"outputs"`
 	Labels       map[string]string `json:"labels" yaml:"labels"`
+	Ingest       *IngestSpec       `json:"ingest,omitempty" yaml:"ingest,omitempty"`
+	Bootstrap    []BootstrapSpec   `json:"bootstrap,omitempty" yaml:"bootstrap,omitempty"`
+	MetricRefs   []string          `json:"metric_refs,omitempty" yaml:"metric_refs,omitempty"`
 	ExternalTool *ExternalToolSpec `json:"external_tool,omitempty" yaml:"external_tool,omitempty"`
 }
 
@@ -53,6 +56,24 @@ const (
 	JobTypePublishMetric JobType = "publish_metric"
 	JobTypeExternalTool  JobType = "external_tool"
 )
+
+// IngestSpec declares the physical source and landing target for an ingest
+// job. Paths stay explicit in the manifest so new domains do not require
+// runner code changes.
+type IngestSpec struct {
+	SourceRef    string `json:"source_ref" yaml:"source_ref"`
+	TargetPath   string `json:"target_path" yaml:"target_path"`
+	ArtifactPath string `json:"artifact_path,omitempty" yaml:"artifact_path,omitempty"`
+}
+
+// BootstrapSpec declares one SQL bootstrap step that loads a landed file into
+// DuckDB before a transform runs.
+type BootstrapSpec struct {
+	SQLRef      string `json:"sql_ref" yaml:"sql_ref"`
+	Placeholder string `json:"placeholder" yaml:"placeholder"`
+	SourcePath  string `json:"source_path" yaml:"source_path"`
+	Required    bool   `json:"required,omitempty" yaml:"required,omitempty"`
+}
 
 // ExternalToolSpec declares a bounded invocation of an optional repo-local
 // tool such as dbt. The worker remains the control plane and only delegates a

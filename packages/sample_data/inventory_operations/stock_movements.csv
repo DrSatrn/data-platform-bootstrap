@@ -1,0 +1,9 @@
+sku,movement_date,movement_type,warehouse,quantity,unit_cost
+sku_a,2026-02-01,receipt,brisbane,40,12.50
+sku_a,2026-02-05,sale,brisbane,-12,12.50
+sku_a,2026-03-03,receipt,brisbane,15,12.50
+sku_a,2026-03-08,sale,brisbane,-9,12.50
+sku_b,2026-02-02,receipt,sydney,25,8.10
+sku_b,2026-02-16,sale,sydney,-6,8.10
+sku_b,2026-03-10,sale,sydney,-4,8.10
+sku_b,2026-03-20,receipt,sydney,12,8.10

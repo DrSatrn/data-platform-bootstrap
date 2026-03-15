@@ -28,7 +28,7 @@ func NewMetricCatalogHandler(loader MetricLoader, service *Service) http.Handler
 func (h *MetricCatalogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	metrics, err := h.loader.LoadMetrics()
 	if err != nil {
-		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		shared.WriteError(w, http.StatusInternalServerError, "failed to load metrics registry", err)
 		return
 	}
 

@@ -35,9 +35,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.store.ListRecent(limit)
 	if err != nil {
-		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": err.Error(),
-		})
+		shared.WriteError(w, http.StatusInternalServerError, "failed to load audit events", err)
 		return
 	}
 	shared.WriteJSON(w, http.StatusOK, map[string]any{

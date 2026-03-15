@@ -6,7 +6,7 @@ This document explains how the platform is decomposed into bounded contexts and 
 
 - `platform-api`: serves control-plane, metadata, analytics, reporting, and health endpoints.
 - `platform-scheduler`: evaluates schedules, dependency readiness, and retry timing.
-- `platform-worker`: executes ingestion, transform, and quality jobs.
+- `platform-worker`: executes raw landing, external-tool, transform, metric publication, and quality jobs.
 - `platform-web`: renders the internal UI for operators and analysts.
 
 ## Backend Bounded Contexts
@@ -14,7 +14,7 @@ This document explains how the platform is decomposed into bounded contexts and 
 - `orchestration`: pipeline/job definitions, runs, state transitions, dependencies
 - `scheduler`: release timing and refresh loops
 - `execution`: worker execution contract and artifact handling
-- `ingestion`: connector logic for files and APIs
+- `externaltools`: bounded adapters and runners for optional dbt-style external tools
 - `transforms`: SQL and Python transform boundaries
 - `metadata`: datasets, columns, lineage, owners, freshness, docs metadata
 - `quality`: quality definitions and results

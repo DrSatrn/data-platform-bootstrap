@@ -11,4 +11,6 @@ Current runbooks include:
 - `localhost-e2e.md`
 - `benchmarking.md`
 - `backups.md`
+- `deployment.md`
 - `operator-manual.md`
+- `release-checklist.md`

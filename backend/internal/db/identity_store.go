@@ -312,3 +312,38 @@ func (s *IdentityStore) RevokeSession(sessionID string, revokedAt time.Time) err
 	}
 	return nil
 }
+
+func (s *IdentityStore) DeleteExpiredSessions(now time.Time) error {
+	_, err := s.conn.Exec(`delete from platform_sessions where expires_at < $1`, now)
+	if err != nil {
+		return fmt.Errorf("delete expired sessions: %w", err)
+	}
+	return nil
+}
+
+func (s *IdentityStore) TrimActiveSessions(userID string, keepNewest int, now time.Time) error {
+	if keepNewest < 0 {
+		keepNewest = 0
+	}
+	_, err := s.conn.Exec(`
+		with ranked as (
+			select
+				id,
+				row_number() over (
+					order by coalesce(last_seen_at, created_at) desc, created_at desc
+				) as session_rank
+			from platform_sessions
+			where user_id = $1
+			  and revoked_at is null
+			  and expires_at > $2
+		)
+		delete from platform_sessions
+		where id in (
+			select id from ranked where session_rank > $3
+		)
+	`, userID, now, keepNewest)
+	if err != nil {
+		return fmt.Errorf("trim active sessions for %s: %w", userID, err)
+	}
+	return nil
+}

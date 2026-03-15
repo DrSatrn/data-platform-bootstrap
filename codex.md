@@ -37,13 +37,12 @@ What has already been built
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
-	•	Normalize more control-plane metadata into first-class PostgreSQL tables beyond the current pragmatic snapshot and queue repositories.
-	•	Expand the analytical layer beyond the first finance slice with freshness surfaces, more than one transform/metric family, and richer report editing workflows.
-	•	Broaden scheduler coverage beyond the currently supported cron subset if future slices need ranges, named weekdays, or more advanced catchup semantics.
-	•	Deepen the benchmark suite so it covers scheduled-run latency, artifact retrieval, report save/update paths, and higher-load scenarios.
-	•	Evolve the lightweight RBAC layer into a fuller identity/auth model when the self-hosted product needs multi-user administration and stronger audit semantics.
-	•	Expand the audit trail from privileged actions into broader governance history, incident annotations, and richer recovery tooling.
+	•	Expand the analytical layer beyond the current finance slice instead of treating one domain as sufficient proof forever.
+	•	Broaden scheduler coverage only if future slices need cron features beyond the current supported subset.
+	•	Deepen benchmark coverage into longer-running or higher-load release evidence when the product footprint grows.
+	•	Evolve native identity and audit depth when the platform needs fuller user/team administration and richer governance history.
 	•	Broaden the PostgreSQL-backed metadata/control-plane model so more reads come from normalized repositories instead of opportunistic synchronization during request handling.
+	•	Keep the new deployment, backup, and release runbooks aligned with actual operator behavior as the product changes.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -54,13 +53,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Completed the frontend completion and wiring pass for the staged management modules.
-	•	The web app now exposes a real Management route that reuses the staged workbench, terminal, evidence, runbook, follow-up, and opsview modules against live platform data.
-	•	A new `/api/v1/opsview` API seam now exposes backend-owned operator snapshots so the frontend does not need to regroup external-tool evidence from raw run data.
-	•	The packaged smoke path now verifies the new opsview API seam.
+	•	Completed the release-ops documentation pass for v1 readiness.
+	•	Operator docs now call out the real restore state, the deleted `ingestion` stub no longer appears as a live bounded context, and on-prem deployment guidance now exists as a first-class runbook.
+	•	The repo now includes an explicit release checklist so backup, smoke, benchmark, and rollback discipline are documented instead of implied.
+	•	Full backend tests are green, and the external-tool timeout issue is no longer an open blocker.
 
 Next workstep to execute
-	•	The next work block should start with a deliberate review of the parallel dbt-runner work and then choose the next broader product slice.
+	•	The next work block should start from the reviewer release gate: final smoke verification, release note assembly, and tag discipline rather than more feature breadth.
 
 Session Close Handoff
 
@@ -145,11 +144,11 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The engineer review contract is complete.
-	•	The next agent should start with the concurrent dbt-runner changes and then choose between:
-		•	external-tool runner integration depth
-		•	broader connector and domain expansion
-		•	upgrade and release workflow hardening
+	•	The engineer review contract and release-ops pass are complete.
+	•	The next agent should start with the release gate evidence:
+		•	latest smoke and backup verification
+		•	release note assembly
+		•	tag and rollback discipline
 
 Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but richer sharing/export workflows and deeper report-level interactivity still remain.
@@ -209,21 +208,20 @@ Updated read these first
 	•	`docs/runbooks/benchmarking.md`
 
 Biggest remaining gaps from the v1 review
-	•	The frontend still needs real URL routing to feel like a production web
-	app.
 	•	Core frontend pages still need stronger test coverage and consolidation of
 	large page files.
 	•	`backend/internal/transforms/engine.go` needs stronger test coverage on the
 	DuckDB execution path.
-	•	CI/CD and release verification need to be trustworthy and automated.
-	•	UAT remains the final gate and should be executed only after Model 1 and
-	Model 2 completion is explicitly documented.
+	•	CI/CD should be treated as credible only when it has real run history, not
+	just a valid local workflow file.
+	•	The current product still proves one strong domain slice rather than a
+	broader multi-domain platform footprint.
 
 Current priority order
 	•	Keep coordination docs accurate.
 	•	Keep CI minimal and working.
-	•	Let Model 1 and Model 2 finish their bounded work without collisions.
-	•	Run full UAT only when both completion notes exist.
+	•	Keep operator runbooks aligned with the real release process.
+	•	Prefer release discipline over new surface-area growth.
 
 Non-negotiable engineering goals
 

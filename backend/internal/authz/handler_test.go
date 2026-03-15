@@ -53,6 +53,36 @@ func TestSessionHandlerLoginAndLogout(t *testing.T) {
 	}
 }
 
+func TestSessionHandlerReturnsTooManyRequestsWhenRateLimited(t *testing.T) {
+	repository := newRepositoryStub()
+	service, err := NewService("bootstrap-token", "", repository, time.Hour)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	handler := NewSessionHandler(service, audit.NewMemoryStore())
+
+	body, _ := json.Marshal(map[string]string{"username": "missing", "password": "wrong"})
+	for attempt := 0; attempt < defaultFailedLoginLimit; attempt++ {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/session", bytes.NewReader(body))
+		request.RemoteAddr = "10.10.0.9:1234"
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("expected unauthorized before rate limit, got %d", recorder.Code)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session", bytes.NewReader(body))
+	request.RemoteAddr = "10.10.0.9:1234"
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected rate-limited response, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestUserHandlerRequiresAdmin(t *testing.T) {
 	repository := newRepositoryStub()
 	service, err := NewService("bootstrap-token", "viewer-token:viewer:alice", repository, time.Hour)

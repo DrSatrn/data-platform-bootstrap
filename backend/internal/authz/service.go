@@ -11,11 +11,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Role identifies the effective permission level for a principal.
@@ -29,6 +33,20 @@ const (
 )
 
 const defaultSessionTTL = 24 * time.Hour
+
+const (
+	defaultBcryptCost        = 12
+	defaultFailedLoginLimit  = 5
+	defaultFailedLoginWindow = time.Minute
+	defaultMaxActiveSessions = 5
+)
+
+var (
+	ErrInvalidCredentials        = errors.New("invalid username or password")
+	ErrNativeIdentityUnavailable = errors.New("native identity store is unavailable")
+	ErrUsernamePasswordRequired  = errors.New("username and password are required")
+	ErrLoginRateLimited          = errors.New("too many failed login attempts")
+)
 
 // Principal is the resolved identity attached to one request.
 type Principal struct {
@@ -84,6 +102,8 @@ type Repository interface {
 	GetSessionByTokenHash(tokenHash string) (SessionRecord, User, bool, error)
 	TouchSession(sessionID string, seenAt time.Time) error
 	RevokeSession(sessionID string, revokedAt time.Time) error
+	DeleteExpiredSessions(now time.Time) error
+	TrimActiveSessions(userID string, keepNewest int, now time.Time) error
 }
 
 // Session summarizes the current request identity and product capabilities.
@@ -108,6 +128,9 @@ type Service struct {
 	legacyTokens   map[string]Principal
 	repository     Repository
 	sessionTTL     time.Duration
+	bcryptCost     int
+	loginLimiter   *loginRateLimiter
+	maxSessions    int
 }
 
 // NewService constructs the identity/session service.
@@ -121,6 +144,9 @@ func NewService(adminToken, accessTokens string, repository Repository, sessionT
 		legacyTokens:   map[string]Principal{},
 		repository:     repository,
 		sessionTTL:     sessionTTL,
+		bcryptCost:     configuredInt("PLATFORM_BCRYPT_COST", defaultBcryptCost),
+		loginLimiter:   newLoginRateLimiter(defaultFailedLoginLimit, defaultFailedLoginWindow),
+		maxSessions:    configuredInt("PLATFORM_MAX_ACTIVE_SESSIONS", defaultMaxActiveSessions),
 	}
 
 	if service.bootstrapToken != "" && repository != nil {
@@ -129,6 +155,11 @@ func NewService(adminToken, accessTokens string, repository Repository, sessionT
 			return nil, fmt.Errorf("ensure bootstrap user: %w", err)
 		}
 		service.bootstrapUser = bootstrapUser
+	}
+	if repository != nil {
+		if err := repository.DeleteExpiredSessions(time.Now().UTC()); err != nil {
+			slog.Default().Warn("failed to delete expired sessions during auth startup", slog.String("error", err.Error()))
+		}
 	}
 
 	if strings.TrimSpace(accessTokens) == "" {
@@ -185,7 +216,9 @@ func (s *Service) ResolveRequest(r *http.Request) Principal {
 	if session.RevokedAt != nil || !session.ExpiresAt.After(now) {
 		return anonymousPrincipal()
 	}
-	_ = s.repository.TouchSession(session.ID, now)
+	if err := s.repository.TouchSession(session.ID, now); err != nil {
+		slog.Default().Warn("failed to touch session", slog.String("session_id", session.ID), slog.String("error", err.Error()))
+	}
 	return Principal{
 		UserID:     user.ID,
 		Subject:    user.Username,
@@ -214,29 +247,49 @@ func (s *Service) SessionForRequest(r *http.Request) Session {
 // Login authenticates a username/password against the native identity store
 // and returns a bearer session token.
 func (s *Service) Login(username, password string) (LoginResult, error) {
+	return s.LoginWithKey("local", username, password)
+}
+
+// LoginWithKey authenticates a username/password and applies rate limiting
+// keyed by the caller's network identity.
+func (s *Service) LoginWithKey(clientKey, username, password string) (LoginResult, error) {
 	if s.repository == nil {
-		return LoginResult{}, fmt.Errorf("native identity store is unavailable; use the bootstrap admin token")
+		return LoginResult{}, fmt.Errorf("%w; use the bootstrap admin token", ErrNativeIdentityUnavailable)
 	}
 	username = strings.TrimSpace(username)
 	if username == "" || password == "" {
-		return LoginResult{}, fmt.Errorf("username and password are required")
+		return LoginResult{}, ErrUsernamePasswordRequired
+	}
+	now := time.Now().UTC()
+	if blocked, retryAfter := s.loginLimiter.Allow(clientKey, now); !blocked {
+		return LoginResult{}, fmt.Errorf("%w; retry after %s", ErrLoginRateLimited, retryAfter.Round(time.Second))
 	}
 	storedUser, ok, err := s.repository.GetUserByUsername(username)
 	if err != nil {
 		return LoginResult{}, err
 	}
 	if !ok || !storedUser.IsActive {
-		return LoginResult{}, errors.New("invalid username or password")
+		s.loginLimiter.RecordFailure(clientKey, now)
+		return LoginResult{}, ErrInvalidCredentials
 	}
 	if !verifyPassword(password, storedUser.PasswordSalt, storedUser.PasswordHash) {
-		return LoginResult{}, errors.New("invalid username or password")
+		s.loginLimiter.RecordFailure(clientKey, now)
+		return LoginResult{}, ErrInvalidCredentials
+	}
+	s.loginLimiter.Reset(clientKey)
+	if err := s.repository.DeleteExpiredSessions(now); err != nil {
+		slog.Default().Warn("failed to delete expired sessions before login", slog.String("error", err.Error()))
+	}
+	if s.maxSessions > 0 {
+		if err := s.repository.TrimActiveSessions(storedUser.ID, s.maxSessions-1, now); err != nil {
+			return LoginResult{}, err
+		}
 	}
 
 	token, err := randomToken()
 	if err != nil {
 		return LoginResult{}, err
 	}
-	now := time.Now().UTC()
 	record := SessionRecord{
 		ID:         "session_" + uuid.NewString(),
 		UserID:     storedUser.ID,
@@ -295,7 +348,7 @@ func (s *Service) ListUsers() ([]User, error) {
 // CreateUser creates a new native platform user.
 func (s *Service) CreateUser(username, displayName string, role Role, password string) (User, error) {
 	if s.repository == nil {
-		return User{}, fmt.Errorf("native identity store is unavailable")
+		return User{}, ErrNativeIdentityUnavailable
 	}
 	if strings.TrimSpace(username) == "" || strings.TrimSpace(displayName) == "" || password == "" {
 		return User{}, fmt.Errorf("username, display name, role, and password are required")
@@ -327,10 +380,10 @@ func (s *Service) CreateUser(username, displayName string, role Role, password s
 // ResetPassword rotates one user's password.
 func (s *Service) ResetPassword(username, password string) (User, error) {
 	if s.repository == nil {
-		return User{}, fmt.Errorf("native identity store is unavailable")
+		return User{}, ErrNativeIdentityUnavailable
 	}
 	if strings.TrimSpace(username) == "" || password == "" {
-		return User{}, fmt.Errorf("username and password are required")
+		return User{}, ErrUsernamePasswordRequired
 	}
 	passwordSalt, passwordHash, err := hashPassword(password)
 	if err != nil {
@@ -342,7 +395,7 @@ func (s *Service) ResetPassword(username, password string) (User, error) {
 // SetUserActive flips one user's active state.
 func (s *Service) SetUserActive(username string, active bool) (User, error) {
 	if s.repository == nil {
-		return User{}, fmt.Errorf("native identity store is unavailable")
+		return User{}, ErrNativeIdentityUnavailable
 	}
 	if strings.TrimSpace(username) == "" {
 		return User{}, fmt.Errorf("username is required")
@@ -432,16 +485,21 @@ func hashToken(token string) string {
 }
 
 func hashPassword(password string) (salt string, hashed string, err error) {
-	saltBytes := make([]byte, 16)
-	if _, err := rand.Read(saltBytes); err != nil {
-		return "", "", fmt.Errorf("generate password salt: %w", err)
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), configuredInt("PLATFORM_BCRYPT_COST", defaultBcryptCost))
+	if err != nil {
+		return "", "", fmt.Errorf("hash password with bcrypt: %w", err)
 	}
-	salt = hex.EncodeToString(saltBytes)
-	return salt, derivePasswordHash(password, salt), nil
+	return "", string(hashedBytes), nil
 }
 
 func verifyPassword(password, salt, expected string) bool {
-	if salt == "" || expected == "" {
+	if expected == "" {
+		return false
+	}
+	if isBcryptHash(expected) {
+		return bcrypt.CompareHashAndPassword([]byte(expected), []byte(password)) == nil
+	}
+	if salt == "" {
 		return false
 	}
 	actual := derivePasswordHash(password, salt)
@@ -457,4 +515,20 @@ func derivePasswordHash(password, salt string) string {
 		current = next[:]
 	}
 	return hex.EncodeToString(current)
+}
+
+func configuredInt(name string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func isBcryptHash(value string) bool {
+	return strings.HasPrefix(value, "$2a$") || strings.HasPrefix(value, "$2b$") || strings.HasPrefix(value, "$2y$")
 }

@@ -20,6 +20,10 @@ jobs:
     type: ingest
     retries: 2
     timeout: 2m
+    ingest:
+      source_ref: personal_finance/transactions.csv
+      target_path: raw/raw_transactions.csv
+      artifact_path: raw/raw_transactions.csv
     inputs:
       - sample.transactions_csv
     outputs:
@@ -31,6 +35,10 @@ jobs:
       - ingest_transactions_csv
     retries: 2
     timeout: 2m
+    ingest:
+      source_ref: personal_finance/account_balances.json
+      target_path: raw/raw_account_balances.json
+      artifact_path: raw/raw_account_balances.json
     inputs:
       - sample.account_balances_json
     outputs:
@@ -42,6 +50,10 @@ jobs:
       - ingest_account_balances_json
     retries: 1
     timeout: 1m
+    ingest:
+      source_ref: personal_finance/budget_rules.json
+      target_path: raw/raw_budget_rules.json
+      artifact_path: raw/raw_budget_rules.json
     inputs:
       - sample.budget_rules_json
     outputs:
@@ -54,6 +66,19 @@ jobs:
     retries: 1
     timeout: 3m
     transform_ref: transform.monthly_cashflow
+    bootstrap:
+      - sql_ref: bootstrap.raw_transactions
+        placeholder: RAW_TRANSACTIONS_PATH
+        source_path: raw/raw_transactions.csv
+        required: true
+      - sql_ref: bootstrap.raw_account_balances
+        placeholder: RAW_ACCOUNT_BALANCES_PATH
+        source_path: raw/raw_account_balances.json
+        required: true
+      - sql_ref: bootstrap.raw_budget_rules
+        placeholder: RAW_BUDGET_RULES_PATH
+        source_path: raw/raw_budget_rules.json
+        required: true
     inputs:
       - raw_transactions
       - raw_account_balances
@@ -79,6 +104,11 @@ jobs:
     retries: 1
     timeout: 2m
     transform_ref: transform.intermediate_category_monthly_rollup
+    bootstrap:
+      - sql_ref: bootstrap.staging_transactions_enriched
+        placeholder: STAGING_TRANSACTIONS_ENRICHED_PATH
+        source_path: staging/staging_transactions_enriched.json
+        required: true
     inputs:
       - staging_transactions_enriched
     outputs:
@@ -127,6 +157,9 @@ jobs:
       - check_uncategorized_transactions
     retries: 1
     timeout: 1m
+    metric_refs:
+      - metrics_savings_rate
+      - metrics_category_variance
     inputs:
       - mart_monthly_cashflow
       - mart_budget_vs_actual

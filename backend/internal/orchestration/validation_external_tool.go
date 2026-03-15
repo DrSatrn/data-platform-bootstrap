@@ -6,11 +6,7 @@ import (
 	"strings"
 )
 
-func validateJob(job Job) error {
-	if job.Type != JobTypeExternalTool {
-		return nil
-	}
-
+func validateExternalToolJob(job Job) error {
 	spec := job.ExternalTool
 	if spec == nil {
 		return fmt.Errorf("external_tool jobs must declare an external_tool block")

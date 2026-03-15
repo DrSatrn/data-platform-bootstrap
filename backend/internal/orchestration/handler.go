@@ -92,9 +92,7 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 			Resource:     "unknown",
 			Outcome:      "forbidden",
 		})
-		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
-			"error": "editor role required to trigger pipelines",
-		})
+		shared.WriteRoleError(w, string(authz.RoleEditor), string(principal.Role))
 		return
 	}
 
@@ -122,9 +120,7 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 			},
 		})
 		h.logger.Error("failed to trigger pipeline", slog.String("error", err.Error()))
-		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
-			"error": err.Error(),
-		})
+		shared.WriteError(w, http.StatusBadRequest, "failed to trigger pipeline", err)
 		return
 	}
 	_ = h.audit.Append(audit.Event{

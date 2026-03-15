@@ -94,9 +94,7 @@ func (h *CatalogHandler) servePatch(w http.ResponseWriter, r *http.Request) {
 			Resource:     "unknown",
 			Outcome:      "forbidden",
 		})
-		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
-			"error": "editor role required to update metadata annotations",
-		})
+		shared.WriteRoleError(w, string(authz.RoleEditor), string(principal.Role))
 		return
 	}
 
@@ -120,17 +118,13 @@ func (h *CatalogHandler) servePatch(w http.ResponseWriter, r *http.Request) {
 				"error": err.Error(),
 			},
 		})
-		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
-			"error": err.Error(),
-		})
+		shared.WriteError(w, http.StatusBadRequest, "failed to update metadata annotations", err)
 		return
 	}
 
 	assets, err := h.assetsForResponse()
 	if err != nil {
-		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": "failed to reload assets after update",
-		})
+		shared.WriteError(w, http.StatusInternalServerError, "failed to reload assets after update", err)
 		return
 	}
 	enriched := h.enrichedAssets(assets)

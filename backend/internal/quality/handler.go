@@ -22,9 +22,7 @@ func NewHandler(service *Service) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	checks, err := h.service.ListStatuses()
 	if err != nil {
-		shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": err.Error(),
-		})
+		shared.WriteError(w, http.StatusInternalServerError, "failed to load quality checks", err)
 		return
 	}
 

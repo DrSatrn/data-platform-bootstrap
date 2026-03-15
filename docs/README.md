@@ -17,6 +17,8 @@ on what you are trying to do.
   A compatibility pointer that sends you to the real host-run guide.
 - [config-reality.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/config-reality.md)
   Understand which env files and defaults apply in each runtime mode.
+- [deployment.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/deployment.md)
+  Deploy the platform for a small on-prem team.
 
 ## I Want To Understand How The Platform Works
 
@@ -46,8 +48,12 @@ on what you are trying to do.
 
 - [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
   Main operator handbook.
+- [deployment.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/deployment.md)
+  On-prem deployment and capacity guidance.
 - [access-matrix.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/access-matrix.md)
   Which role should be able to do what.
+- [release-checklist.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/release-checklist.md)
+  Pre-release, post-release, and rollback discipline.
 - [optional-external-tools.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/optional-external-tools.md)
   How dbt-style external tools fit into the platform.
 - [external-tool-troubleshooting.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/external-tool-troubleshooting.md)

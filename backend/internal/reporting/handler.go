@@ -29,9 +29,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		dashboards, err := h.store.ListDashboards()
 		if err != nil {
-			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-				"error": err.Error(),
-			})
+			shared.WriteError(w, http.StatusInternalServerError, "failed to load dashboards", err)
 			return
 		}
 		shared.WriteJSON(w, http.StatusOK, map[string]any{
@@ -48,9 +46,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Resource:     "unknown",
 				Outcome:      "forbidden",
 			})
-			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
-				"error": "editor role required to save dashboards",
-			})
+			shared.WriteRoleError(w, string(authz.RoleEditor), string(principal.Role))
 			return
 		}
 		var dashboard Dashboard
@@ -72,9 +68,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"error": err.Error(),
 				},
 			})
-			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
-				"error": err.Error(),
-			})
+			shared.WriteError(w, http.StatusBadRequest, "failed to save dashboard", err)
 			return
 		}
 		_ = h.audit.Append(audit.Event{
@@ -99,9 +93,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Resource:     "unknown",
 				Outcome:      "forbidden",
 			})
-			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
-				"error": "editor role required to delete dashboards",
-			})
+			shared.WriteRoleError(w, string(authz.RoleEditor), string(principal.Role))
 			return
 		}
 		dashboardID := r.URL.Query().Get("id")
@@ -123,9 +115,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"error": err.Error(),
 				},
 			})
-			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-				"error": err.Error(),
-			})
+			shared.WriteError(w, http.StatusInternalServerError, "failed to delete dashboard", err)
 			return
 		}
 		_ = h.audit.Append(audit.Event{

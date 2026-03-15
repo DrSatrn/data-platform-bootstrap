@@ -7,6 +7,7 @@ go 1.24.0
 require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/marcboeker/go-duckdb v1.8.5
+	golang.org/x/crypto v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -27,7 +28,7 @@ require (
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

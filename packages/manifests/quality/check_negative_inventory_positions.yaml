@@ -1,0 +1,11 @@
+# This quality manifest flags inventory positions that end a month below zero.
+id: check_negative_inventory_positions
+name: Negative Inventory Positions
+description: Ensures the curated inventory mart does not report negative closing stock.
+severity: high
+asset_ref: mart_inventory_monthly_summary
+type: threshold
+column_ref: closing_quantity
+threshold:
+  operator: lte
+  value: 0

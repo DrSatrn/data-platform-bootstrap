@@ -1,0 +1,40 @@
+# This asset manifest defines the raw stock movement landing dataset for the
+# inventory-operations sample domain.
+id: raw_stock_movements
+name: Raw Stock Movements
+layer: raw
+description: Landing table for stock movement events imported from CSV sources.
+owner: platform-team
+kind: table
+source_refs:
+  - sample.inventory_stock_movements_csv
+documentation_refs:
+  - doc.raw_stock_movements
+freshness:
+  expected_within: 6h
+  warn_after: 12h
+columns:
+  - name: sku
+    type: text
+    description: Stable stock keeping unit identifier.
+    is_pii: false
+  - name: movement_date
+    type: date
+    description: Calendar day when the movement posted.
+    is_pii: false
+  - name: movement_type
+    type: text
+    description: Event type such as receipt or sale.
+    is_pii: false
+  - name: warehouse
+    type: text
+    description: Logical warehouse location.
+    is_pii: false
+  - name: quantity
+    type: integer
+    description: Signed inventory quantity change.
+    is_pii: false
+  - name: unit_cost
+    type: decimal
+    description: Unit cost used for valuation-oriented follow-on analysis.
+    is_pii: false

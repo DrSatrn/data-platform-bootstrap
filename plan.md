@@ -20,18 +20,17 @@ Ship a credible self-hosted v1 of the Data Platform.
 
 ### Model 3
 
-- keep coordination docs current
-- add CI/CD workflow coverage
-- update project handoff docs
-- run and document UAT after Models 1 and 2 are complete
+- keep coordination and operator docs current
+- maintain the release-readiness runbooks and handoff docs
+- keep CI minimal, credible, and green
+- record UAT and release-gate evidence clearly
 
 ## Immediate Priorities
 
 1. remove stale coordination history from `guide-wire.md`
-2. align `plan.md` and `codex.md` to the v1 review
-3. establish CI for backend tests, manifest validation, frontend build, and
-   frontend tests
-4. defer UAT until completion notes from Models 1 and 2 exist
+2. align `plan.md` and `codex.md` to the current verified release state
+3. keep deployment, backup, and release docs synchronized with the codebase
+4. preserve a clean reviewer handoff for the release tag
 
 ## v1 Release Criteria
 
@@ -49,13 +48,13 @@ The release is credible when:
 ## Current Risks
 
 - reviewer-controlled chokepoints (`runtime.go`, `App.tsx`, Compose, Makefile`)
-- unverified completion claims from parallel work until completion notes exist
 - DuckDB CGO complexity in CI
-- frontend polish and coverage gaps remain the most visible v1 risk
+- residual product depth gaps beyond the first finance slice
+- release discipline drifting away from the actual repo state
 
 ## Next Release-Manager Actions
 
 1. keep docs synchronized with actual repo state
 2. keep CI green and minimal
-3. document UAT deferral or results clearly
+3. maintain deployment and release runbooks as first-class operator docs
 4. leave a clean completion report for the merge pass

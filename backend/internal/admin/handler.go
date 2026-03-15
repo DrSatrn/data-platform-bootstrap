@@ -53,9 +53,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Resource:     "terminal",
 			Outcome:      "forbidden",
 		})
-		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
-			"error": "admin role required for terminal access",
-		})
+		shared.WriteRoleError(w, string(authz.RoleAdmin), string(principal.Role))
 		return
 	}
 

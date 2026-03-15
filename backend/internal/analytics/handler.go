@@ -59,12 +59,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
+		message := "failed to query analytics"
 		if isClientAnalyticsError(err) {
 			status = http.StatusBadRequest
+			message = sanitizeAnalyticsError(err)
 		}
-		shared.WriteJSON(w, status, map[string]any{
-			"error": err.Error(),
-		})
+		shared.WriteError(w, status, message, err)
 		return
 	}
 
@@ -79,4 +79,18 @@ func isClientAnalyticsError(err error) bool {
 	return strings.Contains(message, "unknown curated dataset") ||
 		strings.Contains(message, "unknown metric") ||
 		strings.Contains(message, "group_by")
+}
+
+func sanitizeAnalyticsError(err error) string {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "unknown curated dataset"):
+		return "unknown curated dataset"
+	case strings.Contains(message, "unknown metric"):
+		return "unknown metric"
+	case strings.Contains(message, "group_by"):
+		return "unsupported group_by for this dataset"
+	default:
+		return "invalid analytics request"
+	}
 }

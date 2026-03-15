@@ -31,7 +31,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if relativePath == "" {
 			artifacts, err := h.service.ListRunArtifacts(runID)
 			if err != nil {
-				shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+				shared.WriteError(w, http.StatusInternalServerError, "failed to list run artifacts", err)
 				return
 			}
 			shared.WriteJSON(w, http.StatusOK, map[string]any{"artifacts": artifacts})
@@ -40,7 +40,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		bytes, err := h.service.ReadRunArtifact(runID, relativePath)
 		if err != nil {
-			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			shared.WriteError(w, http.StatusBadRequest, "failed to read run artifact", err)
 			return
 		}
 		w.Header().Set("Content-Type", detectContentType(relativePath))

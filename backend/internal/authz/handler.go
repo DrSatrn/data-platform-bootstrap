@@ -6,6 +6,7 @@ package authz
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/streanor/data-platform/backend/internal/audit"
@@ -52,7 +53,7 @@ func (h *SessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid login payload"})
 			return
 		}
-		result, err := h.service.Login(payload.Username, payload.Password)
+		result, err := h.service.LoginWithKey(loginRateLimitKey(r), payload.Username, payload.Password)
 		if err != nil {
 			_ = h.audit.Append(audit.Event{
 				ActorSubject: payload.Username,
@@ -60,9 +61,18 @@ func (h *SessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Action:       "session_login",
 				Resource:     payload.Username,
 				Outcome:      "failure",
-				Details:      map[string]any{"reason": err.Error()},
+				Details:      map[string]any{"reason": sanitizedAuthMessage(err)},
 			})
-			shared.WriteJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+			switch {
+			case errors.Is(err, ErrLoginRateLimited):
+				shared.WriteError(w, http.StatusTooManyRequests, "too many failed login attempts; try again later", err)
+			case errors.Is(err, ErrInvalidCredentials), errors.Is(err, ErrUsernamePasswordRequired):
+				shared.WriteError(w, http.StatusUnauthorized, sanitizedAuthMessage(err), err)
+			case errors.Is(err, ErrNativeIdentityUnavailable):
+				shared.WriteError(w, http.StatusServiceUnavailable, "native identity is unavailable; use the bootstrap admin token", err)
+			default:
+				shared.WriteError(w, http.StatusInternalServerError, "login failed", err)
+			}
 			return
 		}
 		_ = h.audit.Append(audit.Event{
@@ -78,7 +88,7 @@ func (h *SessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		principal := h.service.ResolveRequest(r)
 		if err := h.service.Logout(r); err != nil {
-			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			shared.WriteError(w, http.StatusInternalServerError, "logout failed", err)
 			return
 		}
 		_ = h.audit.Append(audit.Event{
@@ -110,7 +120,7 @@ func NewUserHandler(service *Service, auditStore audit.Store) http.Handler {
 func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	principal := h.service.ResolveRequest(r)
 	if !Allowed(principal, RoleAdmin) {
-		shared.WriteJSON(w, http.StatusForbidden, map[string]any{"error": "admin role required"})
+		shared.WriteRoleError(w, string(RoleAdmin), string(principal.Role))
 		return
 	}
 
@@ -118,7 +128,7 @@ func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		users, err := h.service.ListUsers()
 		if err != nil {
-			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			shared.WriteError(w, http.StatusInternalServerError, "failed to load users", err)
 			return
 		}
 		shared.WriteJSON(w, http.StatusOK, map[string]any{"users": users})
@@ -130,12 +140,12 @@ func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		role, err := parseRole(payload.Role)
 		if err != nil {
-			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			shared.WriteError(w, http.StatusBadRequest, "invalid user role", err)
 			return
 		}
 		user, err := h.service.CreateUser(payload.Username, payload.DisplayName, role, payload.Password)
 		if err != nil {
-			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			shared.WriteError(w, statusForUserMutation(err), sanitizedUserMutationMessage(err), err)
 			return
 		}
 		_ = h.audit.Append(audit.Event{
@@ -157,7 +167,7 @@ func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "reset_password":
 			user, err := h.service.ResetPassword(payload.Username, payload.Password)
 			if err != nil {
-				shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+				shared.WriteError(w, statusForUserMutation(err), sanitizedUserMutationMessage(err), err)
 				return
 			}
 			_ = h.audit.Append(audit.Event{
@@ -176,7 +186,7 @@ func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			user, err := h.service.SetUserActive(payload.Username, *payload.Active)
 			if err != nil {
-				shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+				shared.WriteError(w, statusForUserMutation(err), sanitizedUserMutationMessage(err), err)
 				return
 			}
 			_ = h.audit.Append(audit.Event{
@@ -194,5 +204,38 @@ func (h *UserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		shared.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
+	}
+}
+
+func sanitizedAuthMessage(err error) string {
+	switch {
+	case errors.Is(err, ErrInvalidCredentials):
+		return "invalid username or password"
+	case errors.Is(err, ErrUsernamePasswordRequired):
+		return "username and password are required"
+	case errors.Is(err, ErrLoginRateLimited):
+		return "too many failed login attempts; try again later"
+	case errors.Is(err, ErrNativeIdentityUnavailable):
+		return "native identity is unavailable; use the bootstrap admin token"
+	default:
+		return "authentication failed"
+	}
+}
+
+func statusForUserMutation(err error) int {
+	if errors.Is(err, ErrNativeIdentityUnavailable) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusBadRequest
+}
+
+func sanitizedUserMutationMessage(err error) string {
+	switch {
+	case errors.Is(err, ErrNativeIdentityUnavailable):
+		return "native identity store is unavailable"
+	case errors.Is(err, ErrUsernamePasswordRequired):
+		return "username and password are required"
+	default:
+		return "user update request is invalid"
 	}
 }

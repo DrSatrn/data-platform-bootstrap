@@ -1,0 +1,70 @@
+# This manifest defines a second runnable domain slice so the platform proves
+# it generalizes beyond personal finance.
+id: inventory_operations_pipeline
+name: Inventory Operations Pipeline
+description: Ingests stock movement data and publishes curated inventory metrics.
+owner: platform-team
+tags:
+  - inventory
+  - v2
+schedule:
+  cron: "15 */6 * * *"
+  timezone: Australia/Brisbane
+  catchup: false
+  is_paused: false
+  description: Refresh the curated inventory views every six hours.
+jobs:
+  - id: ingest_stock_movements_csv
+    name: Ingest Stock Movements CSV
+    type: ingest
+    retries: 2
+    timeout: 2m
+    ingest:
+      source_ref: inventory_operations/stock_movements.csv
+      target_path: raw/raw_stock_movements.csv
+      artifact_path: raw/raw_stock_movements.csv
+    inputs:
+      - sample.inventory_stock_movements_csv
+    outputs:
+      - raw_stock_movements
+  - id: build_inventory_monthly_summary_mart
+    name: Build Inventory Monthly Summary Mart
+    type: transform_sql
+    depends_on:
+      - ingest_stock_movements_csv
+    retries: 1
+    timeout: 2m
+    transform_ref: transform.inventory_monthly_summary
+    bootstrap:
+      - sql_ref: bootstrap.raw_stock_movements
+        placeholder: RAW_STOCK_MOVEMENTS_PATH
+        source_path: raw/raw_stock_movements.csv
+        required: true
+    inputs:
+      - raw_stock_movements
+    outputs:
+      - mart_inventory_monthly_summary
+  - id: check_negative_inventory_positions
+    name: Check Negative Inventory Positions
+    type: quality_check
+    depends_on:
+      - build_inventory_monthly_summary_mart
+    retries: 0
+    timeout: 1m
+    inputs:
+      - mart_inventory_monthly_summary
+    outputs:
+      - quality_negative_inventory_positions
+  - id: publish_inventory_metrics
+    name: Publish Inventory Metrics
+    type: publish_metric
+    depends_on:
+      - check_negative_inventory_positions
+    retries: 1
+    timeout: 1m
+    metric_refs:
+      - metrics_inventory_net_change
+    inputs:
+      - mart_inventory_monthly_summary
+    outputs:
+      - metrics_inventory_net_change

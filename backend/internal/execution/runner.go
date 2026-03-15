@@ -144,7 +144,7 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 	case orchestration.JobTypeIngest:
 		err = r.runIngest(run.ID, job)
 	case orchestration.JobTypeTransformSQL:
-		err = r.runMonthlyCashflowTransform(run.ID, job)
+		err = r.runSQLTransform(run.ID, job)
 	case orchestration.JobTypeTransformPy:
 		err = r.runPythonTransform(ctx, run.ID, run.PipelineID, job)
 	case orchestration.JobTypeQualityCheck:
@@ -175,36 +175,36 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 }
 
 func (r *Runner) runIngest(runID string, job orchestration.Job) error {
-	switch job.ID {
-	case "ingest_transactions_csv":
-		return r.copySampleFile(runID, "personal_finance/transactions.csv", filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"), "raw/raw_transactions.csv")
-	case "ingest_account_balances_json":
-		return r.copySampleFile(runID, "personal_finance/account_balances.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"), "raw/raw_account_balances.json")
-	case "ingest_budget_rules_json":
-		return r.copySampleFile(runID, "personal_finance/budget_rules.json", filepath.Join(r.cfg.DataRoot, "raw", "raw_budget_rules.json"), "raw/raw_budget_rules.json")
-	default:
-		return fmt.Errorf("unknown ingest job %s", job.ID)
+	if job.Ingest == nil {
+		return fmt.Errorf("ingest job %s is missing an ingest block", job.ID)
 	}
+	return r.copySampleFile(
+		runID,
+		job.Ingest.SourceRef,
+		filepath.Join(r.cfg.DataRoot, filepath.FromSlash(job.Ingest.TargetPath)),
+		artifactPathOrDefault(job.Ingest.ArtifactPath, job.Ingest.TargetPath),
+	)
 }
 
-func (r *Runner) runMonthlyCashflowTransform(runID string, job orchestration.Job) error {
-	if err := r.sql.MaterializeRawTables(
-		filepath.Join(r.cfg.DataRoot, "raw", "raw_transactions.csv"),
-		filepath.Join(r.cfg.DataRoot, "raw", "raw_account_balances.json"),
-		filepath.Join(r.cfg.DataRoot, "raw", "raw_budget_rules.json"),
-	); err != nil {
-		return fmt.Errorf("materialize raw duckdb tables: %w", err)
-	}
-	stagingPath := filepath.Join(r.cfg.DataRoot, "staging", "staging_transactions_enriched.json")
-	if _, err := os.Stat(stagingPath); err == nil {
-		if err := r.sql.MaterializeStagingTransactions(stagingPath); err != nil {
-			return fmt.Errorf("materialize staging duckdb table: %w", err)
+func (r *Runner) runSQLTransform(runID string, job orchestration.Job) error {
+	for _, bootstrap := range job.Bootstrap {
+		sourcePath := filepath.Join(r.cfg.DataRoot, filepath.FromSlash(bootstrap.SourcePath))
+		if _, err := os.Stat(sourcePath); err != nil {
+			if os.IsNotExist(err) && !bootstrap.Required {
+				continue
+			}
+			return fmt.Errorf("bootstrap source %s: %w", bootstrap.SourcePath, err)
+		}
+		if err := r.sql.ExecFile(sqlPathFromRef(bootstrap.SQLRef), map[string]string{
+			bootstrap.Placeholder: quotedSQLString(sourcePath),
+		}); err != nil {
+			return fmt.Errorf("bootstrap %s: %w", bootstrap.SQLRef, err)
 		}
 	}
 	if err := r.sql.RunTransform(job.TransformRef); err != nil {
 		return err
 	}
-	return r.writeTransformArtifact(runID, job.TransformRef)
+	return r.writeTransformArtifacts(runID, job.Outputs)
 }
 
 func (r *Runner) runPythonTransform(ctx context.Context, runID, pipelineID string, job orchestration.Job) error {
@@ -265,7 +265,7 @@ func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
 }
 
 func (r *Runner) runMetricsPublish(runID string, job orchestration.Job) error {
-	metricIDs := []string{"metrics_savings_rate", "metrics_category_variance"}
+	metricIDs := metricRefsForJob(job)
 	for _, metricID := range metricIDs {
 		if err := r.sql.RunMetric(metricID); err != nil {
 			return err
@@ -407,77 +407,32 @@ func qualityStatus(count int) string {
 	return "warning"
 }
 
-func (r *Runner) writeTransformArtifact(runID, transformRef string) error {
-	var (
-		query        string
-		targetPath   string
-		artifactPath string
-	)
-
-	switch transformRef {
-	case "transform.monthly_cashflow":
-		query = `
-			select month, income, expenses, savings_rate
-			from mart_monthly_cashflow
-			order by month
-		`
-		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_monthly_cashflow.json")
-		artifactPath = "mart/mart_monthly_cashflow.json"
-	case "transform.category_spend":
-		query = `
-			select month, category, actual_spend
-			from mart_category_spend
-			order by month, category
-		`
-		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_category_spend.json")
-		artifactPath = "mart/mart_category_spend.json"
-	case "transform.intermediate_category_monthly_rollup":
-		query = `
-			select month, category, category_group, expense_total, transaction_count
-			from intermediate_category_monthly_rollup
-			order by month, category
-		`
-		targetPath = filepath.Join(r.cfg.DataRoot, "intermediate", "intermediate_category_monthly_rollup.json")
-		artifactPath = "intermediate/intermediate_category_monthly_rollup.json"
-	case "transform.budget_vs_actual":
-		query = `
-			select month, category, budget_amount, actual_spend, variance_amount
-			from mart_budget_vs_actual
-			order by month, category
-		`
-		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_budget_vs_actual.json")
-		artifactPath = "mart/mart_budget_vs_actual.json"
-	default:
-		return fmt.Errorf("unsupported transform reference %s", transformRef)
+func (r *Runner) writeTransformArtifacts(runID string, outputs []string) error {
+	for _, output := range outputs {
+		if !isSQLIdentifier(output) {
+			return fmt.Errorf("unsupported transform output identifier %q", output)
+		}
+		targetPath, artifactPath, err := dataArtifactLocation(output)
+		if err != nil {
+			return err
+		}
+		rowsOut, err := r.sql.QueryRows(fmt.Sprintf("select * from %s", output))
+		if err != nil {
+			return fmt.Errorf("query transform output for %s: %w", output, err)
+		}
+		if err := r.writeJSONArtifact(runID, filepath.Join(r.cfg.DataRoot, filepath.FromSlash(targetPath)), artifactPath, rowsOut); err != nil {
+			return err
+		}
 	}
-
-	rowsOut, err := r.sql.QueryRows(query)
-	if err != nil {
-		return fmt.Errorf("query transform output for %s: %w", transformRef, err)
-	}
-	return r.writeJSONArtifact(runID, targetPath, artifactPath, rowsOut)
+	return nil
 }
 
 func (r *Runner) writeMetricArtifact(runID, metricID string) error {
-	var query string
-	switch metricID {
-	case "metrics_savings_rate":
-		query = `
-			select month, savings_rate
-			from metrics_savings_rate
-			order by month
-		`
-	case "metrics_category_variance":
-		query = `
-			select month, category, variance_amount
-			from metrics_category_variance
-			order by month, category
-		`
-	default:
+	if !isSQLIdentifier(metricID) {
 		return fmt.Errorf("unsupported metric %s", metricID)
 	}
 
-	rows, err := r.sql.QueryRows(query)
+	rows, err := r.sql.QueryRows(fmt.Sprintf("select * from %s", metricID))
 	if err != nil {
 		return fmt.Errorf("query metric rows for %s: %w", metricID, err)
 	}
@@ -558,7 +513,83 @@ func latestValue(row map[string]any) any {
 	if value, present := row["variance_amount"]; present {
 		return value
 	}
+	if value, present := row["net_quantity"]; present {
+		return value
+	}
+	for key, value := range row {
+		switch key {
+		case "month", "category", "warehouse", "sku":
+			continue
+		default:
+			return value
+		}
+	}
 	return nil
+}
+
+func artifactPathOrDefault(value, fallback string) string {
+	if strings.TrimSpace(value) != "" {
+		return filepath.ToSlash(filepath.Clean(value))
+	}
+	return filepath.ToSlash(filepath.Clean(fallback))
+}
+
+func metricRefsForJob(job orchestration.Job) []string {
+	if len(job.MetricRefs) > 0 {
+		return append([]string{}, job.MetricRefs...)
+	}
+	if len(job.Outputs) > 0 {
+		metricRefs := make([]string, 0, len(job.Outputs))
+		for _, output := range job.Outputs {
+			if strings.HasPrefix(output, "metrics_") {
+				metricRefs = append(metricRefs, output)
+			}
+		}
+		if len(metricRefs) > 0 {
+			return metricRefs
+		}
+	}
+	return []string{"metrics_savings_rate", "metrics_category_variance"}
+}
+
+func sqlPathFromRef(ref string) string {
+	name := strings.TrimPrefix(strings.TrimSpace(ref), "bootstrap.")
+	return filepath.Join("bootstrap", name+".sql")
+}
+
+func dataArtifactLocation(output string) (string, string, error) {
+	switch {
+	case strings.HasPrefix(output, "raw_"):
+		return filepath.ToSlash(filepath.Join("raw", output+".json")), filepath.ToSlash(filepath.Join("raw", output+".json")), nil
+	case strings.HasPrefix(output, "staging_"):
+		return filepath.ToSlash(filepath.Join("staging", output+".json")), filepath.ToSlash(filepath.Join("staging", output+".json")), nil
+	case strings.HasPrefix(output, "intermediate_"):
+		return filepath.ToSlash(filepath.Join("intermediate", output+".json")), filepath.ToSlash(filepath.Join("intermediate", output+".json")), nil
+	case strings.HasPrefix(output, "mart_"):
+		return filepath.ToSlash(filepath.Join("mart", output+".json")), filepath.ToSlash(filepath.Join("mart", output+".json")), nil
+	default:
+		return "", "", fmt.Errorf("unsupported transform output %q", output)
+	}
+}
+
+func isSQLIdentifier(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for index, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9' && index > 0) || (r == '_' && index > 0) {
+			continue
+		}
+		if index == 0 && r >= 'a' && r <= 'z' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func quotedSQLString(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func repoRootFromManifestRoot(manifestRoot string) string {

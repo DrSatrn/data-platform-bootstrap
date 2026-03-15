@@ -1,0 +1,50 @@
+# This asset manifest defines the curated inventory mart for the second domain
+# slice.
+id: mart_inventory_monthly_summary
+name: Inventory Monthly Summary
+layer: mart
+description: Curated monthly inventory movement summary by SKU and warehouse.
+owner: platform-team
+kind: table
+source_refs:
+  - raw_stock_movements
+quality_check_refs:
+  - check_negative_inventory_positions
+documentation_refs:
+  - doc.mart_inventory_monthly_summary
+freshness:
+  expected_within: 6h
+  warn_after: 12h
+columns:
+  - name: month
+    type: text
+    description: Calendar month in YYYY-MM format.
+    is_pii: false
+  - name: sku
+    type: text
+    description: Stable stock keeping unit identifier.
+    is_pii: false
+  - name: warehouse
+    type: text
+    description: Logical warehouse location.
+    is_pii: false
+  - name: receipts
+    type: integer
+    description: Total received quantity in the month.
+    is_pii: false
+  - name: issues
+    type: integer
+    description: Total shipped or consumed quantity in the month.
+    is_pii: false
+  - name: net_quantity
+    type: integer
+    description: Signed net quantity change in the month.
+    is_pii: false
+  - name: closing_quantity
+    type: integer
+    description: Running closing quantity after the month completes.
+    is_pii: false
+  - name: movement_count
+    type: integer
+    description: Number of movement events contributing to the month.
+    is_pii: false

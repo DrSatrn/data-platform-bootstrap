@@ -11,7 +11,8 @@ If you are new to the repo, read in this order:
 1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
 2. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
 3. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
-4. this document
+4. [deployment.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/deployment.md)
+5. this document
 
 ## Tooling Prerequisites
 
@@ -365,13 +366,14 @@ Dataset profiling issues:
 
 Be explicit about current limits:
 
-- restore automation is not implemented yet
 - scheduler semantics are not a full cron engine
 - native identity now lives in PostgreSQL-backed users and sessions, but the
   bootstrap admin token is still the recovery path when PostgreSQL is absent
 - the platform proves one strong domain slice, not many
 - reporting UX is real but not yet fully polished
-- restore automation is still not built on top of the backup bundle format
+- restore is implemented through the backup bundle format, but richer normalized
+  relational recovery beyond the current snapshot/projection tables is still
+  intentionally unfinished
 
 That means this repo is already a strong self-hosted platform build, but it
 still needs more product and operational depth before it should be called
