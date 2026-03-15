@@ -1,162 +1,170 @@
-# Model 2 Prompt — Frontend Consolidation & Polish
+# Model 2 Reassigned Prompt — Major Documentation Review & Design Pass
 
-You are working on the `data-platform` repository. You are Model 2 of 3 parallel implementation models. Your domain is the frontend. You do NOT touch backend Go code.
+You are working on the `data-platform` repository. Your frontend code contract is complete. You are now reassigned to a comprehensive documentation review and design pass.
+
+Your audience is someone who can write scripts but has never worked as a professional software engineer. The docs must be mentoring-level — clear, exhaustive, assumes nothing.
 
 ## Read First
 
-Read these files before doing anything:
-- `v1-review-coordination-plan.md` (your task contracts are in Section 8)
-- `codex.md` (project context and architectural rules)
-- `web/src/app/App.tsx` (current routing — you will propose changes to this)
-- `web/src/pages/DashboardPage.tsx` (26KB monolith — your extraction target)
-- `web/src/features/dashboard/useDashboardData.ts` (data layer for dashboards)
-- `web/src/features/auth/useAuth.tsx` (auth hook)
-- `web/src/components/` (currently only 2 files — you will expand this)
-- `web/package.json` (current dependencies)
+- `codex.md` (project context and architectural direction)
+- `README.md` (current entry point)
+- `doc.md` (local setup guide)
+- `infra-overview.md` (architecture walkthrough)
+- `contributing.md` (contributor guide)
+- `uat-checklist.md` (testing guide)
+
+Then scan ALL 37 docs under `docs/`:
+- `docs/architecture/` (4 files)
+- `docs/decisions/` (2 files)
+- `docs/product/` (6 files)
+- `docs/reference/` (5 files)
+- `docs/runbooks/` (12 files)
+- `docs/tutorials/` (3 files)
 
 ## Your Mission
 
-Make the frontend production-worthy for a v1 release. The frontend currently works but is unpolished: pages are monolithic, there is no URL-based routing, loading/error states are inconsistent, and core pages have zero test coverage. Your job is to fix all of this without breaking existing functionality.
+The documentation across this repo has grown organically across many sessions. It's scattered, inconsistent, sometimes stale, sometimes duplicated, and often written for AI agents rather than human users. Your job is to audit every doc, identify what's broken, and produce a concrete redesign plan + execute the highest-value improvements.
 
-## Exact Tasks (In Order)
+## Phase 1: Documentation Audit
 
-### Task 1: Add URL-Based Routing
-Replace the `useState<Route>` navigation in `App.tsx` with `react-router-dom`.
+Read every `.md` file in the repo (root + `docs/` tree) and produce a documentation audit report at `docs/documentation-audit.md`.
 
-Steps:
-1. Install `react-router-dom`: `cd web && npm install react-router-dom`
-2. Update `web/src/main.tsx` to wrap the app in `BrowserRouter`
-3. Update `web/src/app/App.tsx` to use `<Routes>` and `<Route>` components
-4. Map all 6 existing routes to URL paths:
-   - `/` or `/dashboard` → DashboardPage
-   - `/management` → ManagementPage
-   - `/metrics` → MetricsPage
-   - `/pipelines` → PipelinesPage
-   - `/datasets` → DatasetsPage
-   - `/system` → SystemPage
-5. Update the sidebar nav to use `<NavLink>` instead of `onClick` + `useState`
-6. Ensure browser back/forward and direct URL access work
+For EACH document, assess:
 
-**Completion signal:** `npm run build` passes. Navigating to `http://localhost:3000/pipelines` directly loads the Pipelines page.
+| Field | Description |
+|-------|-------------|
+| **File** | Path |
+| **Purpose** | What this doc is trying to do |
+| **Audience** | Who this is written for (user? operator? AI agent? developer?) |
+| **Quality** | 1-5 rating (1=useless, 5=excellent) |
+| **Issues** | Stale content, wrong audience, duplicates another doc, too vague, too dense, missing sections, etc. |
+| **Recommendation** | Rewrite / Update / Merge into X / Delete / Keep as-is |
 
-### Task 2: Extract Dashboard Widget Components
-Break `DashboardPage.tsx` (26KB) into smaller, testable components.
+Then add a summary section with:
+- Top 5 worst docs that need immediate attention
+- Documents that should be merged (duplicates or heavily overlapping)
+- Documents that should be deleted (stale, superseded, AI-only)
+- Missing documentation that should exist but doesn't
+- Proposed new documentation structure (if the current tree is wrong)
 
-Create these files under `web/src/components/dashboard/`:
-- `WidgetRenderer.tsx` — renders a single widget based on its type (KPI, table, line, bar)
-- `WidgetEditor.tsx` — the widget configuration/edit form
-- `DashboardToolbar.tsx` — the dashboard action bar (create, duplicate, delete, save)
-- `FilterPanel.tsx` — dashboard-level and widget-level filter controls
-- `DashboardGrid.tsx` — the layout grid that positions and sizes widgets
+## Phase 2: Rewrite the Highest-Impact Docs
 
-Target: `DashboardPage.tsx` should drop to under 10KB after extraction.
+After the audit, rewrite the **top 5 worst docs** identified in Phase 1. For each rewrite:
 
-**Completion signal:** `npm run build` passes. Dashboard page renders and behaves identically to before.
+- Write for a human user who is seeing this project for the first time
+- Use clear section headers, numbered steps, expected outputs
+- Include "What success looks like" after every procedural section
+- Include "If something goes wrong" troubleshooting after every risky step
+- Remove any AI-agent-specific language ("the next model should...", "fresh-context session", etc.)
+- Keep runbooks copy-paste safe — every command should be exact
+- Keep architecture docs diagram-rich — use ASCII art or mermaid where it helps
 
-### Task 3: Add Loading and Error States
-Ensure all data-fetching pages show proper loading and error states.
+## Phase 3: Design a Documentation Information Architecture
 
-1. Create `web/src/components/LoadingSpinner.tsx`
-2. Create `web/src/components/ErrorMessage.tsx`
-3. Create `web/src/components/ErrorBoundary.tsx` (React error boundary)
-4. Wrap each page's data-fetching logic to show `LoadingSpinner` during fetch and `ErrorMessage` on failure
-5. Wrap the main content area in `App.tsx` with `ErrorBoundary` so a single page crash doesn't take down the entire app
+Produce a `docs/README.md` rewrite that serves as a documentation map. It should:
+- Explain the documentation structure
+- Tell readers which doc to read based on what they're trying to do
+- Link to every document with a 1-line description
+- Group docs by user journey, not by folder convention
 
-**Completion signal:** `npm run build` passes. Temporarily breaking the API URL shows an error message instead of a blank page.
+Proposed structure (adapt as you see fit):
 
-### Task 4: Add Core Page Tests
-Create test files for the 4 untested core pages:
+```
+## I want to...
 
-- `web/src/pages/DashboardPage.test.tsx` — tests render, loading state, error state
-- `web/src/pages/PipelinesPage.test.tsx` — tests render, loading state, error state
-- `web/src/pages/DatasetsPage.test.tsx` — tests render, loading state, error state
-- `web/src/pages/MetricsPage.test.tsx` — tests render, loading state, error state
+### Get this running on my machine
+→ doc.md (setup guide)
+→ docs/runbooks/quickstart.md (quick start)
+→ docs/runbooks/bootstrap.md (Docker Compose path)
 
-Each test file should have at least 3 test cases:
-1. Renders without crashing
-2. Shows loading state initially
-3. Shows error message on API failure (mock fetch)
+### Understand how this works
+→ infra-overview.md (full architecture walkthrough)
+→ docs/architecture/system-overview.md
+→ docs/tutorials/trace-one-pipeline.md
 
-**Completion signal:** `npm test` passes with all new tests green.
+### Test it / verify it works
+→ uat-checklist.md
+→ docs/runbooks/localhost-e2e.md
+
+### Contribute code
+→ contributing.md
+→ docs/tutorials/making-changes.md
+
+### Operate and maintain it
+→ docs/runbooks/operator-manual.md
+→ docs/runbooks/backups.md
+→ docs/runbooks/benchmarking.md
+
+### Understand design decisions
+→ docs/decisions/
+→ docs/product/
+```
+
+## Phase 4: Spot-Check Specific Problem Areas
+
+These are known documentation problems based on the project review:
+
+1. **`docs/runbooks/quickstart.md` vs `doc.md` vs `docs/runbooks/bootstrap.md`** — Three docs covering "how to start the platform." There should be ONE clear starting point. Consolidate or clearly differentiate.
+
+2. **`docs/runbooks/local-host-run.md` vs `docs/runbooks/localhost-e2e.md`** — Confusingly similar names. Clarify or merge.
+
+3. **`docs/product/*.md`** — These are internal blueprints for features. Most reference "Model 2" or "staged modules." Audit whether any of these are useful as user-facing docs or should be archived as historical decision records.
+
+4. **`docs/reference/management-console-demo-assets.md`** and **`docs/reference/opsview-read-models.md`** — These read like internal API notes. Assess whether they belong in `reference/` or should be archived.
+
+5. **Root-level `.md` sprawl** — The repo root has: `README.md`, `doc.md`, `codex.md`, `plan.md`, `guide-wire.md`, `contributing.md`, `infra-overview.md`, `uat-checklist.md`, `new-thread-eng-feedback.md`, `temp-model1-frontend-wire-plan.md`, `v1-review-coordination-plan.md`. That's 11 markdown files at root. Propose which should stay, which should move under `docs/`, and which should be deleted.
 
 ## Allowed Files
 
-You may create or edit:
-- `web/src/app/App.tsx` (routing changes — this is an exception to reviewer-only, granted for this task)
-- `web/src/main.tsx` (BrowserRouter wrapper)
-- `web/src/pages/DashboardPage.tsx` (component extraction)
-- `web/src/pages/PipelinesPage.tsx` (loading/error states)
-- `web/src/pages/DatasetsPage.tsx` (loading/error states)
-- `web/src/pages/MetricsPage.tsx` (loading/error states)
-- `web/src/pages/SystemPage.tsx` (loading/error states)
-- `web/src/pages/*.test.tsx` (NEW test files)
-- `web/src/components/` (NEW component files)
-- `web/src/features/auth/useAuth.tsx` (loading/error improvements)
-- `web/src/features/dashboard/useDashboardData.ts` (only if needed for extraction)
-- `web/src/features/pipelines/` (data hooks)
-- `web/src/features/datasets/` (data hooks)
-- `web/src/features/metrics/` (data hooks)
-- `web/src/features/system/` (data hooks)
-- `web/src/styles/` (styling)
-- `web/src/lib/` (utilities)
-- `web/package.json` (add react-router-dom)
-- `web/vite.config.ts` (only if needed for routing)
-- `web/server.mjs` (only if needed for client-side routing fallback)
+- ALL files under `docs/` (create, edit, delete, reorganize)
+- `README.md` (update)
+- `doc.md` (update or propose merge)
+- `infra-overview.md` (update)
+- `contributing.md` (update)
+- `docs/documentation-audit.md` (NEW — your audit report)
 
 ## Forbidden Files
 
-Do NOT edit these under any circumstances:
-- ❌ `web/src/pages/ManagementPage.tsx` (Model 3's domain)
-- ❌ `web/src/features/management/` (entire directory — frozen for v1)
-- ❌ `backend/` (all backend files)
-- ❌ `infra/` (all infra files)
+- ❌ `backend/` (all code)
+- ❌ `web/src/` (all frontend code)
+- ❌ `infra/compose/docker-compose.yml`
 - ❌ `Makefile`
-- ❌ `*.md` files in repo root (documentation is Model 3's domain)
-- ❌ `packages/` (all content packages)
-
-## Inputs
-
-- The existing frontend codebase
-- The backend API contract (read backend API handler files to understand request/response shapes, but do not edit them)
-
-## Expected Outputs
-
-1. URL-based routing with `react-router-dom` — 6 pages at 6 paths
-2. At least 5 extracted components from DashboardPage in `web/src/components/dashboard/`
-3. `LoadingSpinner.tsx`, `ErrorMessage.tsx`, `ErrorBoundary.tsx` in `web/src/components/`
-4. 4 new page test files with at least 3 tests each
-5. A completion note (see below)
+- ❌ `packages/`
+- ❌ `codex.md` (Model 3 owns this)
+- ❌ `plan.md` (Model 3 owns this)
+- ❌ `guide-wire.md` (Model 3 owns this)
 
 ## Stop Conditions
 
-Stop and escalate to the reviewer if:
-- You find you need to change `ManagementPage.tsx` or anything in `features/management/`
-- Adding routing requires changes to `server.mjs` that could break the production Compose build
-- You discover a backend API behavior that prevents proper frontend error handling
-- You need to add more than 2 new npm dependencies beyond `react-router-dom`
-- Extracting DashboardPage requires changing the dashboard data contract (`useDashboardData.ts`) in a way that breaks the existing API integration
+- If you find a doc that references code behavior you can't verify without running the system, mark it as "UNVERIFIED — needs UAT confirmation" rather than guessing
+- If two docs fundamentally contradict each other, flag both and escalate rather than choosing one
+- If reorganizing requires changing links in code files (like import paths or references), document the needed changes but don't make them
 
 ## How To Report Completion
 
-When all tasks are done, create a file `prompts/model2-completion.md` containing:
+Create `prompts/model2-completion.md` (overwrite the existing no-work-needed version) with:
 
 ```markdown
-# Model 2 Completion Report
+# Model 2 Completion Report — Documentation Pass
+
+## Phase 1: Audit
+- Total docs reviewed: X
+- Top 5 worst docs: (list)
+- Docs recommended for deletion: (list)
+- Docs recommended for merge: (list)
+- Missing docs identified: (list)
+
+## Phase 2: Rewrites
+- (list each rewritten doc with before/after quality rating)
+
+## Phase 3: Information Architecture
+- docs/README.md rewritten: YES/NO
+
+## Phase 4: Problem Areas
+- quickstart consolidation: (what you did)
+- product docs audit: (what you did)
+- root-level sprawl: (proposal)
 
 ## Files Changed
 - (list every file created, modified, or deleted)
-
-## Verification
-- `cd web && npm run build` — PASS/FAIL
-- `cd web && npm test` — PASS/FAIL
-- URL routing works: (YES/NO, tested paths)
-
-## What Was NOT Changed
-- (list forbidden files you intentionally did not touch)
-
-## Escalation Items
-- (any bugs found, constraints discovered, or help needed)
-
-## Visual Changes
-- (describe any visible UI differences so reviewer can check)
 ```

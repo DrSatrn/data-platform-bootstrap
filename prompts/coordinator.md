@@ -2,78 +2,45 @@
 
 **Date:** March 15, 2026  
 **Objective:** Ship a credible self-hostable v1 of the Data Platform.  
-**Strategy:** Layer-based parallelism — 3 models working simultaneously on backend, frontend, and platform/infra.
+**Status:** Post-model review. All 3 initial contracts complete. Remaining work is tactical.
 
 ---
 
-## Active Models
+## Model Status
 
-| Model | Mission | Merge Order |
-|-------|---------|-------------|
-| Model 1 | Backend hardening & test coverage | 1st (safest, additive-only) |
-| Model 2 | Frontend consolidation & polish | 2nd |
-| Model 3 | Platform, infra, docs & release readiness | 3rd (last) |
+| Model | Initial Contract | Follow-Up Status |
+|-------|-----------------|-----------------|
+| Model 1 | ✅ Complete | 🔧 Fix 4 external-tool test timeouts → `go test ./...` must pass |
+| Model 2 | ✅ Complete | ✅ No further work needed |
+| Model 3 | ✅ Complete (UAT deferred) | 🔧 Run UAT, update README, clean up repo root |
 
-## Chokepoint Files (Reviewer-Controlled)
+## What Changed From Initial Contracts
 
-These files are **locked**. No model may edit them without explicit reviewer approval:
+- Model 1 delivered all tasks but revealed 4 **pre-existing** test failures outside its allowed surface
+- Model 2 delivered all tasks with clean verification
+- Model 3 delivered 5 of 6 tasks; UAT was correctly deferred until Models 1/2 completed
+
+## Remaining v1 Checklist
+
+See `prompts/v1-remaining-work.md` for full details.
+
+- [ ] Model 1: Fix external-tool test timeouts (surgical: 3 files, 1-line changes)
+- [ ] Verify: `cd backend && go test ./...` passes globally
+- [ ] Model 3: Run full UAT (`make bootstrap` → `uat-checklist.md`)
+- [ ] Model 3: Update `README.md`
+- [ ] Model 3: Delete `temp-model1-frontend-wire-plan.md`, archive `new-thread-eng-feedback.md`
+- [ ] Reviewer: Final `make smoke` verification
+- [ ] Reviewer: Tag v1 release
+
+## Chokepoint Files (Still Locked)
 
 - `backend/internal/app/runtime.go`
-- `web/src/app/App.tsx` (Model 2 may propose changes after routing approval)
+- `web/src/app/App.tsx` (Model 2 already edited this under approval)
 - `infra/compose/docker-compose.yml`
 - `Makefile`
 
-## No-Fly Zones (Do Not Touch for v1)
+## Merge Order
 
-These packages are working and stable. No model should modify them:
-
-- `backend/internal/authz/`
-- `backend/internal/db/`
-- `backend/internal/backup/`
-- `backend/internal/orchestration/`
-- `backend/internal/scheduler/`
-- `backend/internal/reporting/`
-- `backend/internal/audit/`
-- `backend/internal/opsview/`
-- `infra/migrations/`
-
-## Coordination Rules
-
-1. **Before editing any file**, check the ownership matrix in `v1-review-coordination-plan.md` Section 6.
-2. **If you need a file you don't own**, stop and document the request. Do not edit it.
-3. **After completing a task**, leave a completion note containing:
-   - Files changed (list)
-   - Verification commands run and results
-   - What was explicitly NOT changed
-   - Any escalation items
-4. **Merge order is strict:** Model 1 → Model 2 → Model 3.
-
-## Verification Commands (All Models Must Know)
-
-```bash
-# Backend
-cd backend && go test ./...
-cd backend && go run ./cmd/platformctl validate-manifests
-
-# Frontend
-cd web && npm run build
-cd web && npm test
-
-# Full stack
-make smoke
-```
-
-## Current Status Tracking
-
-Update this section as models complete tasks:
-
-- [ ] Model 1: transforms engine tests
-- [ ] Model 1: quality service tests expanded
-- [ ] Model 1: ingestion stub resolved
-- [ ] Model 2: URL routing added
-- [ ] Model 2: DashboardPage component extraction
-- [ ] Model 2: Core page tests added
-- [ ] Model 2: Loading/error states added
-- [ ] Model 3: guide-wire.md and plan.md updated
-- [ ] Model 3: CI/CD workflow created
-- [ ] Model 3: Full UAT run documented
+1. Model 1 fix merges first (test-only change, zero conflict risk)
+2. Model 3 merges second (docs + UAT annotation, zero code conflict)
+3. Reviewer does final verification and tags
