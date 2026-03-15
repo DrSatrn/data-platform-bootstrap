@@ -1,0 +1,16 @@
+[
+  {
+    "id": "dbt-finance:runbook",
+    "label": "DBT Build",
+    "path": "/docs/runbooks/optional-external-tools.md",
+    "reason": "Linked from terminal session DBT Build.",
+    "urgency": "now"
+  },
+  {
+    "id": "restore-drill:runbook",
+    "label": "Restore Drill",
+    "path": "/docs/runbooks/backups.md",
+    "reason": "Linked from terminal session Restore Drill.",
+    "urgency": "soon"
+  }
+]

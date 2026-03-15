@@ -1,0 +1,24 @@
+[
+  {
+    "id": "restore-drill",
+    "title": "Restore Drill",
+    "scope": "recovery",
+    "status": "completed",
+    "currentCommand": "backup verify latest.tar.gz",
+    "lastExitCode": 0,
+    "recommendedRunbook": "/docs/runbooks/backups.md",
+    "pinnedArtifacts": [
+      "runs/run_1/recovery/verify-report.json"
+    ]
+  },
+  {
+    "id": "dbt-finance",
+    "title": "DBT Finance Build",
+    "scope": "pipelines",
+    "status": "failed",
+    "currentCommand": "dbt build --select monthly_cashflow",
+    "lastExitCode": 2,
+    "recommendedRunbook": "/docs/runbooks/optional-external-tools.md",
+    "pinnedArtifacts": []
+  }
+]

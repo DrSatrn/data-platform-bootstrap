@@ -394,6 +394,25 @@ Whether hot files were touched:
 - no specifically blocked files were touched
 - no shared runtime or handler files were edited in this tranche
 
+## Latest Coordination Assets
+
+The following additive-only assets were added to support the final frontend
+wiring pass and to give future work a stable demo/data-pack lane that does not
+collide with routed-page integration:
+
+- `temp-model1-frontend-wire-plan.md`
+- `docs/reference/management-console-demo-assets.md`
+- `packages/demo/management_console/README.md`
+- `packages/demo/management_console/opsview_snapshot.json`
+- `packages/demo/management_console/terminal_sessions.json`
+- `packages/demo/management_console/runbook_dock.json`
+
+These assets are intentionally non-canonical:
+
+- the temp frontend wire plan is a handoff brief for the integration pass
+- the demo payloads are safe sample inputs for UI/demo work
+- none of them should be treated as published runtime contracts
+
 ## Integration Queue
 
 When the hot implementation thread is ready, the next safe merge pass should
