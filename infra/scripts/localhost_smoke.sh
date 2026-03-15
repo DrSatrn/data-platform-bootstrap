@@ -93,9 +93,11 @@ fi
     PLATFORM_LOG_LEVEL=debug \
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
-      PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
       PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+      PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+      PLATFORM_PYTHON_BINARY=python3 \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
@@ -116,9 +118,11 @@ API_PID=$!
     PLATFORM_LOG_LEVEL=debug \
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
-      PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
       PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+      PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+      PLATFORM_PYTHON_BINARY=python3 \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
@@ -139,9 +143,11 @@ WORKER_PID=$!
     PLATFORM_LOG_LEVEL=debug \
     PLATFORM_DATA_ROOT="$DATA_ROOT" \
       PLATFORM_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
-      PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+    PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
       PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
       PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+      PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+      PLATFORM_PYTHON_BINARY=python3 \
       PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
@@ -168,16 +174,23 @@ if [ -z "$manual_run_id" ]; then
 fi
 
 wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
+wait_for_run_artifact "$manual_run_id" "staging/staging_transactions_enriched.json"
+wait_for_run_artifact "$manual_run_id" "intermediate/intermediate_category_monthly_rollup.json"
 
 artifacts_payload=$(curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id")
 printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_savings_rate.json"'
 printf "%s" "$artifacts_payload" | grep -q '"metrics/metrics_category_variance.json"'
+printf "%s" "$artifacts_payload" | grep -q '"staging/staging_transactions_enriched.json"'
+printf "%s" "$artifacts_payload" | grep -q '"intermediate/intermediate_category_monthly_rollup.json"'
 
 reports_payload=$(curl -fsS "$API_URL/api/v1/reports")
 printf "%s" "$reports_payload" | grep -q '"finance_overview"'
 
 budget_payload=$(curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual")
 printf "%s" "$budget_payload" | grep -q '"variance_amount"'
+
+metrics_payload=$(curl -fsS "$API_URL/api/v1/metrics")
+printf "%s" "$metrics_payload" | grep -q '"metrics_savings_rate"'
 
 BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"
 
@@ -193,6 +206,8 @@ BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"
     PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
     PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
     PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+    PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+    PLATFORM_PYTHON_BINARY=python3 \
     PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
@@ -215,6 +230,8 @@ BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"
     PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
     PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
     PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+    PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+    PLATFORM_PYTHON_BINARY=python3 \
     PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     PLATFORM_ADMIN_TOKEN="$ADMIN_TOKEN" \
@@ -247,6 +264,8 @@ printf "%s" "$backup_payload" | grep -q 'localhost-smoke-backup.tar.gz'
     PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
     PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
     PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+    PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+    PLATFORM_PYTHON_BINARY=python3 \
     PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
     PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
     GOCACHE="$GOCACHE_DIR" \

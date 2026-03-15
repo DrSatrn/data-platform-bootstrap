@@ -143,6 +143,7 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
+	mux.Handle("/api/v1/metrics", analytics.NewMetricCatalogHandler(loader, analyticsService))
 	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService, persistence.audit))
 	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
 	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store))

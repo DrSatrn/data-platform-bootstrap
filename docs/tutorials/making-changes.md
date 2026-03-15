@@ -50,6 +50,10 @@ If it should surface through analytics:
 
 - update `backend/internal/analytics/service.go`
 
+If it introduces a new persistent layer artifact:
+
+- add the corresponding asset manifest under `packages/manifests/assets/`
+
 ### Add a new metric
 
 Usually change:
@@ -58,6 +62,7 @@ Usually change:
 - `packages/manifests/metrics/`
 - pipeline publish step if needed
 - analytics service if it should be queryable
+- metrics browser frontend if it should be discoverable in the UI
 
 ### Add a new catalog field or metadata surface
 
@@ -101,6 +106,11 @@ Do not move:
 - queueing
 - scheduling
 - orchestration state machine
+
+Current implementation reference:
+
+- [runtime.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/python/runtime.go)
+- [enrich_transactions.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/enrich_transactions.py)
 
 ## How To Change The Frontend Safely
 

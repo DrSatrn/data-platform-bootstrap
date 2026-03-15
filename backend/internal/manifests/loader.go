@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/streanor/data-platform/backend/internal/analytics"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,7 @@ import (
 type Loader interface {
 	LoadPipelines() ([]orchestration.Pipeline, error)
 	LoadAssets() ([]metadata.DataAsset, error)
+	LoadMetrics() ([]analytics.MetricDefinition, error)
 }
 
 // FileLoader reads manifests from the repo filesystem.
@@ -39,6 +41,12 @@ func (l *FileLoader) LoadPipelines() ([]orchestration.Pipeline, error) {
 func (l *FileLoader) LoadAssets() ([]metadata.DataAsset, error) {
 	pattern := filepath.Join(l.root, "assets", "*.yaml")
 	return loadFiles[metadata.DataAsset](pattern)
+}
+
+// LoadMetrics reads all metric manifests in the metrics directory.
+func (l *FileLoader) LoadMetrics() ([]analytics.MetricDefinition, error) {
+	pattern := filepath.Join(l.root, "metrics", "*.yaml")
+	return loadFiles[analytics.MetricDefinition](pattern)
 }
 
 func loadFiles[T any](pattern string) ([]T, error) {

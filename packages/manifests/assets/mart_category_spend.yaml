@@ -7,7 +7,7 @@ description: Curated monthly spend by reporting category.
 owner: platform-team
 kind: table
 source_refs:
-  - raw_transactions
+  - intermediate_category_monthly_rollup
 documentation_refs:
   - doc.mart_category_spend
 freshness:

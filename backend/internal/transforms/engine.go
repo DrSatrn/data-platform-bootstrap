@@ -45,6 +45,14 @@ func (e *Engine) MaterializeRawTables(rawTransactionsPath, rawBalancesPath, rawB
 	})
 }
 
+// MaterializeStagingTransactions loads the Python-enriched staging JSON into a
+// DuckDB table so downstream SQL layers can consume it consistently.
+func (e *Engine) MaterializeStagingTransactions(stagingPath string) error {
+	return e.ExecFile(filepath.Join("bootstrap", "staging_transactions_enriched.sql"), map[string]string{
+		"STAGING_TRANSACTIONS_ENRICHED_PATH": quotedSQLString(stagingPath),
+	})
+}
+
 // RunTransform resolves a manifest transform reference into a SQL file and
 // executes it.
 func (e *Engine) RunTransform(transformRef string) error {

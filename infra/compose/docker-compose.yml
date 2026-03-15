@@ -33,6 +33,8 @@ services:
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
+      PLATFORM_PYTHON_TASK_ROOT: /workspace/packages/python
+      PLATFORM_PYTHON_BINARY: python3
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
@@ -64,6 +66,8 @@ services:
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
+      PLATFORM_PYTHON_TASK_ROOT: /workspace/packages/python
+      PLATFORM_PYTHON_BINARY: python3
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
@@ -103,6 +107,8 @@ services:
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
+      PLATFORM_PYTHON_TASK_ROOT: /workspace/packages/python
+      PLATFORM_PYTHON_BINARY: python3
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
@@ -135,6 +141,8 @@ services:
       PLATFORM_MANIFEST_ROOT: /workspace/packages/manifests
       PLATFORM_DASHBOARD_ROOT: /workspace/packages/dashboards
       PLATFORM_SQL_ROOT: /workspace/packages/sql
+      PLATFORM_PYTHON_TASK_ROOT: /workspace/packages/python
+      PLATFORM_PYTHON_BINARY: python3
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}

@@ -8,7 +8,7 @@ SHELL := /bin/sh
 
 doctor:
 	@echo "Review codex.md before first build."
-	@echo "Verify Go, Node, Docker/OrbStack, and ARM64-compatible container images."
+	@echo "Verify Go, Node, Python 3, Docker/OrbStack, and ARM64-compatible container images."
 	@echo "Verify host C/C++ build tools are installed because the DuckDB Go driver uses CGO."
 
 fmt:

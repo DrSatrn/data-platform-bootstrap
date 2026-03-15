@@ -71,11 +71,14 @@ if [ -z "$manual_run_id" ]; then
 fi
 
 wait_for_run_artifact "$manual_run_id" "metrics/metrics_category_variance.json"
+wait_for_run_artifact "$manual_run_id" "staging/staging_transactions_enriched.json"
+wait_for_run_artifact "$manual_run_id" "intermediate/intermediate_category_monthly_rollup.json"
 
 curl -fsS "$API_URL/api/v1/analytics?dataset=mart_monthly_cashflow" | grep -q '"month"'
 curl -fsS "$API_URL/api/v1/analytics?dataset=mart_budget_vs_actual" | grep -q '"variance_amount"'
 curl -fsS "$API_URL/api/v1/analytics?metric=metrics_savings_rate" | grep -q '"savings_rate"'
 curl -fsS "$API_URL/api/v1/analytics?metric=metrics_category_variance" | grep -q '"variance_amount"'
+curl -fsS "$API_URL/api/v1/metrics" | grep -q '"metrics_category_variance"'
 curl -fsS "$API_URL/api/v1/quality" | grep -q '"checks"'
 curl -fsS "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
 curl -fsS "$API_URL/api/v1/reports" | grep -q '"finance_overview"'

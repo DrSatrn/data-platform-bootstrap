@@ -17,6 +17,8 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
 (
   cd "$ROOT_DIR/backend"
   env \
+    PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+    PLATFORM_PYTHON_BINARY=python3 \
     GOCACHE="$GOCACHE_DIR" \
     GOMODCACHE="$GOMODCACHE_DIR" \
     go run ./cmd/platformctl backup create --out "$OUTPUT_PATH"
@@ -25,6 +27,8 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
 (
   cd "$ROOT_DIR/backend"
   env \
+    PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+    PLATFORM_PYTHON_BINARY=python3 \
     GOCACHE="$GOCACHE_DIR" \
     GOMODCACHE="$GOMODCACHE_DIR" \
     go run ./cmd/platformctl backup verify --file "$OUTPUT_PATH"

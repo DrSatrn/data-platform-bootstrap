@@ -17,13 +17,14 @@ RUN GOOS=linux GOARCH=arm64 go build -o /out/platform-api ./cmd/platform-api && 
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 python3 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 COPY --from=build /out/ /usr/local/bin/
 COPY packages/manifests /workspace/packages/manifests
 COPY packages/dashboards /workspace/packages/dashboards
+COPY packages/python /workspace/packages/python
 COPY packages/sample_data /workspace/packages/sample_data
 COPY packages/sql /workspace/packages/sql
 COPY infra/migrations /workspace/infra/migrations

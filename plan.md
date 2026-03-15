@@ -66,17 +66,15 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Added a first-party backup/export subsystem under `backend/internal/backup`.
-- Added `platformctl backup create`, `platformctl backup verify`, and
-  `platformctl backup list`.
-- Added backup bundle commands to the built-in admin terminal.
-- Added the repo-owned `infra/scripts/backup_snapshot.sh` workflow and
-  `make backup`.
-- Extended both localhost and packaged Compose smoke workflows so they now
-  create and verify real backup bundles instead of only validating runtime
-  behavior.
-- Added a dedicated backups runbook and updated the operator docs so recovery
-  expectations are explicit.
+- Added a bounded Python task runtime behind the Go worker in
+  `backend/internal/python`.
+- Added a real Python staging enrichment task in
+  `packages/python/tasks/enrich_transactions.py`.
+- Expanded the finance slice to include `staging_transactions_enriched` and
+  `intermediate_category_monthly_rollup`.
+- Added a semantic metric registry endpoint and a React Metrics page.
+- Extended both smoke workflows to validate the Python staging artifact, the
+  intermediate artifact, and the metric registry endpoint.
 
 ## Deferred / Prompt-Requiring Tests
 

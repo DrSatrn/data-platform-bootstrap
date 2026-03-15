@@ -89,6 +89,7 @@ Purpose:
 - claims the next runnable run request
 - executes jobs in dependency order
 - materializes raw, mart, metric, and quality artifacts
+- launches bounded Python subprocess tasks where manifests declare them
 
 Key code:
 
@@ -102,6 +103,7 @@ Reads:
 - pipeline manifests
 - sample or landed data
 - version-controlled SQL
+- repo-managed Python task scripts
 
 Writes:
 
@@ -203,6 +205,16 @@ Current normalized tables include:
 These are the current bridge between the local-first runtime and a more
 enterprise-style control plane.
 
+## Layer Map
+
+The current finance slice now exercises these layers end to end:
+
+- `raw`
+- `staging`
+- `intermediate`
+- `mart`
+- `metrics`
+
 ## Request And Execution Flow
 
 ### Manual run flow
@@ -252,6 +264,13 @@ execution tasks where the ecosystem is materially better, such as:
 - docs/code generation utilities
 
 Do not move orchestration, queueing, scheduling, or API ownership into Python.
+
+Current implemented Python usage:
+
+- `packages/python/tasks/enrich_transactions.py`
+
+That task enriches landed transaction data into the staging layer and reports
+its outputs back to Go through the JSON request/result contract.
 
 ## Current Queue Position
 

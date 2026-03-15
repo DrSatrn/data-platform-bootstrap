@@ -1,0 +1,36 @@
+# This manifest describes the intermediate monthly category rollup derived from
+# the staging-enriched transaction dataset.
+id: intermediate_category_monthly_rollup
+name: Intermediate Category Monthly Rollup
+layer: intermediate
+description: Intermediate monthly spend rollup by category and category group.
+owner: platform-team
+kind: table
+source_refs:
+  - staging_transactions_enriched
+documentation_refs:
+  - doc.intermediate_category_monthly_rollup
+freshness:
+  expected_within: 6h
+  warn_after: 10h
+columns:
+  - name: month
+    type: text
+    description: Calendar month in YYYY-MM format.
+    is_pii: false
+  - name: category
+    type: text
+    description: Resolved reporting category.
+    is_pii: false
+  - name: category_group
+    type: text
+    description: Broader grouping of the category.
+    is_pii: false
+  - name: expense_total
+    type: decimal
+    description: Total outgoing spend for the category in the month.
+    is_pii: false
+  - name: transaction_count
+    type: integer
+    description: Number of expense transactions contributing to the rollup.
+    is_pii: false

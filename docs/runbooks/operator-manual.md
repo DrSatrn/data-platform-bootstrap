@@ -19,6 +19,7 @@ Host requirements:
 
 - Go
 - Node and npm
+- Python 3
 - Docker or OrbStack
 - Apple Silicon compatible toolchain
 - host C/C++ build tools because DuckDB uses CGO
@@ -123,6 +124,12 @@ cd backend
 go run ./cmd/platformctl remote --token <token> status
 ```
 
+List semantic metrics:
+
+```sh
+curl http://127.0.0.1:8080/api/v1/metrics
+```
+
 Trigger a pipeline:
 
 ```sh
@@ -205,11 +212,17 @@ Reporting/dashboard issues:
 - [handler.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/reporting/handler.go)
 - [store.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/reporting/store.go)
 - [DashboardPage.tsx](/Users/streanor/Documents/Playground/data-platform/web/src/pages/DashboardPage.tsx)
+- [MetricsPage.tsx](/Users/streanor/Documents/Playground/data-platform/web/src/pages/MetricsPage.tsx)
 
 RBAC/audit issues:
 
 - [service.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/authz/service.go)
 - [store.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/audit/store.go)
+
+Python runtime issues:
+
+- [runtime.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/python/runtime.go)
+- [enrich_transactions.py](/Users/streanor/Documents/Playground/data-platform/packages/python/tasks/enrich_transactions.py)
 
 ## Safe Change Rules
 
@@ -230,6 +243,7 @@ Be explicit about current limits:
 - auth is lightweight token-based RBAC, not a full identity system
 - the platform proves one strong domain slice, not many
 - reporting UX is real but not yet fully polished
+- restore automation is still not built on top of the backup bundle format
 
 That means this repo is already a strong self-hosted platform build, but it
 still needs more product and operational depth before it should be called

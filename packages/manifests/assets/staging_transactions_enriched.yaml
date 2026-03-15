@@ -1,0 +1,48 @@
+# This manifest describes the Python-enriched staging transaction dataset used
+# to bridge raw ingestion and the curated mart layer.
+id: staging_transactions_enriched
+name: Staging Transactions Enriched
+layer: staging
+description: Python-enriched transaction records with resolved categories and normalized descriptions.
+owner: platform-team
+kind: table
+source_refs:
+  - raw_transactions
+documentation_refs:
+  - doc.staging_transactions_enriched
+freshness:
+  expected_within: 6h
+  warn_after: 8h
+columns:
+  - name: transaction_id
+    type: text
+    description: Stable identifier for the transaction.
+    is_pii: false
+  - name: occurred_at
+    type: timestamp
+    description: Timestamp when the transaction posted.
+    is_pii: false
+  - name: account_name
+    type: text
+    description: Logical account used for the transaction.
+    is_pii: false
+  - name: category
+    type: text
+    description: Resolved reporting category after Python enrichment.
+    is_pii: false
+  - name: category_group
+    type: text
+    description: Broader reporting group derived from the resolved category.
+    is_pii: false
+  - name: normalized_description
+    type: text
+    description: Lowercased normalized transaction description for future matching logic.
+    is_pii: false
+  - name: inferred_category
+    type: boolean
+    description: Whether the category was inferred by the Python task.
+    is_pii: false
+  - name: amount
+    type: decimal
+    description: Signed transaction amount in AUD.
+    is_pii: false

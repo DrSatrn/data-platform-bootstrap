@@ -54,15 +54,15 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Added a first-party backup/export subsystem under `backend/internal/backup` that produces portable `.tar.gz` recovery bundles with checksummed manifests.
-	•	Added `platformctl backup create`, `platformctl backup verify`, and `platformctl backup list`.
-	•	Added `backups`, `backup create`, and `backup verify <bundle>` to the built-in admin terminal command surface.
-	•	Added the repo-owned `infra/scripts/backup_snapshot.sh` workflow plus `make backup`.
-	•	Extended both localhost and packaged Compose smoke workflows so they now create and verify real backup bundles instead of validating runtime behavior only.
-	•	Added a dedicated `docs/runbooks/backups.md` runbook and updated operator docs to reflect the new recovery path.
+	•	Added a bounded Python task runtime under `backend/internal/python` so the Go worker can launch explicit Python subprocess tasks through a JSON request/result contract.
+	•	Added a real Python enrichment task at `packages/python/tasks/enrich_transactions.py`.
+	•	Expanded the finance slice to include `staging_transactions_enriched` and `intermediate_category_monthly_rollup`, so the implemented stack now exercises `raw`, `staging`, `intermediate`, `mart`, and `metrics`.
+	•	Added a semantic metric registry endpoint at `/api/v1/metrics`.
+	•	Added a new React Metrics page backed by repo-managed metric manifests and filtered preview queries.
+	•	Extended both smoke workflows to assert the Python staging artifact, intermediate artifact, and metrics registry endpoint.
 
 Next workstep to execute
-	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, restore automation built on top of the new backup bundles, and broader benchmark/load validation coverage.
+	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.
 
 Session Close Handoff
 

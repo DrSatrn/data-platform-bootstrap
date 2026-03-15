@@ -62,16 +62,41 @@ jobs:
       - raw_account_balances
     outputs:
       - mart_monthly_cashflow
+  - id: enrich_transactions_python
+    name: Enrich Transactions In Python
+    type: transform_python
+    depends_on:
+      - ingest_budget_rules_json
+    retries: 1
+    timeout: 2m
+    command: python3 tasks/enrich_transactions.py
+    inputs:
+      - raw_transactions
+    outputs:
+      - staging_transactions_enriched
+  - id: build_intermediate_category_rollup
+    name: Build Intermediate Category Rollup
+    type: transform_sql
+    depends_on:
+      - enrich_transactions_python
+    retries: 1
+    timeout: 2m
+    transform_ref: transform.intermediate_category_monthly_rollup
+    inputs:
+      - staging_transactions_enriched
+    outputs:
+      - intermediate_category_monthly_rollup
   - id: build_category_spend_mart
     name: Build Category Spend Mart
     type: transform_sql
     depends_on:
       - build_cashflow_mart
+      - build_intermediate_category_rollup
     retries: 1
     timeout: 2m
     transform_ref: transform.category_spend
     inputs:
-      - raw_transactions
+      - intermediate_category_monthly_rollup
     outputs:
       - mart_category_spend
   - id: build_budget_vs_actual_mart

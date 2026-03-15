@@ -101,6 +101,7 @@ type ConfigExport struct {
 	ManifestRoot      string `json:"manifest_root"`
 	DashboardRoot     string `json:"dashboard_root"`
 	SQLRoot           string `json:"sql_root"`
+	PythonTaskRoot    string `json:"python_task_root"`
 }
 
 // NewService constructs a backup service for the current runtime.
@@ -207,6 +208,8 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 		{source: s.cfg.DuckDBPath, target: "files/duckdb/platform.duckdb", kind: "duckdb"},
 		{source: s.cfg.ManifestRoot, target: "files/repo/manifests", kind: "repo_snapshot"},
 		{source: s.cfg.DashboardRoot, target: "files/repo/dashboards", kind: "repo_snapshot"},
+		{source: s.cfg.SQLRoot, target: "files/repo/sql", kind: "repo_snapshot"},
+		{source: s.cfg.PythonTaskRoot, target: "files/repo/python", kind: "repo_snapshot"},
 	} {
 		if err := addPath(tarWriter, &manifest, include.source, include.target, include.kind); err != nil {
 			return BundleResult{}, err
@@ -384,6 +387,7 @@ func sanitizeConfig(cfg config.Settings) ConfigExport {
 		ManifestRoot:      cfg.ManifestRoot,
 		DashboardRoot:     cfg.DashboardRoot,
 		SQLRoot:           cfg.SQLRoot,
+		PythonTaskRoot:    cfg.PythonTaskRoot,
 	}
 }
 

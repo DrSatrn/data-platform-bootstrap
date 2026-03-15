@@ -18,6 +18,7 @@ import (
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
+	"github.com/streanor/data-platform/backend/internal/python"
 	"github.com/streanor/data-platform/backend/internal/storage"
 	"github.com/streanor/data-platform/backend/internal/transforms"
 )
@@ -29,6 +30,7 @@ type Runner struct {
 	store  orchestration.Store
 	files  *storage.Service
 	sql    *transforms.Engine
+	python *python.Runner
 	logger *slog.Logger
 }
 
@@ -40,6 +42,7 @@ func NewRunner(cfg config.Settings, loader manifests.Loader, store orchestration
 		store:  store,
 		files:  files,
 		sql:    transforms.NewEngine(cfg.DuckDBPath, cfg.SQLRoot),
+		python: python.NewRunner(cfg),
 		logger: logger,
 	}
 }
@@ -131,6 +134,8 @@ func (r *Runner) executeJob(ctx context.Context, run *orchestration.PipelineRun,
 		err = r.runIngest(run.ID, job)
 	case orchestration.JobTypeTransformSQL:
 		err = r.runMonthlyCashflowTransform(run.ID, job)
+	case orchestration.JobTypeTransformPy:
+		err = r.runPythonTransform(ctx, run.ID, run.PipelineID, job)
 	case orchestration.JobTypeQualityCheck:
 		err = r.runQualityCheck(run.ID, job)
 	case orchestration.JobTypePublishMetric:
@@ -177,10 +182,53 @@ func (r *Runner) runMonthlyCashflowTransform(runID string, job orchestration.Job
 	); err != nil {
 		return fmt.Errorf("materialize raw duckdb tables: %w", err)
 	}
+	stagingPath := filepath.Join(r.cfg.DataRoot, "staging", "staging_transactions_enriched.json")
+	if _, err := os.Stat(stagingPath); err == nil {
+		if err := r.sql.MaterializeStagingTransactions(stagingPath); err != nil {
+			return fmt.Errorf("materialize staging duckdb table: %w", err)
+		}
+	}
 	if err := r.sql.RunTransform(job.TransformRef); err != nil {
 		return err
 	}
 	return r.writeTransformArtifact(runID, job.TransformRef)
+}
+
+func (r *Runner) runPythonTransform(ctx context.Context, runID, pipelineID string, job orchestration.Job) error {
+	if job.Command == "" {
+		return fmt.Errorf("python transform %s is missing a command", job.ID)
+	}
+	result, err := r.python.Run(ctx, pipelineID, job, python.TaskRequest{
+		RunID:          runID,
+		PipelineID:     pipelineID,
+		JobID:          job.ID,
+		Command:        job.Command,
+		DataRoot:       r.cfg.DataRoot,
+		ArtifactRoot:   r.cfg.ArtifactRoot,
+		SampleDataRoot: r.cfg.SampleDataRoot,
+		SQLRoot:        r.cfg.SQLRoot,
+		Inputs:         job.Inputs,
+		Outputs:        job.Outputs,
+		Labels:         job.Labels,
+	})
+	if err != nil {
+		return err
+	}
+	for _, line := range result.LogLines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		r.logger.Info("python task", slog.String("job_id", job.ID), slog.String("message", line))
+	}
+	for _, output := range result.Outputs {
+		if err := r.mirrorPythonOutput(runID, output); err != nil {
+			return err
+		}
+	}
+	if result.Message != "" {
+		r.logger.Info("python task completed", slog.String("job_id", job.ID), slog.String("summary", result.Message))
+	}
+	return nil
 }
 
 func (r *Runner) runQualityCheck(runID string, job orchestration.Job) error {
@@ -256,6 +304,14 @@ func (r *Runner) writeJSONArtifact(runID, path, runArtifactPath string, payload 
 		return err
 	}
 	return r.writeRunScopedArtifact(runID, runArtifactPath, bytes)
+}
+
+func (r *Runner) mirrorPythonOutput(runID string, output python.TaskOutput) error {
+	bytes, err := os.ReadFile(output.SourcePath)
+	if err != nil {
+		return fmt.Errorf("read python output %s: %w", output.SourcePath, err)
+	}
+	return r.writeRunScopedArtifact(runID, output.RelativePath, bytes)
 }
 
 func (r *Runner) writeRunScopedArtifact(runID, relativePath string, bytes []byte) error {
@@ -362,6 +418,14 @@ func (r *Runner) writeTransformArtifact(runID, transformRef string) error {
 		`
 		targetPath = filepath.Join(r.cfg.DataRoot, "mart", "mart_category_spend.json")
 		artifactPath = "mart/mart_category_spend.json"
+	case "transform.intermediate_category_monthly_rollup":
+		query = `
+			select month, category, category_group, expense_total, transaction_count
+			from intermediate_category_monthly_rollup
+			order by month, category
+		`
+		targetPath = filepath.Join(r.cfg.DataRoot, "intermediate", "intermediate_category_monthly_rollup.json")
+		artifactPath = "intermediate/intermediate_category_monthly_rollup.json"
 	case "transform.budget_vs_actual":
 		query = `
 			select month, category, budget_amount, actual_spend, variance_amount

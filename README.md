@@ -122,6 +122,8 @@ Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/
 
 The finance slice now includes these curated outputs:
 
+- `staging_transactions_enriched`
+- `intermediate_category_monthly_rollup`
 - `mart_monthly_cashflow`
 - `mart_category_spend`
 - `mart_budget_vs_actual`
@@ -130,6 +132,11 @@ The finance slice now includes these curated outputs:
 
 Because the DuckDB Go driver uses CGO, host builds need working Apple Silicon C
 tooling. On macOS that usually means Xcode Command Line Tools are installed.
+
+The worker now also supports bounded Python subprocess tasks behind the Go
+control plane. The current finance slice uses Python to enrich raw
+transactions into the staging layer before the intermediate and mart layers are
+built.
 
 ## Built-In Operations Surface
 
@@ -143,6 +150,7 @@ The platform now includes first-party operational features owned by this reposit
 - saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
 - browser-based dashboard management with create, duplicate, edit, delete, reorder, and live widget preview flows
 - first-party line and bar chart widgets rendered without external BI or charting products
+- a semantic metrics browser page backed by repo-managed metric manifests
 
 ## Local Bootstrap
 
@@ -155,6 +163,7 @@ The platform now includes first-party operational features owned by this reposit
 7. Use `platformctl remote --token <token> status`, `trigger personal_finance_pipeline`, or `artifacts <run_id>` from any local terminal.
 8. Use the Datasets page to inspect freshness states and the Dashboard page to manage saved dashboards directly from the browser.
 9. Use the Datasets page catalog/detail split view to inspect ownership, source refs, quality refs, docs refs, and column-level metadata for a selected asset.
+10. Use the Metrics page to browse semantic metrics, dimensions, measures, and preview responses.
 
 ## Compose Bootstrap
 

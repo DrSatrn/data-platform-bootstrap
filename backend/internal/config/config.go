@@ -25,6 +25,8 @@ type Settings struct {
 	ManifestRoot      string
 	DashboardRoot     string
 	SQLRoot           string
+	PythonTaskRoot    string
+	PythonBinary      string
 	SampleDataRoot    string
 	MigrationsRoot    string
 	AdminToken        string
@@ -64,6 +66,8 @@ func Load() (Settings, error) {
 		ManifestRoot:      envOrDefault("PLATFORM_MANIFEST_ROOT", "../packages/manifests"),
 		DashboardRoot:     envOrDefault("PLATFORM_DASHBOARD_ROOT", "../packages/dashboards"),
 		SQLRoot:           envOrDefault("PLATFORM_SQL_ROOT", "../packages/sql"),
+		PythonTaskRoot:    envOrDefault("PLATFORM_PYTHON_TASK_ROOT", "../packages/python"),
+		PythonBinary:      envOrDefault("PLATFORM_PYTHON_BINARY", "python3"),
 		SampleDataRoot:    envOrDefault("PLATFORM_SAMPLE_DATA_ROOT", "../packages/sample_data"),
 		MigrationsRoot:    envOrDefault("PLATFORM_MIGRATIONS_ROOT", "../infra/migrations"),
 		AdminToken:        envOrDefault("PLATFORM_ADMIN_TOKEN", ""),
