@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/observability"
@@ -63,7 +64,7 @@ func NewService(
 
 // Execute runs a supported platform command and returns textual output suited
 // for both terminal UIs and local CLI use.
-func (s *Service) Execute(command string) Result {
+func (s *Service) Execute(command string, actor authz.Principal) Result {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return Result{Command: command, Success: false, Output: []string{"command cannot be empty"}}
@@ -237,6 +238,6 @@ func (s *Service) Execute(command string) Result {
 	if len(result.Output) > 0 {
 		preview = result.Output[0]
 	}
-	s.telemetry.RecordCommand(command, result.Success, preview)
+	s.telemetry.RecordCommand(fmt.Sprintf("%s (%s)", command, actor.Subject), result.Success, preview)
 	return result
 }

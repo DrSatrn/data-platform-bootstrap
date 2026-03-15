@@ -68,6 +68,18 @@ The browser UI stores one bearer token locally and uses `/api/v1/session` to
 discover capabilities, so write/admin controls disable themselves when the
 token is missing or under-privileged.
 
+## Audit Trail
+
+Privileged platform actions now write to a first-party append-only audit trail.
+The current audit scope covers:
+
+- manual pipeline triggers
+- dashboard saves and deletes
+- admin terminal command execution
+
+The audit feed is exposed at `/api/v1/system/audit`, shown in the System page,
+and mirrored into PostgreSQL when the DB-backed control plane is available.
+
 ## Analytical SQL
 
 Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.

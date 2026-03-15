@@ -6,7 +6,7 @@ import { useSystemData } from "../features/system/useSystemData";
 
 export function SystemPage() {
   const { session } = useAuth();
-  const { health, quality, overview, logs, catalog, error } = useSystemData();
+  const { health, quality, overview, logs, audit, catalog, error } = useSystemData();
 
   if (error) {
     return <section className="panel">System error: {error}</section>;
@@ -74,6 +74,29 @@ export function SystemPage() {
               <p className="muted">{entry.message}</p>
             </div>
           ))}
+        </div>
+      </article>
+      <article className="card wide-card">
+        <h2>Audit Trail</h2>
+        <div className="stack">
+          {(audit?.events ?? []).length === 0 ? (
+            <p className="muted">No audit events have been recorded yet.</p>
+          ) : (
+            (audit?.events ?? []).map((event, index) => (
+              <div className="subcard" key={`${event.time}-${event.action}-${index}`}>
+                <div className="row-between">
+                  <strong>{event.action}</strong>
+                  <div className="inline-actions">
+                    <span className="badge">{event.actor_role}</span>
+                    <span className="badge">{event.outcome}</span>
+                  </div>
+                </div>
+                <p className="muted">
+                  {event.actor_subject} · {event.resource} · {new Date(event.time).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
         </div>
       </article>
       <AdminTerminal />

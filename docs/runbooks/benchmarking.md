@@ -16,6 +16,7 @@ The benchmark command currently measures:
 - `/api/v1/analytics?metric=metrics_category_variance`
 - `/api/v1/reports`
 - `/api/v1/system/overview`
+- `/api/v1/system/audit`
 - `/api/v1/admin/terminal/execute` with the `status` command
 
 ## Prerequisites

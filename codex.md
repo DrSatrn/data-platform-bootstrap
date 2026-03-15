@@ -32,6 +32,7 @@ What has already been built
 	•	`platformctl benchmark` plus `infra/scripts/benchmark_suite.sh` now provide a first-party latency benchmark path that writes timestamped JSON reports under `var/benchmarks/`.
 	•	The platform now has a lightweight bearer-token RBAC layer with `viewer`, `editor`, and `admin` roles plus a `/api/v1/session` endpoint.
 	•	The browser now stores a local token, resolves the current session/capabilities, and disables privileged UI actions when the role is insufficient.
+	•	Privileged platform actions now write to a first-party audit trail exposed at `/api/v1/system/audit` and shown in the System page.
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
@@ -40,6 +41,7 @@ What is still pending
 	•	Broaden scheduler coverage beyond the currently supported cron subset if future slices need ranges, named weekdays, or more advanced catchup semantics.
 	•	Deepen the benchmark suite so it covers scheduled-run latency, artifact retrieval, report save/update paths, and higher-load scenarios.
 	•	Evolve the lightweight RBAC layer into a fuller identity/auth model when the self-hosted product needs multi-user administration and stronger audit semantics.
+	•	Expand the audit trail from privileged actions into broader governance history, incident annotations, and richer recovery tooling.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -57,6 +59,7 @@ Latest completed workstep
 	•	Captured a real packaged-stack benchmark baseline under `var/benchmarks/benchmark-20260315T011516Z.json`.
 	•	Added bearer-token RBAC with `viewer`, `editor`, and `admin` roles and protected dashboard mutation, manual pipeline trigger, and admin-terminal paths accordingly.
 	•	Added `/api/v1/session` plus browser-side token/session awareness so the self-hosted UI now understands capabilities instead of assuming a single all-powerful token.
+	•	Added a durable audit trail for privileged actions, PostgreSQL mirroring for audit events, and a System-page audit feed.
 
 Next workstep to execute
 	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, broader control-plane normalization in PostgreSQL, stronger auth/audit depth, and expanded benchmark/load validation coverage.
@@ -74,6 +77,7 @@ Current state at session end
 	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
 	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
 	•	The platform now supports lightweight bearer-token RBAC, with browser session awareness and protected write/admin endpoints.
+	•	The platform now records privileged actions in a durable audit trail, exposes them through the API, and renders them in the System page.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
@@ -98,6 +102,13 @@ Files changed in the latest workstep
 		•	`backend/internal/reporting/handler.go`
 		•	`backend/internal/config/config.go`
 		•	`backend/internal/app/runtime.go`
+	•	Audit trail:
+		•	`backend/internal/audit/store.go`
+		•	`backend/internal/audit/handler.go`
+		•	`backend/internal/audit/store_test.go`
+		•	`backend/internal/audit/README.md`
+		•	`backend/internal/db/audit_store.go`
+		•	`infra/migrations/0004_audit_events.sql`
 	•	Frontend metadata surfaces:
 		•	`web/src/features/auth/useAuth.tsx`
 		•	`web/src/app/App.tsx`
@@ -134,7 +145,7 @@ Validated at end of session
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18087 sh infra/scripts/localhost_smoke.sh`
+		•	`PLATFORM_SMOKE_PORT=18088 sh infra/scripts/localhost_smoke.sh`
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
 	•	Packaged-stack benchmark baseline passed:
@@ -145,12 +156,15 @@ Validated at end of session
 		•	admin token: `/api/v1/session` returns admin with full capabilities
 	•	Post-RBAC benchmark baseline passed:
 		•	output: `var/benchmarks/benchmark-20260315T013521Z.json`
+	•	Post-audit benchmark baseline passed:
+		•	output: `var/benchmarks/benchmark-20260315T014235Z.json`
 
 Important fixes made during this session
 	•	The benchmark command now fails when one or more targets record zero successful requests, preventing misleading green benchmark runs against dead stacks.
 	•	The benchmark wrapper now performs a health check up front so operator feedback is immediate when the target stack is not live.
 	•	A catalog summary bug was fixed so column totals come from derived coverage state rather than assuming raw column arrays are always present in the summary input.
 	•	The smoke workflows were updated to authenticate manual pipeline triggers after write paths were moved behind RBAC.
+	•	The benchmark suite now covers `/api/v1/system/audit` so the audit surface is part of the measured platform budget.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -178,6 +192,7 @@ Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
 	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
 	•	The access-control layer is real, but it is still a lightweight token model rather than a full user, team, session, and audit system.
+	•	The audit trail is now durable and useful, but it is still relatively narrow in scope and not yet a full governance/history subsystem.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
@@ -191,6 +206,7 @@ Read these first in the next session
 	•	`backend/internal/metadata/handler.go`
 	•	`backend/internal/metadata/catalog.go`
 	•	`backend/internal/authz/service.go`
+	•	`backend/internal/audit/store.go`
 	•	`backend/cmd/platformctl/main.go`
 	•	`web/src/features/auth/useAuth.tsx`
 	•	`web/src/features/datasets/useDatasets.ts`

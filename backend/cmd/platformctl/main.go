@@ -299,6 +299,7 @@ func defaultBenchmarkTargets() []benchmarkTarget {
 		{Name: "analytics_metric", Method: http.MethodGet, Path: "/api/v1/analytics?metric=metrics_category_variance"},
 		{Name: "reports", Method: http.MethodGet, Path: "/api/v1/reports"},
 		{Name: "system_overview", Method: http.MethodGet, Path: "/api/v1/system/overview"},
+		{Name: "system_audit", Method: http.MethodGet, Path: "/api/v1/system/audit"},
 		{Name: "admin_status", Method: http.MethodPost, Path: "/api/v1/admin/terminal/execute", Body: `{"command":"status"}`, Token: true},
 	}
 }

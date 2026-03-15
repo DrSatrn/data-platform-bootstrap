@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -15,11 +16,12 @@ import (
 type Handler struct {
 	store Store
 	authz *authz.Service
+	audit audit.Store
 }
 
 // NewHandler constructs the reporting handler.
-func NewHandler(store Store, authService *authz.Service) http.Handler {
-	return &Handler{store: store, authz: authService}
+func NewHandler(store Store, authService *authz.Service, auditStore audit.Store) http.Handler {
+	return &Handler{store: store, authz: authService, audit: auditStore}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +38,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"dashboards": dashboards,
 		})
 	case http.MethodPost:
-		if !authz.Allowed(h.authz.ResolveRequest(r), authz.RoleEditor) {
+		principal := h.authz.ResolveRequest(r)
+		if !authz.Allowed(principal, authz.RoleEditor) {
+			_ = h.audit.Append(audit.Event{
+				ActorSubject: principal.Subject,
+				ActorRole:    string(principal.Role),
+				Action:       "save_dashboard",
+				Resource:     "unknown",
+				Outcome:      "forbidden",
+			})
 			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
 				"error": "editor role required to save dashboards",
 			})
@@ -50,16 +60,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.store.SaveDashboard(dashboard); err != nil {
+			_ = h.audit.Append(audit.Event{
+				ActorSubject: principal.Subject,
+				ActorRole:    string(principal.Role),
+				Action:       "save_dashboard",
+				Resource:     dashboard.ID,
+				Outcome:      "failure",
+				Details: map[string]any{
+					"error": err.Error(),
+				},
+			})
 			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
 				"error": err.Error(),
 			})
 			return
 		}
+		_ = h.audit.Append(audit.Event{
+			ActorSubject: principal.Subject,
+			ActorRole:    string(principal.Role),
+			Action:       "save_dashboard",
+			Resource:     dashboard.ID,
+			Outcome:      "success",
+		})
 		shared.WriteJSON(w, http.StatusCreated, map[string]any{
 			"dashboard": dashboard,
 		})
 	case http.MethodDelete:
-		if !authz.Allowed(h.authz.ResolveRequest(r), authz.RoleEditor) {
+		principal := h.authz.ResolveRequest(r)
+		if !authz.Allowed(principal, authz.RoleEditor) {
+			_ = h.audit.Append(audit.Event{
+				ActorSubject: principal.Subject,
+				ActorRole:    string(principal.Role),
+				Action:       "delete_dashboard",
+				Resource:     "unknown",
+				Outcome:      "forbidden",
+			})
 			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
 				"error": "editor role required to delete dashboards",
 			})
@@ -73,11 +108,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.store.DeleteDashboard(dashboardID); err != nil {
+			_ = h.audit.Append(audit.Event{
+				ActorSubject: principal.Subject,
+				ActorRole:    string(principal.Role),
+				Action:       "delete_dashboard",
+				Resource:     dashboardID,
+				Outcome:      "failure",
+				Details: map[string]any{
+					"error": err.Error(),
+				},
+			})
 			shared.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 				"error": err.Error(),
 			})
 			return
 		}
+		_ = h.audit.Append(audit.Event{
+			ActorSubject: principal.Subject,
+			ActorRole:    string(principal.Role),
+			Action:       "delete_dashboard",
+			Resource:     dashboardID,
+			Outcome:      "success",
+		})
 		shared.WriteJSON(w, http.StatusOK, map[string]any{
 			"deleted": dashboardID,
 		})

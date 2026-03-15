@@ -22,6 +22,7 @@ development and for the verified localhost smoke workflow.
 13. Use the Datasets and System pages to confirm freshness badges reflect the latest materialized artifacts.
 14. Use the Datasets page detail panel to inspect source refs, quality refs, docs refs, and column-level metadata for the selected asset.
 15. Run `make benchmark` after the stack is healthy to capture response budgets for the current build.
+16. Open the System page and confirm the audit trail shows recent pipeline, dashboard, and admin actions.
 
 ## Token Guidance
 

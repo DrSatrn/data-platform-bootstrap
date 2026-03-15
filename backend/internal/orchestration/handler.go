@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -27,16 +28,18 @@ type PipelineHandler struct {
 	control *ControlService
 	logger  *slog.Logger
 	authz   *authz.Service
+	audit   audit.Store
 }
 
 // NewPipelineHandler constructs the pipeline API surface.
-func NewPipelineHandler(loader PipelineLoader, store Store, control *ControlService, logger *slog.Logger, authService *authz.Service) http.Handler {
+func NewPipelineHandler(loader PipelineLoader, store Store, control *ControlService, logger *slog.Logger, authService *authz.Service, auditStore audit.Store) http.Handler {
 	return &PipelineHandler{
 		loader:  loader,
 		store:   store,
 		control: control,
 		logger:  logger,
 		authz:   authService,
+		audit:   auditStore,
 	}
 }
 
@@ -81,6 +84,13 @@ func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) {
 	principal := h.authz.ResolveRequest(r)
 	if !authz.Allowed(principal, authz.RoleEditor) {
+		_ = h.audit.Append(audit.Event{
+			ActorSubject: principal.Subject,
+			ActorRole:    string(principal.Role),
+			Action:       "trigger_pipeline",
+			Resource:     "unknown",
+			Outcome:      "forbidden",
+		})
 		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
 			"error": "editor role required to trigger pipelines",
 		})
@@ -99,12 +109,32 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 
 	run, err := h.control.TriggerPipeline(context.Background(), payload.PipelineID, "manual_api")
 	if err != nil {
+		_ = h.audit.Append(audit.Event{
+			ActorSubject: principal.Subject,
+			ActorRole:    string(principal.Role),
+			Action:       "trigger_pipeline",
+			Resource:     payload.PipelineID,
+			Outcome:      "failure",
+			Details: map[string]any{
+				"error": err.Error(),
+			},
+		})
 		h.logger.Error("failed to trigger pipeline", slog.String("error", err.Error()))
 		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
 			"error": err.Error(),
 		})
 		return
 	}
+	_ = h.audit.Append(audit.Event{
+		ActorSubject: principal.Subject,
+		ActorRole:    string(principal.Role),
+		Action:       "trigger_pipeline",
+		Resource:     payload.PipelineID,
+		Outcome:      "success",
+		Details: map[string]any{
+			"run_id": run.ID,
+		},
+	})
 
 	shared.WriteJSON(w, http.StatusAccepted, map[string]any{
 		"run": run,

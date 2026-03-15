@@ -33,6 +33,18 @@ type LogsPayload = {
   logs: Array<{ time: string; level: string; message: string }>;
 };
 
+type AuditPayload = {
+  events: Array<{
+    time: string;
+    actor_subject: string;
+    actor_role: string;
+    action: string;
+    resource: string;
+    outcome: string;
+    details?: Record<string, string | number | boolean>;
+  }>;
+};
+
 type CatalogPayload = {
   summary: {
     by_freshness: Record<string, number>;
@@ -54,6 +66,7 @@ export function useSystemData() {
   const [quality, setQuality] = useState<QualityPayload | null>(null);
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
   const [logs, setLogs] = useState<LogsPayload | null>(null);
+  const [audit, setAudit] = useState<AuditPayload | null>(null);
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,17 +76,19 @@ export function useSystemData() {
       fetchJSON<QualityPayload>("/api/v1/quality"),
       fetchJSON<OverviewPayload>("/api/v1/system/overview"),
       fetchJSON<LogsPayload>("/api/v1/system/logs"),
+      fetchJSON<AuditPayload>("/api/v1/system/audit"),
       fetchJSON<CatalogPayload>("/api/v1/catalog")
     ])
-      .then(([nextHealth, nextQuality, nextOverview, nextLogs, nextCatalog]) => {
+      .then(([nextHealth, nextQuality, nextOverview, nextLogs, nextAudit, nextCatalog]) => {
         setHealth(nextHealth);
         setQuality(nextQuality);
         setOverview(nextOverview);
         setLogs(nextLogs);
+        setAudit(nextAudit);
         setCatalog(nextCatalog);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown system error"));
   }, []);
 
-  return { health, quality, overview, logs, catalog, error };
+  return { health, quality, overview, logs, audit, catalog, error };
 }

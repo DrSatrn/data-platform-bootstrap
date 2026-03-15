@@ -12,6 +12,7 @@ import (
 
 	"github.com/streanor/data-platform/backend/internal/admin"
 	"github.com/streanor/data-platform/backend/internal/analytics"
+	"github.com/streanor/data-platform/backend/internal/audit"
 	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/db"
@@ -31,6 +32,7 @@ type runtimePersistence struct {
 	queue     orchestration.RunQueue
 	artifacts *storage.Service
 	reports   reporting.Store
+	audit     audit.Store
 }
 
 // RunAPI starts the HTTP control-plane server.
@@ -130,15 +132,16 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
 	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
-	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService))
+	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit))
 	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
-	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService))
+	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService, persistence.audit))
 	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
 	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store))
 	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
-	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService))
+	mux.Handle("/api/v1/system/audit", audit.NewHandler(persistence.audit))
+	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService, persistence.audit))
 
 	return observability.RequestLoggingMiddleware(logger, telemetry, mux)
 }
@@ -164,6 +167,16 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 	} else {
 		reportStore = reporting.NewMemoryStore()
 	}
+	fileAudit, err := audit.NewFileStore(cfg.DataRoot)
+	if err != nil {
+		logger.Warn("file-backed audit store unavailable, falling back to memory store", slog.String("reason", err.Error()))
+	}
+	var auditStore audit.Store
+	if fileAudit != nil {
+		auditStore = fileAudit
+	} else {
+		auditStore = audit.NewMemoryStore()
+	}
 
 	controlPlane, err := db.NewControlPlane(ctx, cfg.PostgresDSN)
 	if err != nil {
@@ -173,6 +186,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			queue:     fileQueue,
 			artifacts: fileArtifacts,
 			reports:   reportStore,
+			audit:     auditStore,
 		}, nil
 	}
 
@@ -182,11 +196,17 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 	} else {
 		reportStore = controlPlane.Dashboards
 	}
+	if fileAudit != nil {
+		auditStore = audit.NewMultiStore(controlPlane.Audit, fileAudit)
+	} else {
+		auditStore = controlPlane.Audit
+	}
 	return runtimePersistence{
 		store:     orchestration.NewMultiStore(controlPlane.RunStore, fileStore),
 		queue:     controlPlane.RunQueue,
 		artifacts: storage.NewService(cfg.ArtifactRoot, controlPlane.ArtifactIdx),
 		reports:   reportStore,
+		audit:     auditStore,
 	}, nil
 }
 

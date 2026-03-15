@@ -34,19 +34,25 @@ The next highest-leverage gap is platform hardening:
    - Protect write paths and admin surfaces.
    - Keep the local-first deployment model simple enough for self-hosted use.
 
-2. Metadata intelligence
+2. Auditability
+   - Persist privileged actions in a first-party audit trail.
+   - Expose recent audit history in the operations UI and packaged runtime.
+   - Use the audit layer as the foundation for later governance and recovery
+     workflows.
+
+3. Metadata intelligence
    - Derive richer catalog coverage and lineage summaries from repo manifests.
    - Surface documentation coverage, quality coverage, freshness, and lineage
      context in the operator UI.
 
-3. Validation and benchmark foundation
+4. Validation and benchmark foundation
    - Add a first-party benchmark command to `platformctl`.
    - Add a repo-owned benchmark script that emits timestamped JSON reports.
    - Build a stronger future E2E validation baseline alongside smoke tests.
 
-4. Next likely follow-on work
+5. Next likely follow-on work
    - Report sharing/preset workflows, deeper dataset drill-downs, and broader
-     control-plane normalization in PostgreSQL.
+   control-plane normalization in PostgreSQL.
    - Expand the benchmark suite with scheduled-run, artifact, report-save, and
      queue latency budgets.
 
@@ -58,6 +64,8 @@ The next highest-leverage gap is platform hardening:
   with role checks.
 - Added browser-side token/session awareness so the UI disables privileged
   actions when the token is missing or under-privileged.
+- Added a persistent audit trail for privileged actions and surfaced it in the
+  System page.
 - Added derived catalog coverage, lineage, and trust summaries to the metadata
   API.
 - Turned the Datasets page into a stronger metadata workbench with coverage,
