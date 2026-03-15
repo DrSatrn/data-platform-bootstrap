@@ -6,7 +6,8 @@ development and for the verified localhost smoke workflow.
 ## Intended Flow
 
 1. Review `codex.md` for repo-specific guidance.
-2. Copy `.env.example` to `.env` and adjust local paths if needed.
+2. Copy `.env.example` to `.env`, adjust local paths if needed, and define at
+   least one token with the role you need for the session.
 3. Apply database migrations if PostgreSQL is running with `go run ./cmd/platformctl migrate`.
 4. Build the backend and web runtimes. Confirm host C/C++ build tools are
    installed because the DuckDB driver is CGO-backed.
@@ -21,6 +22,15 @@ development and for the verified localhost smoke workflow.
 13. Use the Datasets and System pages to confirm freshness badges reflect the latest materialized artifacts.
 14. Use the Datasets page detail panel to inspect source refs, quality refs, docs refs, and column-level metadata for the selected asset.
 15. Run `make benchmark` after the stack is healthy to capture response budgets for the current build.
+
+## Token Guidance
+
+- `PLATFORM_ADMIN_TOKEN` maps to the `admin` role and is enough for smoke
+  scripts, `platformctl remote`, and the built-in admin terminal.
+- `PLATFORM_ACCESS_TOKENS` lets you add extra `viewer` and `editor` tokens in
+  `token:role:subject` format.
+- Use an `editor` token in the browser when you want to trigger runs or save
+  dashboards without exposing the full admin command surface.
 
 ## Fastest Verified Path
 

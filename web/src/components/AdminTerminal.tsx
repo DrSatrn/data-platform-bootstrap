@@ -9,12 +9,11 @@ const suggestedCommands = ["help", "status", "pipelines", "assets", "quality", "
 
 export function AdminTerminal() {
   const [command, setCommand] = useState("status");
-  const [token, setToken] = useState("");
-  const { entries, pending, error, execute } = useAdminTerminal();
+  const { entries, pending, error, execute, canExecute } = useAdminTerminal();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void execute(command, token);
+    void execute(command);
     setCommand("");
   }
 
@@ -27,7 +26,7 @@ export function AdminTerminal() {
             This terminal executes built-in platform management commands over the admin API.
           </p>
         </div>
-        <span className="badge">Read-only command surface</span>
+        <span className="badge">{canExecute ? "Admin access" : "Admin token required"}</span>
       </div>
       <div className="command-row">
         {suggestedCommands.map((item) => (
@@ -38,24 +37,19 @@ export function AdminTerminal() {
       </div>
       <form className="terminal-form" onSubmit={handleSubmit}>
         <input
-          aria-label="Admin token"
-          className="terminal-input"
-          onChange={(event) => setToken(event.target.value)}
-          placeholder="Optional admin token"
-          type="password"
-          value={token}
-        />
-        <input
           aria-label="Terminal command"
           className="terminal-input"
           onChange={(event) => setCommand(event.target.value)}
           placeholder="Enter a command"
           value={command}
         />
-        <button className="nav-button active terminal-submit" disabled={pending} type="submit">
+        <button className="nav-button active terminal-submit" disabled={pending || !canExecute} type="submit">
           {pending ? "Running..." : "Run"}
         </button>
       </form>
+      {!canExecute ? (
+        <p className="muted">Set an admin-capable bearer token in the sidebar to unlock terminal commands.</p>
+      ) : null}
       {error ? <p className="muted">Last terminal error: {error}</p> : null}
       <div className="terminal-output">
         {entries.map((entry, index) => (

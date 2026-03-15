@@ -3,6 +3,7 @@
 // operational context and curated analytics without decorative clutter.
 import { useEffect, useState } from "react";
 
+import { useAuth } from "../features/auth/useAuth";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DatasetsPage } from "../pages/DatasetsPage";
 import { PipelinesPage } from "../pages/PipelinesPage";
@@ -19,6 +20,7 @@ const routes: Array<{ id: Route; label: string }> = [
 
 export function App() {
   const [route, setRoute] = useState<Route>("dashboard");
+  const { token, setToken, clearToken, session, loading } = useAuth();
 
   useEffect(() => {
     document.title = `Data Platform | ${routes.find((item) => item.id === route)?.label}`;
@@ -33,6 +35,24 @@ export function App() {
           <p className="lede">
             Orchestration, catalog, analytics, and reporting in one operator-focused surface.
           </p>
+          <div className="stack auth-panel">
+            <p className="muted">
+              Session: {loading ? "loading..." : `${session?.principal.subject ?? "anonymous"} (${session?.principal.role ?? "anonymous"})`}
+            </p>
+            <input
+              className="terminal-input"
+              onChange={(event) => setToken(event.target.value)}
+              placeholder="Bearer token for editor/admin actions"
+              type="password"
+              value={token}
+            />
+            <div className="inline-actions">
+              <button className="mini-button" onClick={clearToken} type="button">
+                Clear token
+              </button>
+              <span className="badge">{session?.capabilities.edit_dashboards ? "editor" : "read-only"}</span>
+            </div>
+          </div>
         </div>
         <nav className="nav">
           {routes.map((item) => (

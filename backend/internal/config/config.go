@@ -28,6 +28,7 @@ type Settings struct {
 	SampleDataRoot    string
 	MigrationsRoot    string
 	AdminToken        string
+	AccessTokens      string
 	SchedulerTick     time.Duration
 	WorkerPoll        time.Duration
 	MaxConcurrentJobs int
@@ -66,6 +67,7 @@ func Load() (Settings, error) {
 		SampleDataRoot:    envOrDefault("PLATFORM_SAMPLE_DATA_ROOT", "../packages/sample_data"),
 		MigrationsRoot:    envOrDefault("PLATFORM_MIGRATIONS_ROOT", "../infra/migrations"),
 		AdminToken:        envOrDefault("PLATFORM_ADMIN_TOKEN", ""),
+		AccessTokens:      envOrDefault("PLATFORM_ACCESS_TOKENS", ""),
 		SchedulerTick:     schedulerTick,
 		WorkerPoll:        workerPoll,
 		MaxConcurrentJobs: maxJobs,

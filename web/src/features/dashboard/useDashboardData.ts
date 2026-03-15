@@ -4,6 +4,7 @@
 // report.
 import { useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { deleteJSON, fetchJSON, postJSON } from "../../lib/api";
 
 export type DashboardWidget = {
@@ -79,6 +80,7 @@ const emptyWidget = (): DashboardWidget => ({
 });
 
 export function useDashboardData(): DashboardData {
+  const { token, session } = useAuth();
   const [dashboards, setDashboards] = useState<DashboardDefinition[]>([]);
   const [selectedDashboardID, setSelectedDashboardID] = useState<string | null>(null);
   const [widgetData, setWidgetData] = useState<Record<string, QueryPayload["query"]>>({});
@@ -303,7 +305,14 @@ export function useDashboardData(): DashboardData {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await postJSON<{ dashboard: DashboardDefinition }, DashboardDefinition>("/api/v1/reports", draft);
+      if (!session?.capabilities.edit_dashboards) {
+        throw new Error("Editor role required to save dashboards.");
+      }
+      await postJSON<{ dashboard: DashboardDefinition }, DashboardDefinition>(
+        "/api/v1/reports",
+        draft,
+        token.trim() || undefined
+      );
       await loadDashboards(draft.id);
       setDraft(null);
       setIsEditing(false);
@@ -322,7 +331,13 @@ export function useDashboardData(): DashboardData {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await deleteJSON<{ deleted: string }>(`/api/v1/reports?id=${encodeURIComponent(dashboard.id)}`);
+      if (!session?.capabilities.edit_dashboards) {
+        throw new Error("Editor role required to delete dashboards.");
+      }
+      await deleteJSON<{ deleted: string }>(
+        `/api/v1/reports?id=${encodeURIComponent(dashboard.id)}`,
+        token.trim() || undefined
+      );
       const remainingDashboards = dashboards.filter((item) => item.id !== dashboard.id);
       setSelectedDashboardID(remainingDashboards[0]?.id ?? null);
       setDraft(null);

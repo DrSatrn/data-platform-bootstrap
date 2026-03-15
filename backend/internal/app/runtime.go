@@ -12,6 +12,7 @@ import (
 
 	"github.com/streanor/data-platform/backend/internal/admin"
 	"github.com/streanor/data-platform/backend/internal/analytics"
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/db"
 	"github.com/streanor/data-platform/backend/internal/execution"
@@ -116,6 +117,11 @@ func RunWorker(ctx context.Context) error {
 func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observability.Service, persistence runtimePersistence) http.Handler {
 	loader := manifests.NewLoader(cfg.ManifestRoot)
 	catalog := metadata.NewCatalog()
+	authService, err := authz.NewService(cfg.AdminToken, cfg.AccessTokens)
+	if err != nil {
+		logger.Error("failed to initialize authz service", slog.String("error", err.Error()))
+		authService, _ = authz.NewService(cfg.AdminToken, "")
+	}
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	controlService := orchestration.NewControlService(loader, persistence.store, persistence.queue)
@@ -123,15 +129,16 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
-	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger))
+	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
+	mux.Handle("/api/v1/pipelines", orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService))
 	mux.Handle("/api/v1/catalog", metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot))
 	mux.Handle("/api/v1/quality", quality.NewHandler(qualityService))
 	mux.Handle("/api/v1/analytics", analytics.NewHandler(analyticsService))
-	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports))
+	mux.Handle("/api/v1/reports", reporting.NewHandler(persistence.reports, authService))
 	mux.Handle("/api/v1/artifacts", storage.NewHandler(persistence.artifacts))
 	mux.Handle("/api/v1/system/overview", observability.NewOverviewHandler(cfg, telemetry, loader, loader, persistence.store))
 	mux.Handle("/api/v1/system/logs", observability.NewRecentLogsHandler(telemetry))
-	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, adminService))
+	mux.Handle("/api/v1/admin/terminal/execute", admin.NewHandler(cfg, authService, adminService))
 
 	return observability.RequestLoggingMiddleware(logger, telemetry, mux)
 }

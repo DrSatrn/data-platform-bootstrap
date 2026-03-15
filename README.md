@@ -44,6 +44,30 @@ is unavailable.
 - The admin terminal is a platform command surface, not arbitrary shell access.
 - If you rotate local tokens or database credentials, keep them in untracked local env files.
 
+## Access Control
+
+The platform now supports lightweight bearer-token RBAC for self-hosted use:
+
+- `admin` can use the admin terminal and all editor actions
+- `editor` can trigger runs and modify saved dashboards
+- `viewer` is read-only
+
+Configuration:
+
+- `PLATFORM_ADMIN_TOKEN` remains supported and maps to the `admin` role
+- `PLATFORM_ACCESS_TOKENS` adds extra tokens in `token:role:subject` format,
+  comma-separated
+
+Example:
+
+```bash
+PLATFORM_ACCESS_TOKENS=viewer-token:viewer:alice,editor-token:editor:bob
+```
+
+The browser UI stores one bearer token locally and uses `/api/v1/session` to
+discover capabilities, so write/admin controls disable themselves when the
+token is missing or under-privileged.
+
 ## Analytical SQL
 
 Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.
@@ -74,7 +98,7 @@ The platform now includes first-party operational features owned by this reposit
 
 ## Local Bootstrap
 
-1. Copy `.env.example` to `.env` and replace placeholder credentials and the admin token.
+1. Copy `.env.example` to `.env` and replace placeholder credentials and tokens.
 2. Start PostgreSQL and the platform services with Docker Compose or run the binaries locally.
 3. Start both `platform-api` and `platform-worker`; manual runs are queued by the API and executed by the worker.
 4. Start `platform-scheduler` if you want scheduled queueing enabled.

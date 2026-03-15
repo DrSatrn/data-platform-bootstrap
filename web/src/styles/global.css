@@ -65,6 +65,10 @@ textarea {
   color: rgba(246, 241, 232, 0.78);
 }
 
+.auth-panel {
+  margin-top: 20px;
+}
+
 .nav {
   display: grid;
   gap: 12px;
@@ -222,7 +226,7 @@ textarea {
 
 .terminal-form {
   display: grid;
-  grid-template-columns: 220px 1fr auto;
+  grid-template-columns: 1fr auto;
   gap: 12px;
   margin-bottom: 16px;
 }

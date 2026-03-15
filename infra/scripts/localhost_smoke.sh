@@ -157,6 +157,7 @@ wait_for_api
 wait_for_scheduled_run
 
 manual_response=$(curl -fsS -X POST "$API_URL/api/v1/pipelines" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{"pipeline_id":"personal_finance_pipeline"}')
 manual_run_id=$(printf "%s" "$manual_response" | sed -n 's/.*"run":{"id":"\([^"]*\)".*/\1/p')

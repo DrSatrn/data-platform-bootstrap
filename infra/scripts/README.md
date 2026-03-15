@@ -5,10 +5,12 @@ migration runners, manifest validators, and smoke-test helpers.
 
 - `localhost_smoke.sh`: starts an isolated localhost API, worker, and
   scheduler stack on loopback, verifies scheduled and manual runs, checks the
-  artifact API, exercises the admin terminal, and proves the CLI path.
+  artifact API, exercises the admin terminal, and proves the CLI path. It now
+  authenticates write-path requests with the configured admin token.
 - `compose_smoke.sh`: boots the packaged Docker Compose stack, waits for
   migration and service health, validates the built web service, and proves the
   API, worker, scheduler, analytics, quality, artifacts, and remote CLI paths.
+  It now authenticates manual run triggers with the configured admin token.
 - `benchmark_suite.sh`: runs the repo-owned platform benchmark command against
   a running stack and writes a timestamped JSON report for future latency and
   regression tracking.

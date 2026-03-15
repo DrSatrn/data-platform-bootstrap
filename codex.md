@@ -30,6 +30,8 @@ What has already been built
 	•	The Datasets page now acts as a catalog/detail workbench, exposing owner, source refs, quality refs, docs refs, and richer column metadata for the selected asset.
 	•	The metadata API now derives trust-oriented coverage summaries and lineage edges from manifests and runtime state, not just raw asset lists.
 	•	`platformctl benchmark` plus `infra/scripts/benchmark_suite.sh` now provide a first-party latency benchmark path that writes timestamped JSON reports under `var/benchmarks/`.
+	•	The platform now has a lightweight bearer-token RBAC layer with `viewer`, `editor`, and `admin` roles plus a `/api/v1/session` endpoint.
+	•	The browser now stores a local token, resolves the current session/capabilities, and disables privileged UI actions when the role is insufficient.
 	•	Frontend build passes, backend tests pass, manifest validation passes, compose config resolves, and live localhost API, worker, scheduler, admin terminal, artifact API, CLI, Compose-backed PostgreSQL checks, DuckDB-backed analytics/quality checks, and packaged Compose smoke checks passed.
 
 What is still pending
@@ -37,6 +39,7 @@ What is still pending
 	•	Expand the analytical layer beyond the first finance slice with freshness surfaces, more than one transform/metric family, and richer report editing workflows.
 	•	Broaden scheduler coverage beyond the currently supported cron subset if future slices need ranges, named weekdays, or more advanced catchup semantics.
 	•	Deepen the benchmark suite so it covers scheduled-run latency, artifact retrieval, report save/update paths, and higher-load scenarios.
+	•	Evolve the lightweight RBAC layer into a fuller identity/auth model when the self-hosted product needs multi-user administration and stronger audit semantics.
 
 Important current architectural direction
 	•	Do not reintroduce Prometheus or Grafana as core platform observability dependencies.
@@ -52,9 +55,11 @@ Latest completed workstep
 	•	Added a first-party benchmark command to `platformctl` and a repo-owned `benchmark_suite.sh` wrapper that writes timestamped JSON reports.
 	•	Hardened the benchmark flow so it fails loudly when the target stack is unreachable instead of producing misleading green output.
 	•	Captured a real packaged-stack benchmark baseline under `var/benchmarks/benchmark-20260315T011516Z.json`.
+	•	Added bearer-token RBAC with `viewer`, `editor`, and `admin` roles and protected dashboard mutation, manual pipeline trigger, and admin-terminal paths accordingly.
+	•	Added `/api/v1/session` plus browser-side token/session awareness so the self-hosted UI now understands capabilities instead of assuming a single all-powerful token.
 
 Next workstep to execute
-	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, broader control-plane normalization in PostgreSQL, and expanded benchmark/load validation coverage.
+	•	Keep pushing beyond the finance slice with richer report-level controls, dashboard preset/share workflows, deeper dataset drill-down pages, broader control-plane normalization in PostgreSQL, stronger auth/audit depth, and expanded benchmark/load validation coverage.
 
 Session Close Handoff
 
@@ -68,6 +73,7 @@ Current state at session end
 	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, persisted locally under the platform data root through the file-backed reporting store, and mirrored into PostgreSQL when the DB-backed reporting store is active.
 	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
 	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
+	•	The platform now supports lightweight bearer-token RBAC, with browser session awareness and protected write/admin endpoints.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
@@ -82,13 +88,36 @@ Files changed in the latest workstep
 	•	Benchmark command and tests:
 		•	`backend/cmd/platformctl/main.go`
 		•	`backend/cmd/platformctl/main_test.go`
+	•	Access control:
+		•	`backend/internal/authz/service.go`
+		•	`backend/internal/authz/handler.go`
+		•	`backend/internal/authz/service_test.go`
+		•	`backend/internal/authz/README.md`
+		•	`backend/internal/admin/handler.go`
+		•	`backend/internal/orchestration/handler.go`
+		•	`backend/internal/reporting/handler.go`
+		•	`backend/internal/config/config.go`
+		•	`backend/internal/app/runtime.go`
 	•	Frontend metadata surfaces:
+		•	`web/src/features/auth/useAuth.tsx`
+		•	`web/src/app/App.tsx`
 		•	`web/src/features/datasets/useDatasets.ts`
 		•	`web/src/pages/DatasetsPage.tsx`
 		•	`web/src/features/system/useSystemData.ts`
 		•	`web/src/pages/SystemPage.tsx`
+		•	`web/src/features/system/useAdminTerminal.ts`
+		•	`web/src/components/AdminTerminal.tsx`
+		•	`web/src/features/pipelines/usePipelines.ts`
+		•	`web/src/pages/PipelinesPage.tsx`
+		•	`web/src/features/dashboard/useDashboardData.ts`
+		•	`web/src/pages/DashboardPage.tsx`
+		•	`web/src/lib/api.ts`
+		•	`web/src/main.tsx`
+		•	`web/src/styles/global.css`
 	•	Benchmark workflow and docs:
 		•	`infra/scripts/benchmark_suite.sh`
+		•	`infra/scripts/localhost_smoke.sh`
+		•	`infra/scripts/compose_smoke.sh`
 		•	`infra/scripts/README.md`
 		•	`docs/runbooks/benchmarking.md`
 		•	`docs/runbooks/bootstrap.md`
@@ -105,23 +134,30 @@ Validated at end of session
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18086 sh infra/scripts/localhost_smoke.sh`
+		•	`PLATFORM_SMOKE_PORT=18087 sh infra/scripts/localhost_smoke.sh`
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
 	•	Packaged-stack benchmark baseline passed:
 		•	`sh infra/scripts/benchmark_suite.sh`
 		•	output: `var/benchmarks/benchmark-20260315T011516Z.json`
+	•	RBAC session proof passed:
+		•	anonymous: `/api/v1/session` returns anonymous with read-only capabilities
+		•	admin token: `/api/v1/session` returns admin with full capabilities
+	•	Post-RBAC benchmark baseline passed:
+		•	output: `var/benchmarks/benchmark-20260315T013521Z.json`
 
 Important fixes made during this session
 	•	The benchmark command now fails when one or more targets record zero successful requests, preventing misleading green benchmark runs against dead stacks.
 	•	The benchmark wrapper now performs a health check up front so operator feedback is immediate when the target stack is not live.
 	•	A catalog summary bug was fixed so column totals come from derived coverage state rather than assuming raw column arrays are always present in the summary input.
+	•	The smoke workflows were updated to authenticate manual pipeline triggers after write paths were moved behind RBAC.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
 	•	DuckDB is the analytical execution layer and is now central to transforms, metrics, analytics serving, and quality checks.
 	•	The Compose web runtime is a packaged built service, not just a Vite dev server.
 	•	The local frontend dev path with Vite still exists and is useful for UI iteration.
+	•	The platform still uses lightweight bearer tokens rather than a full identity provider; this is intentional for the current self-hosted stage, not the final auth model.
 	•	Public-repo safety remains important:
 		•	no real secrets should be committed
 		•	`.env.example` contains placeholders only
@@ -135,11 +171,13 @@ Best next session starting point
 		•	richer widget-specific controls and layout behavior
 		•	more advanced dataset drill-downs and lineage visualization using the existing catalog API
 		•	deeper PostgreSQL normalization for reporting and metadata state
+		•	audit/event history around auth-sensitive actions
 		•	expanding the benchmark suite into load, queue, artifact, and scheduled-run latency budgets
 
 Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
 	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
+	•	The access-control layer is real, but it is still a lightweight token model rather than a full user, team, session, and audit system.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
@@ -152,7 +190,9 @@ Read these first in the next session
 	•	`backend/internal/analytics/service.go`
 	•	`backend/internal/metadata/handler.go`
 	•	`backend/internal/metadata/catalog.go`
+	•	`backend/internal/authz/service.go`
 	•	`backend/cmd/platformctl/main.go`
+	•	`web/src/features/auth/useAuth.tsx`
 	•	`web/src/features/datasets/useDatasets.ts`
 	•	`web/src/pages/DatasetsPage.tsx`
 	•	`docs/runbooks/benchmarking.md`

@@ -6,8 +6,8 @@ package admin
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
@@ -19,13 +19,15 @@ type executeRequest struct {
 // Handler serves the admin terminal API.
 type Handler struct {
 	cfg     config.Settings
+	authz   *authz.Service
 	service *Service
 }
 
 // NewHandler constructs an admin-terminal handler.
-func NewHandler(cfg config.Settings, service *Service) http.Handler {
+func NewHandler(cfg config.Settings, authService *authz.Service, service *Service) http.Handler {
 	return &Handler{
 		cfg:     cfg,
+		authz:   authService,
 		service: service,
 	}
 }
@@ -38,14 +40,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.cfg.AdminToken != "" {
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token != h.cfg.AdminToken {
-			shared.WriteJSON(w, http.StatusUnauthorized, map[string]any{
-				"error": "invalid admin token",
-			})
-			return
-		}
+	if !authz.Allowed(h.authz.ResolveRequest(r), authz.RoleAdmin) {
+		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
+			"error": "admin role required for terminal access",
+		})
+		return
 	}
 
 	var payload executeRequest

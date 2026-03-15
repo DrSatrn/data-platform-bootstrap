@@ -2,6 +2,7 @@
 // manual trigger action so the UI can kick off a real worker-backed run.
 import { useCallback, useEffect, useState } from "react";
 
+import { useAuth } from "../auth/useAuth";
 import { fetchJSON, postJSON } from "../../lib/api";
 
 type Pipeline = {
@@ -26,6 +27,7 @@ type PipelinePayload = {
 };
 
 export function usePipelines() {
+  const { token, session } = useAuth();
   const [data, setData] = useState<PipelinePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingPipelineID, setPendingPipelineID] = useState<string | null>(null);
@@ -44,7 +46,10 @@ export function usePipelines() {
     setPendingPipelineID(pipelineID);
     setError(null);
     try {
-      await postJSON<{ run: { id: string } }, { pipeline_id: string }>("/api/v1/pipelines", { pipeline_id: pipelineID });
+      if (!session?.capabilities.trigger_runs) {
+        throw new Error("Editor role required to trigger pipelines.");
+      }
+      await postJSON<{ run: { id: string } }, { pipeline_id: string }>("/api/v1/pipelines", { pipeline_id: pipelineID }, token.trim() || undefined);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown trigger error");

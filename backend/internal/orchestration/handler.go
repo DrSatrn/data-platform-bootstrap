@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
 
@@ -25,15 +26,17 @@ type PipelineHandler struct {
 	store   Store
 	control *ControlService
 	logger  *slog.Logger
+	authz   *authz.Service
 }
 
 // NewPipelineHandler constructs the pipeline API surface.
-func NewPipelineHandler(loader PipelineLoader, store Store, control *ControlService, logger *slog.Logger) http.Handler {
+func NewPipelineHandler(loader PipelineLoader, store Store, control *ControlService, logger *slog.Logger, authService *authz.Service) http.Handler {
 	return &PipelineHandler{
 		loader:  loader,
 		store:   store,
 		control: control,
 		logger:  logger,
+		authz:   authService,
 	}
 }
 
@@ -76,6 +79,14 @@ func (h *PipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) {
+	principal := h.authz.ResolveRequest(r)
+	if !authz.Allowed(principal, authz.RoleEditor) {
+		shared.WriteJSON(w, http.StatusForbidden, map[string]any{
+			"error": "editor role required to trigger pipelines",
+		})
+		return
+	}
+
 	var payload struct {
 		PipelineID string `json:"pipeline_id"`
 	}

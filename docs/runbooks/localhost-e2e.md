@@ -21,6 +21,7 @@ Prove that the platform can:
 - host C/C++ build tools available for the DuckDB Go driver
 - Docker or OrbStack available for local PostgreSQL if you want the full stack profile
 - a local `.env` file created from `.env.example` with placeholder credentials replaced
+- at least one configured bearer token for the role you want to test
 
 ## Fastest repeatable check
 
@@ -130,6 +131,7 @@ go run ./cmd/platformctl remote trigger personal_finance_pipeline
 Or use the browser:
 
 - open `http://127.0.0.1:3000`
+- paste an `editor` or `admin` token into the sidebar token field
 - go to the Pipelines page
 - click `Run now`
 
@@ -215,6 +217,13 @@ curl "http://127.0.0.1:8080/api/v1/catalog"
 
 You should now see `freshness_status` on assets, with states such as `fresh`,
 `late`, `stale`, or `missing` depending on the local artifact timestamps.
+
+10. Inspect the resolved browser session:
+
+```bash
+curl http://127.0.0.1:8080/api/v1/session
+curl -H "Authorization: Bearer local-dev-admin-token" http://127.0.0.1:8080/api/v1/session
+```
 
 ## Failure modes to check first
 

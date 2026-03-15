@@ -36,6 +36,7 @@ services:
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
+      PLATFORM_ACCESS_TOKENS: ${PLATFORM_ACCESS_TOKENS:-}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
@@ -66,6 +67,7 @@ services:
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
+      PLATFORM_ACCESS_TOKENS: ${PLATFORM_ACCESS_TOKENS:-}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
@@ -104,6 +106,7 @@ services:
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
+      PLATFORM_ACCESS_TOKENS: ${PLATFORM_ACCESS_TOKENS:-}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4
@@ -135,6 +138,7 @@ services:
       PLATFORM_SAMPLE_DATA_ROOT: /workspace/packages/sample_data
       PLATFORM_MIGRATIONS_ROOT: /workspace/infra/migrations
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-local-dev-admin-token}
+      PLATFORM_ACCESS_TOKENS: ${PLATFORM_ACCESS_TOKENS:-}
       PLATFORM_SCHEDULER_TICK: 15s
       PLATFORM_WORKER_POLL: 5s
       PLATFORM_MAX_CONCURRENT_JOBS: 4

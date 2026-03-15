@@ -7,8 +7,8 @@ agents to infer intent from a large git diff or chat transcript.
 ## Current Build Focus
 
 Move the project from a strong vertical slice into a more fully fledged
-internal platform product by prioritizing features that deepen user-facing
-product behavior, not just lower-level plumbing.
+internal platform product by prioritizing operational safety, access control,
+and stronger self-hosted platform discipline.
 
 ## Why This Slice
 
@@ -20,31 +20,44 @@ The platform already has:
 - dashboard editing and persistence through the browser
 - first-party reporting, diagnostics, and metadata surfaces
 
-The next highest-leverage gap is platform trust and repeatable validation:
-operators need deeper catalog intelligence, and the engineering loop needs
-first-party benchmarks that can grow alongside smoke tests.
+The next highest-leverage gap is platform hardening:
+
+- access control needs to be real, not a single opaque admin token
+- metadata trust signals need to be operator-facing
+- validation needs to quantify performance, not just behavior
 
 ## Current Plan
 
-1. Metadata intelligence
+1. Access control hardening
+   - Introduce lightweight RBAC with bearer tokens and browser session
+     awareness.
+   - Protect write paths and admin surfaces.
+   - Keep the local-first deployment model simple enough for self-hosted use.
+
+2. Metadata intelligence
    - Derive richer catalog coverage and lineage summaries from repo manifests.
    - Surface documentation coverage, quality coverage, freshness, and lineage
      context in the operator UI.
-   - Keep the metadata API useful without introducing a separate graph service.
 
-2. Validation and benchmark foundation
+3. Validation and benchmark foundation
    - Add a first-party benchmark command to `platformctl`.
    - Add a repo-owned benchmark script that emits timestamped JSON reports.
    - Build a stronger future E2E validation baseline alongside smoke tests.
 
-3. Next likely follow-on work
+4. Next likely follow-on work
    - Report sharing/preset workflows, deeper dataset drill-downs, and broader
      control-plane normalization in PostgreSQL.
-   - Expand the benchmark suite with scheduled-run, artifact, and report-save
-     latency budgets.
+   - Expand the benchmark suite with scheduled-run, artifact, report-save, and
+     queue latency budgets.
 
 ## Latest Completed Workstep
 
+- Added bearer-token RBAC with `viewer`, `editor`, and `admin` roles plus a
+  `/api/v1/session` endpoint.
+- Protected dashboard mutations, pipeline triggers, and admin terminal access
+  with role checks.
+- Added browser-side token/session awareness so the UI disables privileged
+  actions when the token is missing or under-privileged.
 - Added derived catalog coverage, lineage, and trust summaries to the metadata
   API.
 - Turned the Datasets page into a stronger metadata workbench with coverage,

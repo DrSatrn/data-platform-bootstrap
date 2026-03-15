@@ -7,17 +7,19 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/shared"
 )
 
 // Handler serves reporting endpoints.
 type Handler struct {
 	store Store
+	authz *authz.Service
 }
 
 // NewHandler constructs the reporting handler.
-func NewHandler(store Store) http.Handler {
-	return &Handler{store: store}
+func NewHandler(store Store, authService *authz.Service) http.Handler {
+	return &Handler{store: store, authz: authService}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +36,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"dashboards": dashboards,
 		})
 	case http.MethodPost:
+		if !authz.Allowed(h.authz.ResolveRequest(r), authz.RoleEditor) {
+			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
+				"error": "editor role required to save dashboards",
+			})
+			return
+		}
 		var dashboard Dashboard
 		if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
 			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{
@@ -51,6 +59,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"dashboard": dashboard,
 		})
 	case http.MethodDelete:
+		if !authz.Allowed(h.authz.ResolveRequest(r), authz.RoleEditor) {
+			shared.WriteJSON(w, http.StatusForbidden, map[string]any{
+				"error": "editor role required to delete dashboards",
+			})
+			return
+		}
 		dashboardID := r.URL.Query().Get("id")
 		if dashboardID == "" {
 			shared.WriteJSON(w, http.StatusBadRequest, map[string]any{

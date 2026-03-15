@@ -3,10 +3,12 @@
 // usually need both the static shape and the latest execution outcome together.
 import { useState } from "react";
 
+import { useAuth } from "../features/auth/useAuth";
 import { usePipelines } from "../features/pipelines/usePipelines";
 import { useRunArtifacts } from "../features/pipelines/useRunArtifacts";
 
 export function PipelinesPage() {
+  const { session } = useAuth();
   const { data, error, pendingPipelineID, triggerPipeline } = usePipelines();
   const [selectedRunID, setSelectedRunID] = useState<string | null>(null);
   const { artifacts, error: artifactError } = useRunArtifacts(selectedRunID);
@@ -19,6 +21,9 @@ export function PipelinesPage() {
     <section className="page-grid">
       <div className="card wide-card">
         <h2>Pipelines</h2>
+        {!session?.capabilities.trigger_runs ? (
+          <p className="muted">Editor token required to queue manual runs from the UI.</p>
+        ) : null}
         <div className="stack">
           {(data?.pipelines ?? []).map((pipeline) => (
             <article className="subcard" key={pipeline.id}>
@@ -31,7 +36,7 @@ export function PipelinesPage() {
                   <span className="badge">{pipeline.owner}</span>
                   <button
                     className="mini-button"
-                    disabled={pendingPipelineID === pipeline.id}
+                    disabled={pendingPipelineID === pipeline.id || !session?.capabilities.trigger_runs}
                     onClick={() => void triggerPipeline(pipeline.id)}
                     type="button"
                   >

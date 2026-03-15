@@ -3,6 +3,7 @@
 // like a real internal tool where operators can shape the UI, not just consume
 // a fixed dashboard.
 import { StatCard } from "../components/StatCard";
+import { useAuth } from "../features/auth/useAuth";
 import { DashboardWidget, useDashboardData } from "../features/dashboard/useDashboardData";
 
 const datasetOptions = [
@@ -15,6 +16,7 @@ const metricOptions = ["metrics_savings_rate", "metrics_category_variance"];
 const axisOptions = ["month", "category", "total_income", "total_expense", "net_cashflow", "actual_spend", "budget_amount", "variance_amount"];
 
 export function DashboardPage() {
+  const { session } = useAuth();
   const {
     dashboard,
     dashboards,
@@ -72,17 +74,37 @@ export function DashboardPage() {
                 </option>
               ))}
             </select>
-            <button className="mini-button" onClick={createDashboard} type="button">
+            <button
+              className="mini-button"
+              disabled={!session?.capabilities.edit_dashboards}
+              onClick={createDashboard}
+              type="button"
+            >
               New dashboard
             </button>
-            <button className="mini-button" onClick={duplicateDashboard} type="button">
+            <button
+              className="mini-button"
+              disabled={!session?.capabilities.edit_dashboards}
+              onClick={duplicateDashboard}
+              type="button"
+            >
               Duplicate
             </button>
-            <button className="mini-button" disabled={isSaving || !dashboard} onClick={() => void deleteDashboard()} type="button">
+            <button
+              className="mini-button"
+              disabled={isSaving || !dashboard || !session?.capabilities.edit_dashboards}
+              onClick={() => void deleteDashboard()}
+              type="button"
+            >
               Delete
             </button>
             {!isEditing ? (
-              <button className="mini-button" onClick={startEditing} type="button">
+              <button
+                className="mini-button"
+                disabled={!session?.capabilities.edit_dashboards}
+                onClick={startEditing}
+                type="button"
+              >
                 Edit dashboard
               </button>
             ) : (
@@ -90,13 +112,21 @@ export function DashboardPage() {
                 <button className="mini-button" onClick={cancelEditing} type="button">
                   Cancel
                 </button>
-                <button className="mini-button" disabled={isSaving} onClick={() => void saveDashboard()} type="button">
+                <button
+                  className="mini-button"
+                  disabled={isSaving || !session?.capabilities.edit_dashboards}
+                  onClick={() => void saveDashboard()}
+                  type="button"
+                >
                   {isSaving ? "Saving..." : "Save dashboard"}
                 </button>
               </>
             )}
           </div>
         </div>
+        {!session?.capabilities.edit_dashboards ? (
+          <p className="muted">Editor token required to create or modify saved dashboards.</p>
+        ) : null}
         {saveError ? <p className="muted">Save error: {saveError}</p> : null}
       </div>
 
@@ -104,7 +134,12 @@ export function DashboardPage() {
         <article className="card wide-card">
           <div className="row-between">
             <h3>Dashboard Editor</h3>
-            <button className="mini-button" onClick={addWidget} type="button">
+            <button
+              className="mini-button"
+              disabled={!session?.capabilities.edit_dashboards}
+              onClick={addWidget}
+              type="button"
+            >
               Add widget
             </button>
           </div>
@@ -133,13 +168,28 @@ export function DashboardPage() {
                 <div className="row-between">
                   <strong>{widget.name || `Widget ${index + 1}`}</strong>
                   <div className="inline-actions">
-                    <button className="mini-button" onClick={() => moveWidget(widget.id, -1)} type="button">
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => moveWidget(widget.id, -1)}
+                      type="button"
+                    >
                       Up
                     </button>
-                    <button className="mini-button" onClick={() => moveWidget(widget.id, 1)} type="button">
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => moveWidget(widget.id, 1)}
+                      type="button"
+                    >
                       Down
                     </button>
-                    <button className="mini-button" onClick={() => removeWidget(widget.id)} type="button">
+                    <button
+                      className="mini-button"
+                      disabled={!session?.capabilities.edit_dashboards}
+                      onClick={() => removeWidget(widget.id)}
+                      type="button"
+                    >
                       Remove
                     </button>
                   </div>

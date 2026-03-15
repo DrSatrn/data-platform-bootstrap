@@ -1,9 +1,11 @@
 // SystemPage gathers platform diagnostics so operators can quickly understand
 // whether the stack is healthy and whether data trust signals need attention.
 import { AdminTerminal } from "../components/AdminTerminal";
+import { useAuth } from "../features/auth/useAuth";
 import { useSystemData } from "../features/system/useSystemData";
 
 export function SystemPage() {
+  const { session } = useAuth();
   const { health, quality, overview, logs, catalog, error } = useSystemData();
 
   if (error) {
@@ -24,6 +26,7 @@ export function SystemPage() {
         <h2>Service Health</h2>
         <p className="muted">Environment: {health?.environment ?? "unknown"}</p>
         <p>Status: {health?.status ?? "unknown"}</p>
+        <p className="muted">Session: {session?.principal.subject ?? "anonymous"} ({session?.principal.role ?? "anonymous"})</p>
         <p className="muted">Known pipelines: {overview?.known_pipelines ?? 0}</p>
         <p className="muted">Known assets: {overview?.known_assets ?? 0}</p>
         <p className="muted">Run history: {overview?.run_history ?? 0}</p>
