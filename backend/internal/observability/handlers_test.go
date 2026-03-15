@@ -5,6 +5,8 @@ package observability
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -103,8 +105,17 @@ func (s backupInventoryStub) ListBundles() ([]backup.BundleFile, error) {
 }
 
 func TestOverviewHandlerIncludesPersistenceModes(t *testing.T) {
+	dataRoot := t.TempDir()
+	statusPath := filepath.Join(dataRoot, "control_plane", "scheduler_status.json")
+	if err := os.MkdirAll(filepath.Dir(statusPath), 0o755); err != nil {
+		t.Fatalf("mkdir status dir: %v", err)
+	}
+	if err := os.WriteFile(statusPath, []byte(`{"refreshed_at":"2026-03-15T01:00:00Z","pipeline_count":1,"asset_count":1}`), 0o644); err != nil {
+		t.Fatalf("write scheduler status: %v", err)
+	}
+
 	handler := NewOverviewHandler(
-		config.Settings{Environment: "test", HTTPAddr: ":8080", WebAddr: ":3000", APIBaseURL: "http://127.0.0.1:8080"},
+		config.Settings{Environment: "test", HTTPAddr: ":8080", WebAddr: ":3000", APIBaseURL: "http://127.0.0.1:8080", DataRoot: dataRoot},
 		NewService(),
 		pipelineLoaderStub{pipelines: []orchestration.Pipeline{{ID: "finance"}}},
 		assetLoaderStub{assets: []metadata.DataAsset{{ID: "mart_cashflow"}}},
@@ -130,5 +141,8 @@ func TestOverviewHandlerIncludesPersistenceModes(t *testing.T) {
 	body := recorder.Body.String()
 	if !strings.Contains(body, `"persistence_modes"`) || !strings.Contains(body, `"source_of_truth":"postgres"`) {
 		t.Fatalf("expected persistence modes in response, got %s", body)
+	}
+	if !strings.Contains(body, `"scheduler_summary"`) || !strings.Contains(body, `"pipeline_count":1`) {
+		t.Fatalf("expected scheduler summary in response, got %s", body)
 	}
 }

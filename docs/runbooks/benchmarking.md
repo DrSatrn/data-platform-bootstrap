@@ -6,7 +6,8 @@ running platform stack and how to interpret the output.
 ## Goal
 
 Track the platform's response budgets with a first-party benchmark path instead
-of relying only on ad hoc manual checks.
+of relying only on ad hoc manual checks. The benchmark suite is now a release
+gate, not just a passive timing report.
 
 The benchmark command currently measures:
 
@@ -18,6 +19,9 @@ The benchmark command currently measures:
 - `/api/v1/system/overview`
 - `/api/v1/system/audit`
 - `/api/v1/admin/terminal/execute` with the `status` command
+- a concurrent manual-trigger load scenario against `personal_finance_pipeline`
+- queue visibility under that load
+- scheduler heartbeat freshness from `/api/v1/system/overview`
 
 ## Prerequisites
 
@@ -44,6 +48,10 @@ To benchmark another local stack or adjust iteration count:
 PLATFORM_BENCHMARK_URL=http://127.0.0.1:18085 \
 PLATFORM_ADMIN_TOKEN=local-dev-admin-token \
 PLATFORM_BENCHMARK_ITERATIONS=10 \
+PLATFORM_BENCHMARK_LOAD_TRIGGERS=6 \
+PLATFORM_BENCHMARK_LOAD_CONCURRENCY=3 \
+PLATFORM_BENCHMARK_QUEUE_VISIBLE_THRESHOLD_MS=7000 \
+PLATFORM_BENCHMARK_SCHEDULER_LAG_THRESHOLD_SECONDS=120 \
 make benchmark
 ```
 
@@ -57,6 +65,11 @@ go run ./cmd/platformctl benchmark \
   --server http://127.0.0.1:8080 \
   --token local-dev-admin-token \
   --iterations 10 \
+  --pipeline personal_finance_pipeline \
+  --load-triggers 6 \
+  --load-concurrency 3 \
+  --queue-visible-threshold-ms 7000 \
+  --scheduler-lag-threshold-seconds 120 \
   --out ../var/benchmarks/manual-benchmark.json
 ```
 
@@ -75,23 +88,27 @@ The benchmark report includes:
   - min and max latency
   - last HTTP status
   - last observed error
+- one load-scenario block with:
+  - requested versus accepted triggers
+  - queue depth before and after the load burst
+  - maximum queued, active, total, and inflight request counts observed
+  - queue visibility latency
+  - run IDs and trigger errors
+- one scheduler summary block with:
+  - latest heartbeat time
+  - scheduler lag in seconds
+  - latest pipeline and asset counts
+- assertion results that explicitly pass or fail the benchmark gate
 
 ## How to use it
 
 - Run after major backend or frontend changes that affect API hydration paths.
 - Compare reports over time to spot regressions in catalog, analytics, or admin
   surfaces.
+- Treat a failed benchmark command as a real regression signal. It now fails if:
+  - any target records zero successes
+  - the load scenario cannot surface accepted queue requests within the budget
+  - the scheduler heartbeat is stale beyond the configured threshold
 - Use the benchmark output together with the smoke scripts:
   - smoke scripts prove behavior
   - benchmark reports quantify performance
-
-## Follow-on work
-
-The current benchmark suite is intentionally small and deterministic. Future
-work should expand it with:
-
-- scheduled-run latency budgets
-- artifact lookup latency
-- report-save latency
-- dashboard hydration timings
-- larger-sample load testing against multiple pipeline runs

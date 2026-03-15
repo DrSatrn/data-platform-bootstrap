@@ -4,7 +4,10 @@
 package observability
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/backup"
@@ -131,6 +134,7 @@ func (h *OverviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"run_history":       len(runHistory),
 		"run_summary":       summarizeRuns(runHistory),
 		"queue_summary":     queueSummary,
+		"scheduler_summary": summarizeScheduler(h.cfg.DataRoot),
 		"backup_summary":    backupSummary,
 		"persistence_modes": h.modes,
 		"telemetry": h.service.Snapshot(map[string]string{
@@ -180,6 +184,15 @@ type backupSummary struct {
 	BundleCount       int    `json:"bundle_count"`
 	LatestBundlePath  string `json:"latest_bundle_path,omitempty"`
 	LatestBundleBytes int64  `json:"latest_bundle_bytes,omitempty"`
+}
+
+type schedulerSummary struct {
+	RefreshedAt   time.Time  `json:"refreshed_at"`
+	LagSeconds    float64    `json:"lag_seconds"`
+	PipelineCount int        `json:"pipeline_count"`
+	AssetCount    int        `json:"asset_count"`
+	LastEnqueueAt *time.Time `json:"last_enqueue_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
 }
 
 func summarizeRuns(runs []orchestration.PipelineRun) runSummary {
@@ -245,5 +258,36 @@ func summarizeBackups(bundles []backup.BundleFile) backupSummary {
 	}
 	summary.LatestBundlePath = bundles[0].Path
 	summary.LatestBundleBytes = bundles[0].SizeBytes
+	return summary
+}
+
+func summarizeScheduler(dataRoot string) schedulerSummary {
+	statusPath := filepath.Join(dataRoot, "control_plane", "scheduler_status.json")
+	bytes, err := os.ReadFile(statusPath)
+	if err != nil {
+		return schedulerSummary{}
+	}
+
+	var raw struct {
+		RefreshedAt   time.Time  `json:"refreshed_at"`
+		PipelineCount int        `json:"pipeline_count"`
+		AssetCount    int        `json:"asset_count"`
+		LastEnqueueAt *time.Time `json:"last_enqueue_at,omitempty"`
+		LastError     string     `json:"last_error,omitempty"`
+	}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return schedulerSummary{LastError: "invalid scheduler status payload"}
+	}
+
+	summary := schedulerSummary{
+		RefreshedAt:   raw.RefreshedAt,
+		PipelineCount: raw.PipelineCount,
+		AssetCount:    raw.AssetCount,
+		LastEnqueueAt: raw.LastEnqueueAt,
+		LastError:     raw.LastError,
+	}
+	if !raw.RefreshedAt.IsZero() {
+		summary.LagSeconds = time.Since(raw.RefreshedAt).Seconds()
+	}
 	return summary
 }

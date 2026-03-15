@@ -12,8 +12,9 @@ migration runners, manifest validators, and smoke-test helpers.
   API, worker, scheduler, analytics, quality, artifacts, and remote CLI paths.
   It now authenticates manual run triggers with the configured admin token.
 - `benchmark_suite.sh`: runs the repo-owned platform benchmark command against
-  a running stack and writes a timestamped JSON report for future latency and
-  regression tracking.
+  a running stack, exercises concurrent manual triggers, checks queue
+  visibility and scheduler freshness budgets, and writes a timestamped JSON
+  report for regression tracking.
 - `backup_snapshot.sh`: creates and verifies a first-party recovery bundle
   using `platformctl backup`, giving operators a repeatable backup path
   outside the broader smoke workflows.

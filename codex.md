@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Completed Workstream 4 from `new-thread-eng-feedback.md`.
-	•	The dashboard widget contract now carries explicit grid layout metadata.
-	•	The browser dashboard editor now supports move and resize controls against saved widget layout state.
-	•	The analytics layer now supports grouped and drilled curated reads, and the Datasets page consumes that through a new drill-down workbench.
+	•	Completed Workstream 5 from `new-thread-eng-feedback.md`.
+	•	The benchmark suite now includes a concurrent manual-trigger load scenario instead of only endpoint latency timings.
+	•	Benchmark artifacts now capture queue visibility, queue depth peaks, scheduler heartbeat freshness, and explicit assertion results.
+	•	The System page now surfaces scheduler freshness so operators can see the same signal the benchmark gate enforces.
 
 Next workstep to execute
-	•	Start Workstream 5 from `new-thread-eng-feedback.md`: benchmark breadth, concurrency, queue depth, and scheduler latency assertions.
+	•	The engineer review contract is fully closed. The next work block should start with a deliberate review of the parallel dbt-runner work and then choose the next broader product slice.
 
 Session Close Handoff
 
@@ -83,49 +83,46 @@ Current state at session end
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
-	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
+	•	The repo now includes a first-party benchmark workflow that emits JSON release-gate reports from a running stack, including concurrent trigger load, queue visibility, and scheduler heartbeat assertions.
+	•	Full `go test ./...` is green again, including the previously in-flight external-tool areas.
 
 Files changed in the latest workstep
-	•	Reporting layout and analytics drill-down:
-		•	`backend/internal/reporting/store.go`
-		•	`backend/internal/analytics/service.go`
-		•	`backend/internal/analytics/handler.go`
-		•	`backend/internal/analytics/service_test.go`
-		•	`packages/dashboards/finance_overview.yaml`
-	•	Frontend dashboard and dataset explorer UX:
-		•	`web/src/features/dashboard/useDashboardData.ts`
-		•	`web/src/pages/DashboardPage.tsx`
-		•	`web/src/features/datasets/useDatasets.ts`
-		•	`web/src/pages/DatasetsPage.tsx`
+	•	Benchmark, scheduler visibility, and assertions:
+		•	`backend/cmd/platformctl/main.go`
+		•	`backend/cmd/platformctl/main_test.go`
+		•	`backend/internal/observability/handlers.go`
+		•	`backend/internal/observability/handlers_test.go`
+		•	`infra/scripts/benchmark_suite.sh`
+	•	Frontend operator visibility:
+		•	`web/src/features/system/useSystemData.ts`
+		•	`web/src/pages/SystemPage.tsx`
 		•	`web/src/pages/PageStates.test.tsx`
-		•	`web/src/styles/global.css`
 	•	Docs and handoff sync:
 		•	`README.md`
 		•	`docs/architecture/runtime-wiring.md`
+		•	`docs/runbooks/benchmarking.md`
 		•	`docs/runbooks/operator-manual.md`
-		•	`backend/internal/reporting/README.md`
+		•	`infra/scripts/README.md`
 		•	`new-thread-eng-feedback.md`
 		•	`plan.md`
 		•	`codex.md`
 
 Validated at end of session
-	•	Targeted backend packages passed:
-		•	`go test ./internal/app ./internal/authz ./internal/backup ./internal/db ./internal/metadata ./internal/reporting ./internal/observability`
-	•	Full `go test ./...` currently fails in unrelated `internal/execution` external-tool tests because concurrent dbt-runner work is in flight:
-		•	`TestRunExternalToolFailsForNonZeroExitAndMirrorsLogs`
-		•	`TestRunExternalToolFailsWhenRequiredArtifactIsMissing`
+	•	Targeted benchmark and observability packages passed:
+		•	`go test ./internal/observability ./cmd/platformctl`
+	•	Full backend suite passed:
+		•	`go test ./...`
 	•	`go run ./cmd/platformctl validate-manifests` passed
-	•	Reporting-focused backend packages passed:
-		•	`go test ./internal/analytics ./internal/reporting`
 	•	`npm test` passed
 	•	`npm run build` passed
 	•	`git diff --check` passed
-	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18090 sh infra/scripts/localhost_smoke.sh`
-		•	host-run stacks without PostgreSQL now report that native identity and metadata-annotation checks were skipped because fallback mode is active
-	•	Packaged Compose smoke passed:
-		•	`sh infra/scripts/compose_smoke.sh`
-		•	packaged stacks now create a native user, log in, persist metadata annotations, and serve the updated layout-aware reporting UI
+	•	Packaged Compose smoke passed and left the stack up long enough for benchmarking:
+		•	`PLATFORM_COMPOSE_KEEP=1 sh infra/scripts/compose_smoke.sh`
+	•	The new benchmark gate passed against the live packaged stack:
+		•	`sh infra/scripts/benchmark_suite.sh`
+		•	report: `var/benchmarks/benchmark-20260315T055127Z.json`
+		•	load scenario: `4/4` triggers accepted, queue visible in `19.90ms`
+		•	scheduler heartbeat freshness: `6.59s` lag against a `90s` budget
 
 Important fixes made during this session
 	•	The runtime no longer treats dashboard manifests as the live mutable store when PostgreSQL is enabled.
@@ -145,23 +142,21 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is Workstream 5 from `new-thread-eng-feedback.md`.
-	•	The next agent can focus on:
-		•	expanding the benchmark suite into concurrent load and queue-depth assertions
-		•	capturing scheduler latency budgets in benchmark artifacts
-		•	turning those checks into a stronger release gate for the packaged stack
+	•	The engineer review contract is complete.
+	•	The next agent should start with the concurrent dbt-runner changes and then choose between:
+		•	external-tool runner integration depth
+		•	broader connector and domain expansion
+		•	upgrade and release workflow hardening
 
 Biggest remaining gaps
-	•	Benchmark breadth and queue/scheduler latency assertions are still pending from the engineer contract.
 	•	Reporting CRUD now exists in the browser, but richer sharing/export workflows and deeper report-level interactivity still remain.
 	•	Analytics drill-down is stronger now, but broader dimensional exploration and more generic semantic browsing still remain.
 	•	The access-control layer now has native users and sessions, but it still needs richer team/user administration and stronger policy depth.
-	•	Benchmark breadth and queue/scheduler latency assertions are still pending from the engineer contract.
 	•	The metadata catalog is now projectable into PostgreSQL, but most runtime reads still begin from manifests and synchronize on demand rather than reading from a fully normalized repository-first model.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.
 	•	The platform still only proves one main domain slice; broader domain coverage is still future work.
-	•	The benchmark suite is now real, but it is still a small baseline rather than a full performance certification matrix.
+	•	The benchmark suite is now a real release gate, but it is still not a long-running soak or large-scale performance certification matrix.
 
 Read these first in the next session
 	•	`README.md`

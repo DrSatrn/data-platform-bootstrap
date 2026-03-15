@@ -38,6 +38,14 @@ type OverviewPayload = {
     completed: number;
     total: number;
   };
+  scheduler_summary: {
+    refreshed_at?: string;
+    lag_seconds: number;
+    pipeline_count: number;
+    asset_count: number;
+    last_enqueue_at?: string;
+    last_error?: string;
+  };
   backup_summary: {
     bundle_count: number;
     latest_bundle_path?: string;

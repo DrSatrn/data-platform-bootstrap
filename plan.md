@@ -68,16 +68,21 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Completed Workstream 4 from `new-thread-eng-feedback.md`.
-- Added explicit widget layout metadata to the reporting contract and seeded
-  dashboard manifests.
-- The dashboard editor now supports move and resize controls against saved grid
-  coordinates rather than only implicit widget order.
-- The Datasets page now includes a curated drill-down panel backed by grouped,
-  filtered, and sorted analytics queries.
-- The analytics API now supports `group_by`, `drill_dimension`,
-  `drill_value`, `sort_by`, and `sort_direction` for curated dataset reads.
-- Both smoke paths passed after the reporting/drill-down expansion.
+- Completed Workstream 5 from `new-thread-eng-feedback.md`.
+- Expanded the benchmark suite beyond endpoint latency into a real release gate
+  with concurrent manual triggers, queue visibility budgets, and scheduler
+  heartbeat freshness assertions.
+- `/api/v1/system/overview` now exposes `scheduler_summary`, and the System
+  page renders that operator-facing freshness signal.
+- The engineer review contract is now fully checked off end to end.
+
+## Next Likely Follow-On Work
+
+- Reconcile and review the parallel dbt-runner work that other models are
+  landing in the external-tool area.
+- Decide whether the next platform pass should focus on broader connector and
+  execution depth, richer governance features, or a stronger release/upgrade
+  workflow.
 
 ## Deferred / Prompt-Requiring Tests
 

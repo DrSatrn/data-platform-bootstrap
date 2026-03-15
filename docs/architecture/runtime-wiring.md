@@ -192,6 +192,7 @@ use, or under `/tmp` for smoke runs.
 Important paths:
 
 - `var/data/control_plane`
+- `var/data/control_plane/scheduler_status.json`
 - `var/data/raw`
 - `var/data/mart`
 - `var/data/metrics`
@@ -233,6 +234,11 @@ This is the runtime contract the docs and System page should agree on.
   `claimed_at` and `completed_at` are written by the queue repository at claim
   and completion time
   filesystem queue is fallback only
+- scheduler heartbeat:
+  source of truth is the scheduler heartbeat file under
+  `var/data/control_plane/scheduler_status.json`
+  `/api/v1/system/overview` projects that heartbeat into `scheduler_summary`
+  so operators and the benchmark suite can assert scheduler freshness
 - artifacts:
   source of truth for bytes is the filesystem artifact root
   PostgreSQL stores artifact metadata/index rows only

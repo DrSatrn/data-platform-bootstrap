@@ -282,6 +282,10 @@ make compose-smoke
 make benchmark
 ```
 
+The benchmark now asserts on queue visibility and scheduler freshness in
+addition to endpoint latency. Treat a non-zero exit as a release gate failure,
+not just a noisy measurement script.
+
 ### Capture a recovery point
 
 ```sh

@@ -117,6 +117,11 @@ export function SystemPage() {
         <p className="muted">Queued: {overview?.queue_summary.queued ?? 0}</p>
         <p className="muted">Active: {overview?.queue_summary.active ?? 0}</p>
         <p className="muted">Completed: {overview?.queue_summary.completed ?? 0}</p>
+        <p className="muted">Scheduler lag: {Math.round(overview?.scheduler_summary.lag_seconds ?? 0)}s</p>
+        <p className="muted">
+          Last refresh: {overview?.scheduler_summary.refreshed_at ? new Date(overview.scheduler_summary.refreshed_at).toLocaleString() : "No scheduler heartbeat yet"}
+        </p>
+        {overview?.scheduler_summary.last_error ? <p className="muted">Scheduler error: {overview.scheduler_summary.last_error}</p> : null}
         <p className="muted">Backups: {overview?.backup_summary.bundle_count ?? 0}</p>
         <p className="muted">Latest bundle bytes: {overview?.backup_summary.latest_bundle_bytes ?? 0}</p>
       </article>

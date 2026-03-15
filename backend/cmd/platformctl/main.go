@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/analytics"
@@ -96,10 +97,59 @@ type benchmarkResult struct {
 }
 
 type benchmarkReport struct {
-	ServerURL   string            `json:"server_url"`
-	GeneratedAt time.Time         `json:"generated_at"`
-	Iterations  int               `json:"iterations"`
-	Results     []benchmarkResult `json:"results"`
+	ServerURL        string                     `json:"server_url"`
+	GeneratedAt      time.Time                  `json:"generated_at"`
+	Iterations       int                        `json:"iterations"`
+	Results          []benchmarkResult          `json:"results"`
+	LoadScenario     *benchmarkLoadScenario     `json:"load_scenario,omitempty"`
+	SchedulerSummary benchmarkSchedulerSummary  `json:"scheduler_summary"`
+	Assertions       []benchmarkAssertionResult `json:"assertions"`
+}
+
+type benchmarkLoadScenario struct {
+	PipelineID        string   `json:"pipeline_id"`
+	RequestedTriggers int      `json:"requested_triggers"`
+	Concurrency       int      `json:"concurrency"`
+	AcceptedTriggers  int      `json:"accepted_triggers"`
+	FailedTriggers    int      `json:"failed_triggers"`
+	QueueTotalBefore  int      `json:"queue_total_before"`
+	QueueTotalAfter   int      `json:"queue_total_after"`
+	MaxQueued         int      `json:"max_queued"`
+	MaxActive         int      `json:"max_active"`
+	MaxTotal          int      `json:"max_total"`
+	MaxInflight       int      `json:"max_inflight"`
+	QueueVisibleMS    float64  `json:"queue_visible_ms"`
+	DurationMS        float64  `json:"duration_ms"`
+	RunIDs            []string `json:"run_ids,omitempty"`
+	Errors            []string `json:"errors,omitempty"`
+}
+
+type benchmarkAssertionResult struct {
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Observed string `json:"observed,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+type benchmarkOverview struct {
+	QueueSummary     benchmarkQueueSummary     `json:"queue_summary"`
+	SchedulerSummary benchmarkSchedulerSummary `json:"scheduler_summary"`
+}
+
+type benchmarkQueueSummary struct {
+	Queued    int `json:"queued"`
+	Active    int `json:"active"`
+	Completed int `json:"completed"`
+	Total     int `json:"total"`
+}
+
+type benchmarkSchedulerSummary struct {
+	RefreshedAt   time.Time  `json:"refreshed_at"`
+	LagSeconds    float64    `json:"lag_seconds"`
+	PipelineCount int        `json:"pipeline_count"`
+	AssetCount    int        `json:"asset_count"`
+	LastEnqueueAt *time.Time `json:"last_enqueue_at,omitempty"`
 }
 
 func validateManifests() error {
@@ -750,6 +800,12 @@ func runBenchmark(args []string) error {
 	server := flagSet.String("server", cfg.APIBaseURL, "platform API base URL")
 	token := flagSet.String("token", cfg.AdminToken, "admin token")
 	iterations := flagSet.Int("iterations", 5, "iterations per target")
+	pipelineID := flagSet.String("pipeline", "personal_finance_pipeline", "pipeline id for concurrent load benchmarking")
+	loadTriggers := flagSet.Int("load-triggers", 4, "number of concurrent manual run triggers for the load scenario")
+	loadConcurrency := flagSet.Int("load-concurrency", 2, "number of concurrent trigger workers in the load scenario")
+	queueVisibleThresholdMS := flagSet.Int("queue-visible-threshold-ms", 5000, "maximum allowed time for accepted queue requests to become visible")
+	schedulerLagThresholdSeconds := flagSet.Int("scheduler-lag-threshold-seconds", 90, "maximum allowed scheduler heartbeat lag in seconds")
+	pollIntervalMS := flagSet.Int("poll-interval-ms", 200, "poll interval for queue visibility checks")
 	out := flagSet.String("out", "", "optional file to write JSON benchmark report")
 	if err := flagSet.Parse(args); err != nil {
 		return err
@@ -757,12 +813,31 @@ func runBenchmark(args []string) error {
 	if *iterations <= 0 {
 		return fmt.Errorf("iterations must be positive")
 	}
+	if *loadTriggers < 0 {
+		return fmt.Errorf("load-triggers must be zero or positive")
+	}
+	if *loadConcurrency <= 0 {
+		return fmt.Errorf("load-concurrency must be positive")
+	}
+	if *queueVisibleThresholdMS <= 0 {
+		return fmt.Errorf("queue-visible-threshold-ms must be positive")
+	}
+	if *schedulerLagThresholdSeconds <= 0 {
+		return fmt.Errorf("scheduler-lag-threshold-seconds must be positive")
+	}
+	if *pollIntervalMS <= 0 {
+		return fmt.Errorf("poll-interval-ms must be positive")
+	}
+	if *loadTriggers > 0 && strings.TrimSpace(*token) == "" {
+		return fmt.Errorf("token is required when load-triggers is greater than zero")
+	}
 
 	report := benchmarkReport{
 		ServerURL:   strings.TrimRight(*server, "/"),
 		GeneratedAt: time.Now().UTC(),
 		Iterations:  *iterations,
 		Results:     make([]benchmarkResult, 0, len(defaultBenchmarkTargets())),
+		Assertions:  []benchmarkAssertionResult{},
 	}
 	client := &http.Client{Timeout: 15 * time.Second}
 	for _, target := range defaultBenchmarkTargets() {
@@ -795,6 +870,36 @@ func runBenchmark(args []string) error {
 		report.Results = append(report.Results, result)
 	}
 
+	if *loadTriggers > 0 {
+		loadScenario, err := runBenchmarkLoadScenario(
+			client,
+			report.ServerURL,
+			*token,
+			*pipelineID,
+			*loadTriggers,
+			*loadConcurrency,
+			time.Duration(*pollIntervalMS)*time.Millisecond,
+			time.Duration(*queueVisibleThresholdMS)*time.Millisecond,
+		)
+		if err != nil {
+			return err
+		}
+		report.LoadScenario = &loadScenario
+	}
+
+	overview, err := fetchBenchmarkOverview(client, report.ServerURL, *token)
+	if err != nil {
+		return fmt.Errorf("load system overview for benchmark assertions: %w", err)
+	}
+	report.SchedulerSummary = overview.SchedulerSummary
+	report.Assertions = buildBenchmarkAssertions(
+		report.Results,
+		report.LoadScenario,
+		report.SchedulerSummary,
+		time.Duration(*queueVisibleThresholdMS)*time.Millisecond,
+		time.Duration(*schedulerLagThresholdSeconds)*time.Second,
+	)
+
 	for _, result := range report.Results {
 		fmt.Printf(
 			"%s %s%s success=%d/%d p50=%.2fms p95=%.2fms avg=%.2fms\n",
@@ -812,11 +917,42 @@ func runBenchmark(args []string) error {
 		}
 	}
 
+	if report.LoadScenario != nil {
+		fmt.Printf(
+			"load_scenario pipeline=%s accepted=%d/%d queue_before=%d queue_after=%d max_inflight=%d queue_visible=%.2fms duration=%.2fms\n",
+			report.LoadScenario.PipelineID,
+			report.LoadScenario.AcceptedTriggers,
+			report.LoadScenario.RequestedTriggers,
+			report.LoadScenario.QueueTotalBefore,
+			report.LoadScenario.QueueTotalAfter,
+			report.LoadScenario.MaxInflight,
+			report.LoadScenario.QueueVisibleMS,
+			report.LoadScenario.DurationMS,
+		)
+		if len(report.LoadScenario.Errors) > 0 {
+			fmt.Printf("  load_errors=%s\n", strings.Join(report.LoadScenario.Errors, " | "))
+		}
+	}
+	fmt.Printf(
+		"scheduler_summary refreshed_at=%s lag=%.2fs pipelines=%d assets=%d\n",
+		report.SchedulerSummary.RefreshedAt.Format(time.RFC3339),
+		report.SchedulerSummary.LagSeconds,
+		report.SchedulerSummary.PipelineCount,
+		report.SchedulerSummary.AssetCount,
+	)
+
 	benchmarkFailed := false
-	for _, result := range report.Results {
-		if result.Successes == 0 {
+	for _, assertion := range report.Assertions {
+		fmt.Printf("assertion %s status=%s", assertion.Name, assertion.Status)
+		if assertion.Observed != "" || assertion.Expected != "" {
+			fmt.Printf(" observed=%s expected=%s", assertion.Observed, assertion.Expected)
+		}
+		if assertion.Message != "" {
+			fmt.Printf(" message=%s", assertion.Message)
+		}
+		fmt.Println()
+		if assertion.Status == "fail" {
 			benchmarkFailed = true
-			break
 		}
 	}
 
@@ -835,10 +971,141 @@ func runBenchmark(args []string) error {
 	}
 
 	if benchmarkFailed {
-		return fmt.Errorf("one or more benchmark targets recorded zero successful requests")
+		return fmt.Errorf("one or more benchmark assertions failed")
 	}
 
 	return nil
+}
+
+func runBenchmarkLoadScenario(
+	client *http.Client,
+	server string,
+	token string,
+	pipelineID string,
+	requestedTriggers int,
+	concurrency int,
+	pollInterval time.Duration,
+	queueVisibleThreshold time.Duration,
+) (benchmarkLoadScenario, error) {
+	initialOverview, err := fetchBenchmarkOverview(client, server, token)
+	if err != nil {
+		return benchmarkLoadScenario{}, fmt.Errorf("load initial overview for benchmark load scenario: %w", err)
+	}
+
+	scenario := benchmarkLoadScenario{
+		PipelineID:        pipelineID,
+		RequestedTriggers: requestedTriggers,
+		Concurrency:       concurrency,
+		QueueTotalBefore:  initialOverview.QueueSummary.Total,
+		MaxQueued:         initialOverview.QueueSummary.Queued,
+		MaxActive:         initialOverview.QueueSummary.Active,
+		MaxTotal:          initialOverview.QueueSummary.Total,
+		MaxInflight:       initialOverview.QueueSummary.Queued + initialOverview.QueueSummary.Active,
+		RunIDs:            []string{},
+		Errors:            []string{},
+	}
+	if requestedTriggers == 0 {
+		scenario.QueueTotalAfter = initialOverview.QueueSummary.Total
+		return scenario, nil
+	}
+
+	if concurrency > requestedTriggers {
+		concurrency = requestedTriggers
+	}
+	started := time.Now()
+	var (
+		mu        sync.Mutex
+		waitGroup sync.WaitGroup
+		guard     = make(chan struct{}, concurrency)
+	)
+	for index := 0; index < requestedTriggers; index++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			guard <- struct{}{}
+			defer func() { <-guard }()
+
+			runID, err := triggerPipelineBenchmark(client, server, token, pipelineID)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				scenario.FailedTriggers++
+				scenario.Errors = append(scenario.Errors, err.Error())
+				return
+			}
+			scenario.AcceptedTriggers++
+			scenario.RunIDs = append(scenario.RunIDs, runID)
+		}()
+	}
+	waitGroup.Wait()
+
+	deadline := time.Now().Add(queueVisibleThreshold * 3)
+	if minimumDeadline := time.Now().Add(15 * time.Second); deadline.Before(minimumDeadline) {
+		deadline = minimumDeadline
+	}
+	for {
+		overview, err := fetchBenchmarkOverview(client, server, token)
+		if err == nil {
+			scenario.MaxQueued = maxInt(scenario.MaxQueued, overview.QueueSummary.Queued)
+			scenario.MaxActive = maxInt(scenario.MaxActive, overview.QueueSummary.Active)
+			scenario.MaxTotal = maxInt(scenario.MaxTotal, overview.QueueSummary.Total)
+			scenario.MaxInflight = maxInt(scenario.MaxInflight, overview.QueueSummary.Queued+overview.QueueSummary.Active)
+			scenario.QueueTotalAfter = overview.QueueSummary.Total
+			if scenario.AcceptedTriggers == 0 || overview.QueueSummary.Total >= scenario.QueueTotalBefore+scenario.AcceptedTriggers {
+				scenario.QueueVisibleMS = time.Since(started).Seconds() * 1000
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(pollInterval)
+	}
+	scenario.DurationMS = time.Since(started).Seconds() * 1000
+	return scenario, nil
+}
+
+func buildBenchmarkAssertions(
+	results []benchmarkResult,
+	loadScenario *benchmarkLoadScenario,
+	schedulerSummary benchmarkSchedulerSummary,
+	queueVisibleThreshold time.Duration,
+	schedulerLagThreshold time.Duration,
+) []benchmarkAssertionResult {
+	assertions := make([]benchmarkAssertionResult, 0, len(results)+3)
+	for _, result := range results {
+		assertions = append(assertions, benchmarkAssertionResult{
+			Name:     fmt.Sprintf("target_%s_has_successes", result.Name),
+			Status:   passFail(result.Successes > 0),
+			Observed: fmt.Sprintf("%d/%d", result.Successes, result.Iterations),
+			Expected: "at least 1 success",
+			Message:  result.LastError,
+		})
+	}
+
+	if loadScenario != nil {
+		assertions = append(assertions, benchmarkAssertionResult{
+			Name:     "load_scenario_accepts_triggers",
+			Status:   passFail(loadScenario.AcceptedTriggers > 0),
+			Observed: fmt.Sprintf("%d/%d accepted", loadScenario.AcceptedTriggers, loadScenario.RequestedTriggers),
+			Expected: "at least 1 accepted trigger",
+		})
+		assertions = append(assertions, benchmarkAssertionResult{
+			Name:     "queue_visibility_within_budget",
+			Status:   passFail(loadScenario.AcceptedTriggers == 0 || (loadScenario.QueueTotalAfter >= loadScenario.QueueTotalBefore+loadScenario.AcceptedTriggers && loadScenario.QueueVisibleMS <= queueVisibleThreshold.Seconds()*1000)),
+			Observed: fmt.Sprintf("visible_in=%.2fms queue_after=%d", loadScenario.QueueVisibleMS, loadScenario.QueueTotalAfter),
+			Expected: fmt.Sprintf("<= %.0fms and queue_after >= %d", queueVisibleThreshold.Seconds()*1000, loadScenario.QueueTotalBefore+loadScenario.AcceptedTriggers),
+		})
+	}
+
+	assertions = append(assertions, benchmarkAssertionResult{
+		Name:     "scheduler_heartbeat_freshness",
+		Status:   passFail(!schedulerSummary.RefreshedAt.IsZero() && schedulerSummary.LagSeconds <= schedulerLagThreshold.Seconds()),
+		Observed: fmt.Sprintf("refreshed_at=%s lag=%.2fs", schedulerSummary.RefreshedAt.Format(time.RFC3339), schedulerSummary.LagSeconds),
+		Expected: fmt.Sprintf("lag <= %.0fs", schedulerLagThreshold.Seconds()),
+	})
+
+	return assertions
 }
 
 func defaultBenchmarkTargets() []benchmarkTarget {
@@ -884,6 +1151,73 @@ func benchmarkRequest(client *http.Client, server, token string, target benchmar
 	return elapsed, response.StatusCode, nil
 }
 
+func fetchBenchmarkOverview(client *http.Client, server, token string) (benchmarkOverview, error) {
+	request, err := http.NewRequest(http.MethodGet, server+"/api/v1/system/overview", nil)
+	if err != nil {
+		return benchmarkOverview{}, err
+	}
+	if strings.TrimSpace(token) != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return benchmarkOverview{}, err
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return benchmarkOverview{}, err
+	}
+	if response.StatusCode >= 400 {
+		return benchmarkOverview{}, fmt.Errorf("status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var overview benchmarkOverview
+	if err := json.Unmarshal(body, &overview); err != nil {
+		return benchmarkOverview{}, fmt.Errorf("decode system overview: %w", err)
+	}
+	return overview, nil
+}
+
+func triggerPipelineBenchmark(client *http.Client, server, token, pipelineID string) (string, error) {
+	payload := map[string]string{"pipeline_id": pipelineID}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	request, err := http.NewRequest(http.MethodPost, server+"/api/v1/pipelines", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(token) != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	if response.StatusCode >= 400 {
+		return "", fmt.Errorf("trigger pipeline returned status %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+	var result struct {
+		Run struct {
+			ID string `json:"id"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(responseBody, &result); err != nil {
+		return "", fmt.Errorf("decode trigger response: %w", err)
+	}
+	if strings.TrimSpace(result.Run.ID) == "" {
+		return "", fmt.Errorf("trigger response did not include a run id")
+	}
+	return result.Run.ID, nil
+}
+
 func average(values []float64) float64 {
 	total := 0.0
 	for _, value := range values {
@@ -904,6 +1238,20 @@ func percentile(values []float64, target int) float64 {
 	}
 	weight := index - float64(lower)
 	return values[lower] + (values[upper]-values[lower])*weight
+}
+
+func passFail(ok bool) string {
+	if ok {
+		return "pass"
+	}
+	return "fail"
+}
+
+func maxInt(left, right int) int {
+	if right > left {
+		return right
+	}
+	return left
 }
 
 func newBackupService() (*backup.Service, func(), error) {

@@ -68,6 +68,7 @@ let mockSystemState: any = {
     telemetry: { uptime_seconds: 1, total_requests: 1, total_errors: 0, total_commands: 0, request_counts: {}, recent_log_summary: [] },
     run_summary: { total_runs: 0, queued_runs: 0, running_runs: 0, succeeded_runs: 0, failed_runs: 0, completed_last_24_hours: 0, failed_last_24_hours: 0, average_duration_seconds: 0 },
     queue_summary: { queued: 0, active: 0, completed: 0, total: 0 },
+    scheduler_summary: { lag_seconds: 4, pipeline_count: 1, asset_count: 1, refreshed_at: "2026-03-15T02:00:00Z" },
     backup_summary: { bundle_count: 0 },
     persistence_modes: {}
   },
@@ -227,6 +228,7 @@ describe("operator page states", () => {
         telemetry: { uptime_seconds: 1, total_requests: 1, total_errors: 0, total_commands: 0, request_counts: {}, recent_log_summary: [] },
         run_summary: { total_runs: 0, queued_runs: 0, running_runs: 0, succeeded_runs: 0, failed_runs: 0, completed_last_24_hours: 0, failed_last_24_hours: 0, average_duration_seconds: 0 },
         queue_summary: { queued: 0, active: 0, completed: 0, total: 0 },
+        scheduler_summary: { lag_seconds: 4, pipeline_count: 1, asset_count: 1, refreshed_at: "2026-03-15T02:00:00Z" },
         backup_summary: { bundle_count: 0 },
         persistence_modes: {}
       },
@@ -306,5 +308,10 @@ describe("operator page states", () => {
     expect(html).toContain("Edit annotations");
     expect(html).toContain("Budget vs Actual");
     expect(html).toContain("Curated Drill-down");
+  });
+
+  it("renders scheduler health in the system overview", () => {
+    const html = renderToStaticMarkup(<SystemPage />);
+    expect(html).toContain("Scheduler lag");
   });
 });

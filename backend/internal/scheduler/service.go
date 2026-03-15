@@ -29,6 +29,17 @@ type Service struct {
 	metaStore metadata.Store
 	logger    *slog.Logger
 	statePath string
+	statusPath string
+}
+
+// Status captures the latest scheduler refresh heartbeat so operators and
+// benchmarks can verify that scheduled execution is still alive.
+type Status struct {
+	RefreshedAt   time.Time  `json:"refreshed_at"`
+	PipelineCount int        `json:"pipeline_count"`
+	AssetCount    int        `json:"asset_count"`
+	LastEnqueueAt *time.Time `json:"last_enqueue_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
 }
 
 // NewService creates a scheduler with explicit dependencies.
@@ -51,6 +62,7 @@ func NewService(
 		metaStore: metaStore,
 		logger:    logger,
 		statePath: filepath.Join(dataRoot, "control_plane", "scheduler_state.json"),
+		statusPath: filepath.Join(dataRoot, "control_plane", "scheduler_status.json"),
 	}
 }
 
@@ -60,6 +72,7 @@ func (s *Service) Run(ctx context.Context) error {
 	defer ticker.Stop()
 
 	if err := s.refreshCatalog(); err != nil {
+		_ = s.writeStatus(Status{RefreshedAt: time.Now().UTC(), LastError: err.Error()})
 		s.logger.Warn("initial scheduler refresh failed", slog.String("error", err.Error()))
 	}
 
@@ -70,6 +83,7 @@ func (s *Service) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if err := s.refreshCatalog(); err != nil {
+				_ = s.writeStatus(Status{RefreshedAt: time.Now().UTC(), LastError: err.Error()})
 				s.logger.Warn("scheduled refresh failed", slog.String("error", err.Error()))
 			}
 		}
@@ -92,8 +106,17 @@ func (s *Service) refreshCatalog() error {
 	}
 
 	s.catalog.ReplaceAssets(assets)
-	if err := s.enqueueScheduledRuns(pipelines); err != nil {
+	lastEnqueueAt, err := s.enqueueScheduledRuns(pipelines)
+	if err != nil {
 		return err
+	}
+	if err := s.writeStatus(Status{
+		RefreshedAt:   time.Now().UTC(),
+		PipelineCount: len(pipelines),
+		AssetCount:    len(assets),
+		LastEnqueueAt: lastEnqueueAt,
+	}); err != nil {
+		s.logger.Warn("failed to write scheduler heartbeat", slog.String("error", err.Error()))
 	}
 	s.logger.Info(
 		"scheduler refresh complete",
@@ -103,13 +126,14 @@ func (s *Service) refreshCatalog() error {
 	return nil
 }
 
-func (s *Service) enqueueScheduledRuns(pipelines []orchestration.Pipeline) error {
+func (s *Service) enqueueScheduledRuns(pipelines []orchestration.Pipeline) (*time.Time, error) {
 	state, err := s.loadState()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	now := time.Now().UTC()
+	var lastEnqueueAt *time.Time
 	for _, pipeline := range pipelines {
 		if pipeline.Schedule.IsPaused {
 			continue
@@ -133,10 +157,12 @@ func (s *Service) enqueueScheduledRuns(pipelines []orchestration.Pipeline) error
 			continue
 		}
 		state[pipeline.ID] = slot
+		slotCopy := now
+		lastEnqueueAt = &slotCopy
 		s.logger.Info("scheduler queued pipeline run", slog.String("pipeline_id", pipeline.ID), slog.Time("slot", slot))
 	}
 
-	return s.saveState(state)
+	return lastEnqueueAt, s.saveState(state)
 }
 
 func (s *Service) loadState() (map[string]time.Time, error) {
@@ -179,6 +205,17 @@ func (s *Service) saveState(state map[string]time.Time) error {
 		return fmt.Errorf("encode scheduler state: %w", err)
 	}
 	return os.WriteFile(s.statePath, bytes, 0o644)
+}
+
+func (s *Service) writeStatus(status Status) error {
+	if err := os.MkdirAll(filepath.Dir(s.statusPath), 0o755); err != nil {
+		return fmt.Errorf("create scheduler status dir: %w", err)
+	}
+	bytes, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode scheduler status: %w", err)
+	}
+	return os.WriteFile(s.statusPath, bytes, 0o644)
 }
 
 func currentScheduleSlot(now time.Time, schedule orchestration.Schedule) (time.Time, bool, error) {

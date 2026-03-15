@@ -229,8 +229,9 @@ make benchmark
 ```
 
 That writes a timestamped JSON report under `var/benchmarks/` and currently
-covers health, catalog, analytics, reports, system overview, and the admin
-terminal status command.
+covers health, catalog, analytics, reports, system overview, the admin
+terminal status command, a concurrent manual-trigger load burst, queue
+visibility budgets, and scheduler heartbeat freshness.
 
 ## Localhost Safety Defaults
 
