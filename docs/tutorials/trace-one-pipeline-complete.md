@@ -1,188 +1,242 @@
 # Trace One Pipeline Complete
 
-This tutorial is an additive replacement draft for the current abbreviated
-pipeline walkthrough. It is intended to give a future docs pass a concrete,
-end-to-end learner path.
+This is the most detailed end-to-end walkthrough in the repo. Use it when you
+want to understand not just how to start the platform, but how one real data
+pipeline moves through manifests, queueing, execution, artifacts, APIs, and
+the UI.
+
+Recommended prerequisite:
+
+- complete [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+  first so you already know the platform can start successfully
 
 ## Goal
 
-Trace the `personal_finance_pipeline` from:
+Trace `personal_finance_pipeline` from:
 
-- manifest
-- scheduler or manual trigger
-- queued run
-- worker execution
-- materialized artifacts
-- analytics API
-- reporting UI
+1. manifest definition
+2. manual trigger
+3. queued and running state
+4. worker execution
+5. materialized outputs
+6. dataset catalog and profile output
+7. analytics and reporting consumption
 
-## What You Will Learn
-
-- where the pipeline definition lives
-- how jobs depend on each other
-- what the worker actually materializes
-- how curated analytics are served
-- why the UI reads constrained APIs instead of arbitrary SQL
-
-## Step 1: Find The Pipeline Manifest
+## Step 1: Find The Pipeline Definition
 
 Open:
 
-- `packages/manifests/pipelines/personal_finance_pipeline.yaml`
+- [personal_finance_pipeline.yaml](/Users/streanor/Documents/Playground/data-platform/packages/manifests/pipelines/personal_finance_pipeline.yaml)
 
 Look for:
 
-- pipeline id
+- pipeline ID
+- owner
 - schedule
-- job order
-- job dependencies
-- job types such as `ingest`, `transform_sql`, `transform_python`,
-  `quality_check`, and `publish_metric`
+- jobs
+- `depends_on` relationships
 
-This file defines the control-plane shape of the workflow before any run is
-queued.
+What success looks like:
 
-## Step 2: Understand The Supporting Definitions
+- you can point to the pipeline ID
+- you can explain which jobs run first and which jobs depend on earlier jobs
 
-Open these directories:
+If something goes wrong:
 
-- `packages/manifests/assets/`
-- `packages/manifests/metrics/`
-- `packages/manifests/quality/`
-- `packages/sql/`
-- `packages/python/tasks/`
+- if the manifest feels opaque, compare it with
+  [making-changes.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/making-changes.md)
+  after you finish this walkthrough
 
-What they contribute:
+## Step 2: Identify The Execution Building Blocks
 
-- asset manifests define the catalog view
-- metric manifests define semantic reporting entities
-- quality manifests define operator-visible checks
-- SQL files define materialization logic
-- Python tasks provide bounded data-runtime helpers
+Open these inputs:
 
-## Step 3: Trigger A Real Run
+- [packages/sql/README.md](/Users/streanor/Documents/Playground/data-platform/packages/sql/README.md)
+- [packages/python/README.md](/Users/streanor/Documents/Playground/data-platform/packages/python/README.md)
+- [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
 
-Use the fastest verified path:
+What to notice:
 
-```bash
+- Go owns orchestration and queueing
+- SQL owns the transparent analytical transforms
+- Python is used only for bounded helper tasks where it is a better fit
+
+What success looks like:
+
+- you can explain why the platform is not "just Python scripts" and not "just
+  SQL files"
+
+If something goes wrong:
+
+- if the architecture terms feel abstract, skim
+  [infra-overview.md](/Users/streanor/Documents/Playground/data-platform/infra-overview.md)
+  before continuing
+
+## Step 3: Start A Known-Good Local Run
+
+From the repo root:
+
+```sh
+cd /Users/streanor/Documents/Playground/data-platform
 make smoke
 ```
 
-Or run the stack yourself and trigger:
+What success looks like:
 
-```bash
-cd backend
-PLATFORM_API_BASE_URL=http://127.0.0.1:8080 \
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token \
-go run ./cmd/platformctl remote trigger personal_finance_pipeline
-```
+- the command exits `0`
+- output includes `localhost smoke test passed`
+- the output prints the API URL and a manual run ID
 
-## Step 4: Observe Queued And Running State
+If something goes wrong:
 
-Inspect:
+1. use the troubleshooting section in
+   [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+2. do not continue until you have one successful smoke run
 
-```bash
+## Step 4: Inspect The Control-Plane View Of The Run
+
+Query the pipelines API:
+
+```sh
 curl http://127.0.0.1:8080/api/v1/pipelines
 ```
 
 Look for:
 
-- a new run id
-- `queued`, then `running`, then `succeeded`
-- per-job status under `job_runs`
-- recent event messages under `events`
+- a recent run for `personal_finance_pipeline`
+- overall run status
+- per-job status
+- recent event messages
 
-This is the control-plane view of the run.
+What success looks like:
 
-## Step 5: Inspect What The Worker Wrote
+- you can find a run record
+- you can see evidence that the run was queued and then executed
 
-Check the repo-local output roots:
+If something goes wrong:
+
+1. if the API is unreachable, confirm the smoke stack is still running
+2. if the run list is empty, rerun `make smoke`
+
+## Step 5: Inspect The Worker Outputs
+
+Look under the repo-local runtime tree:
 
 - `var/data/`
 - `var/artifacts/runs/<run_id>/`
 
-Typical outputs include:
+Common examples include:
 
-- raw landed files
-- staging enriched files
-- intermediate rollups
-- mart outputs
-- quality check JSON
-- metrics JSON
+- `var/data/raw/raw_transactions.csv`
+- `var/data/staging/staging_transactions_enriched.json`
+- `var/data/intermediate/intermediate_category_monthly_rollup.json`
+- `var/data/mart/mart_budget_vs_actual.json`
+- `var/data/metrics/metrics_category_variance.json`
 
-This is the easiest place to see the difference between:
+What success looks like:
 
-- local materialized state under `var/data/`
-- run-scoped snapshots under `var/artifacts/runs/<run_id>/`
+- you can see that raw data becomes more curated as it moves through the layers
+- you can see both persistent data outputs and run-scoped artifact snapshots
 
-## Step 6: Follow The Analytics Layer
+If something goes wrong:
 
-Query the API:
+1. if files are missing, confirm the run actually succeeded
+2. if only some files exist, inspect worker logs or run artifacts for the
+   failed job
 
-```bash
+## Step 6: Inspect The Dataset Catalog
+
+Query the catalog:
+
+```sh
+curl http://127.0.0.1:8080/api/v1/catalog
+```
+
+Query one runtime profile:
+
+```sh
+curl "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+```
+
+What success looks like:
+
+- the catalog returns assets with freshness, lineage, and ownership fields
+- the profile returns row count and per-column information
+
+If something goes wrong:
+
+1. if the catalog is empty, confirm the run succeeded
+2. if the profile fails, confirm the selected asset exists in the materialized data
+
+## Step 7: Inspect The Analytics Layer
+
+Query a curated dataset:
+
+```sh
 curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+```
+
+Query a metric:
+
+```sh
 curl "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
 ```
 
-Notice:
+What success looks like:
 
-- the API serves curated datasets and metrics
-- the reporting UI does not need direct SQL access
-- the same curated layer backs both tables and charts
+- both endpoints return curated rows
+- the responses are shaped for product consumption rather than arbitrary SQL
 
-## Step 7: Follow The Metadata Layer
+If something goes wrong:
 
-Query:
+1. confirm the run completed successfully
+2. confirm the selected dataset or metric exists
 
-```bash
-curl "http://127.0.0.1:8080/api/v1/catalog"
+## Step 8: Inspect The Reporting Layer
+
+Query saved dashboards:
+
+```sh
+curl http://127.0.0.1:8080/api/v1/reports
 ```
 
-Look for:
+Then open the browser:
 
-- asset ids
-- source refs
-- quality refs
-- documentation refs
-- freshness status
-- lineage edges
+- `Dashboard`
+- `Pipelines`
+- `Datasets`
+- `Metrics`
+- `System`
 
-This is how the platform turns repo-managed definitions plus materialized state
-into an operator-facing catalog.
+What success looks like:
 
-## Step 8: See The UI Consume The Same Platform Surface
+- the UI surfaces are reading platform-owned APIs rather than separate hidden state
+- you can connect the same run to the dashboards, datasets, metrics, and system views
 
-Open the browser:
+If something goes wrong:
 
-- `Dashboard` reads reporting definitions plus analytics results
-- `Pipelines` reads pipeline definitions plus run history
-- `Datasets` reads catalog and freshness output
-- `Metrics` reads semantic metric definitions plus preview data
-- `System` reads health, logs, audit, and other trust signals
+1. if the UI is broken but the APIs work, inspect frontend logs
+2. if both UI and API fail, go back to the startup runbook and confirm the stack
 
-The important lesson is that the UI is not inventing its own shadow model. It
-is consuming platform-owned APIs.
+## Step 9: Map The Ownership Back To Code
 
-## Step 9: Map Code Ownership
+When you are ready to go deeper, read these files next:
 
-When you want to go deeper, these are the highest-value files to read:
+- [handler.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/orchestration/handler.go)
+- [runner.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/execution/runner.go)
+- [engine.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/transforms/engine.go)
+- [handler.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/metadata/handler.go)
+- [service.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/analytics/service.go)
+- [handler.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/reporting/handler.go)
 
-- `backend/internal/orchestration/service.go`
-- `backend/internal/orchestration/handler.go`
-- `backend/internal/execution/runner.go`
-- `backend/internal/transforms/engine.go`
-- `backend/internal/metadata/handler.go`
-- `backend/internal/analytics/service.go`
-- `backend/internal/reporting/handler.go`
-- `web/src/pages/PipelinesPage.tsx`
-- `web/src/pages/DashboardPage.tsx`
-- `web/src/pages/DatasetsPage.tsx`
-- `web/src/pages/MetricsPage.tsx`
+What success looks like:
 
-## What This Tutorial Should Eventually Link To
+- you can now tie one user-visible platform behavior to the packages that own it
 
-Before wiring this tutorial into the main docs:
+## Final Mental Model
 
-- verify the startup path it references is still the canonical one
-- verify role requirements still match the UI and backend
-- verify the named pages and APIs still exist
+By the end of this tutorial, you should be able to explain this path in one
+sentence:
+
+manifest -> queue -> worker -> data outputs -> metadata/profile -> analytics
+API -> reporting and operator UI

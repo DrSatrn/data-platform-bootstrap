@@ -45,3 +45,24 @@
 - `contributing.md`: should stay at root for GitHub convention.
 - `new-thread-eng-feedback.md`: should move to `docs/decisions/` or an archive area.
 - `temp-model1-frontend-wire-plan.md`: should be archived or deleted because it is stale.
+
+## Follow-Up: UAT, README, and Cleanup
+
+### Files Changed
+- `README.md`
+- `uat-checklist.md`
+- `docs/decisions/new-thread-eng-feedback.md`
+- `temp-model1-frontend-wire-plan.md`
+- `prompts/model3-completion.md`
+
+### UAT Results
+- Total items tested: 12 numbered checklist sections
+- Passed: 10
+- Failed: 2
+- Key failures:
+  - `GET /api/v1/quality` was not fully passing because `check_uncategorized_transactions` returned `warning`
+  - the admin terminal does not support `benchmark`, so that checklist expectation failed
+
+### Verification
+- `make bootstrap` — PASS
+- `make down` — PASS

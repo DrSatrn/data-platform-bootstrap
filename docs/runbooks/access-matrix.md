@@ -1,49 +1,68 @@
 # Access Matrix
 
-This document is an additive reference for role expectations. It is intended as
-guide-wire material until the main docs are updated to present one canonical
-auth story.
+Use this document when you want a quick answer to "which role should be able to
+do this?"
+
+Important note:
+
+- this matrix describes the intended operator-facing contract
+- if the running product disagrees, trust the live UI plus `/api/v1/session`
+- where behavior is not fully verified end to end, that row is marked
+  `UNVERIFIED`
 
 ## Roles
 
 | Role | Intended use |
 | --- | --- |
-| `anonymous` | unauthenticated browsing when allowed by current implementation |
+| `anonymous` | health checks and first sign-in only |
 | `viewer` | read-only product access |
-| `editor` | pipeline triggers and dashboard modifications |
-| `admin` | full editor capabilities plus admin terminal access |
+| `editor` | operational work that changes platform state but does not manage users |
+| `admin` | full operator access including admin tooling and user management |
 
-## Workflow Matrix
+## Capability Matrix
 
-| Workflow | Minimum intended role |
-| --- | --- |
-| view dashboard page | `viewer` |
-| view datasets page | `viewer` |
-| view metrics page | `viewer` |
-| view system page | `viewer` |
-| trigger pipeline from UI | `editor` |
-| save dashboard | `editor` |
-| delete dashboard | `editor` |
-| use admin terminal in browser | `admin` |
-| use `platformctl remote ...` against admin terminal | `admin` |
-| use smoke scripts with write/admin actions | `admin` |
+| Workflow | Anonymous | Viewer | Editor | Admin | Verification status |
+| --- | --- | --- | --- | --- | --- |
+| `GET /healthz` | Yes | Yes | Yes | Yes | verified by design |
+| view current session via `/api/v1/session` | Yes | Yes | Yes | Yes | verified by design |
+| sign in through `/api/v1/session` | Yes | Yes | Yes | Yes | verified by design |
+| view Dashboard page | No | Yes | Yes | Yes | verified in current UI |
+| view Pipelines page | No | Yes | Yes | Yes | verified in current UI |
+| view Datasets page | No | Yes | Yes | Yes | verified in current UI |
+| view Metrics page | No | Yes | Yes | Yes | verified in current UI |
+| view System page | No | Yes | Yes | Yes | verified in current UI |
+| trigger a manual pipeline run | No | No | Yes | Yes | verified in current UI |
+| create, save, duplicate, or delete dashboards | No | No | Yes | Yes | verified in current UI |
+| update metadata annotations | No | No | Yes | Yes | partially verified |
+| use the admin terminal | No | No | No | Yes | verified in current UI |
+| create or manage users | No | No | No | Yes | verified in current UI |
+| run `platformctl remote ...` | No | No | No | Yes | verified by current docs and UI contract |
+| use external-tool operator flows | No | Yes | Yes | Yes | UNVERIFIED end to end |
 
-## Important Note
+## Practical Guidance
 
-This matrix is a desired operator-facing contract, not a guarantee that every
-endpoint currently enforces these minimums exactly.
+- use the bootstrap admin token only for first-run setup and recovery
+- for normal day-to-day work, create native users and sign in through the UI or
+  `/api/v1/session`
+- if PostgreSQL is unavailable, native users and sessions are unavailable too,
+  so the runtime may fall back to bootstrap-token-only behavior
 
-Before wiring this into canonical docs:
+## What Success Looks Like
 
-- verify endpoint enforcement
-- verify UI capability handling
-- verify whether anonymous read access is still intentionally allowed
+You should be able to answer these questions quickly:
 
-## Verification Pointers
+- can this person view the product at all?
+- can this person trigger runs?
+- can this person modify dashboards or metadata?
+- can this person use the admin terminal?
+- should this person be using a normal session or the bootstrap token?
 
-Use these implementation files when reconciling docs and enforcement:
+## If Something Goes Wrong
 
-- `backend/internal/authz/service.go`
-- `backend/internal/admin/handler.go`
-- `backend/internal/orchestration/handler.go`
-- `backend/internal/reporting/handler.go`
+If observed behavior does not match this matrix:
+
+1. check the current session payload from `/api/v1/session`
+2. confirm whether the runtime is using native users or bootstrap-token-only mode
+3. compare the live UI behavior with
+   [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
+4. if the docs and product truly disagree, treat the doc as stale and update it

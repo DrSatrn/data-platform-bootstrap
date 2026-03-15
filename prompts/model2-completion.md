@@ -1,51 +1,64 @@
-# Model 2 Completion Report
+# Model 2 Completion Report — Documentation Pass
+
+## Phase 1: Audit
+
+- Total docs reviewed: 95 tracked, repo-authored markdown files
+- Docs under `docs/` reviewed: 37
+- Top 5 worst docs:
+  - `doc.md`
+  - `uat-checklist.md`
+  - `docs/runbooks/local-host-run.md`
+  - `docs/runbooks/access-matrix.md`
+  - `docs/tutorials/trace-one-pipeline-complete.md`
+- Docs recommended for deletion or archival from the human-facing docs surface:
+  - `guide-wire.md`
+  - `plan.md`
+  - `new-thread-eng-feedback.md`
+  - `temp-model1-frontend-wire-plan.md`
+  - `v1-review-coordination-plan.md`
+  - `prompts/*.md`
+- Docs recommended for merge:
+  - `doc.md` into the `README.md` + `docs/runbooks/quickstart.md` path
+  - `docs/runbooks/local-host-run.md` into `docs/runbooks/localhost-e2e.md`
+  - `docs/tutorials/trace-one-pipeline.md` with `docs/tutorials/trace-one-pipeline-complete.md`
+- Missing docs identified:
+  - a docs landing page grouped by user journey
+  - a clearer “which startup doc do I use?” answer
+  - stronger separation between user docs and internal design or AI-coordination docs
+
+## Phase 2: Rewrites
+
+- `doc.md` — 1/5 to 4/5
+- `uat-checklist.md` — 1/5 to 4/5
+- `docs/runbooks/local-host-run.md` — 1/5 to 4/5
+- `docs/runbooks/access-matrix.md` — 1/5 to 4/5
+- `docs/tutorials/trace-one-pipeline-complete.md` — 2/5 to 4/5
+
+## Phase 3: Information Architecture
+
+- `docs/README.md` rewritten: YES
+
+## Phase 4: Problem Areas
+
+- quickstart consolidation:
+  - kept `docs/runbooks/quickstart.md` as the canonical first-run doc
+  - rewrote `doc.md` into a compatibility pointer instead of a competing setup guide
+  - left `docs/runbooks/bootstrap.md` as the Compose-specific path
+- product docs audit:
+  - clarified `docs/product/README.md` so product docs are clearly presented as internal design notes, not user-facing runbooks
+  - flagged several product blueprint docs in the audit as candidates for later archive or historical-note cleanup
+- root-level sprawl:
+  - proposed keeping only `README.md`, `doc.md`, `contributing.md`, `infra-overview.md`, and `uat-checklist.md` as normal root docs
+  - proposed moving AI coordination and review artifacts out of the main root docs surface later
 
 ## Files Changed
-- `web/package.json`
-- `web/package-lock.json`
-- `web/src/main.tsx`
-- `web/src/app/App.tsx`
-- `web/src/app/App.test.tsx`
-- `web/src/pages/DashboardPage.tsx`
-- `web/src/pages/DashboardPage.test.tsx`
-- `web/src/pages/PipelinesPage.tsx`
-- `web/src/pages/PipelinesPage.test.tsx`
-- `web/src/pages/DatasetsPage.tsx`
-- `web/src/pages/DatasetsPage.test.tsx`
-- `web/src/pages/MetricsPage.tsx`
-- `web/src/pages/MetricsPage.test.tsx`
-- `web/src/pages/SystemPage.tsx`
-- `web/src/styles/global.css`
-- `web/src/components/LoadingSpinner.tsx`
-- `web/src/components/ErrorMessage.tsx`
-- `web/src/components/ErrorBoundary.tsx`
-- `web/src/components/dashboard/DashboardGrid.tsx`
-- `web/src/components/dashboard/DashboardToolbar.tsx`
-- `web/src/components/dashboard/FilterPanel.tsx`
-- `web/src/components/dashboard/WidgetEditor.tsx`
-- `web/src/components/dashboard/WidgetRenderer.tsx`
-- `web/src/components/dashboard/widgetUtils.ts`
 
-## Verification
-- `cd web && npm run build` — PASS
-- `cd web && npm test` — PASS
-- URL routing works: YES, tested direct path rendering in `App.test.tsx` for `/pipelines`, and the packaged `web/server.mjs` already serves `index.html` as the SPA fallback for unknown non-asset paths
-
-## What Was NOT Changed
-- `web/src/pages/ManagementPage.tsx`
-- `web/src/features/management/`
-- `backend/`
-- `infra/`
-- `Makefile`
-- repo-root `*.md` docs
-- `packages/`
-
-## Escalation Items
-- `react-router-dom` was added as the only new runtime dependency.
-- `App.test.tsx` now emits harmless `useLayoutEffect does nothing on the server` warnings because it uses `MemoryRouter` with `renderToStaticMarkup`; tests still pass and production/browser behavior is unaffected.
-- The working tree contains unrelated non-frontend changes from other lanes; this report covers only the frontend consolidation work above.
-
-## Visual Changes
-- Sidebar navigation is now URL-backed and bookmarkable with active link states.
-- Core data pages now render consistent loading and error panels instead of ad hoc text-only states.
-- The dashboard page has been split into reusable toolbar, filter, grid, widget renderer, and widget editor components while preserving the existing editing flow.
+- `README.md`
+- `doc.md`
+- `uat-checklist.md`
+- `docs/README.md`
+- `docs/documentation-audit.md`
+- `docs/product/README.md`
+- `docs/runbooks/access-matrix.md`
+- `docs/runbooks/local-host-run.md`
+- `docs/tutorials/trace-one-pipeline-complete.md`

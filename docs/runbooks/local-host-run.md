@@ -1,171 +1,29 @@
-# Local Host-Run Path
+# Local Host-Run Guide
 
-This runbook is a draft canonical path for developers who want to run the
-platform directly on the host instead of through Docker Compose.
+This file exists because its name is easy to search for, but it is no longer
+the primary host-run procedure.
 
-It is intentionally narrow:
+Use [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
+for the real step-by-step host-run path.
 
-- backend processes run from `backend/`
-- web dev server runs from `web/`
-- PostgreSQL is optional for first-pass local work
+## When To Use This File
 
-## Recommended First Use
+Use this file only to decide which startup path you want:
 
-If you only want the fastest verified success, stop here and run:
+- I want the fastest first success:
+  [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+- I want Docker Compose:
+  [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+- I want to run the API, worker, scheduler, and web app directly on my machine:
+  [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
 
-```bash
-make smoke
-```
+## Why This File Changed
 
-Use the rest of this document only when you specifically want host-run
-processes for debugging or iteration.
+The repo previously had two host-run docs with very similar names:
 
-## Preconditions
+- `local-host-run.md`
+- `localhost-e2e.md`
 
-- Go installed
-- Node and npm installed
-- Python 3 installed
-- host C/C++ toolchain available for DuckDB CGO builds
-
-Optional:
-
-- PostgreSQL running locally if you want the preferred database-backed control
-  plane mode
-
-## Working Directory Assumptions
-
-Run backend commands from:
-
-```bash
-cd backend
-```
-
-Run web commands from:
-
-```bash
-cd web
-```
-
-These working directories matter because backend defaults are repo-relative.
-
-## Configuration Options
-
-You have two safe choices:
-
-### Option A: rely on built-in local defaults
-
-This is the lowest-friction host-run path when you are running from `backend/`.
-
-### Option B: create a local env file
-
-Create a repo-root `.env` or `.env.local` if you want explicit tokens or custom
-paths. Current backend config loads env files if present, but existing shell
-environment variables still win.
-
-See:
-
-- `docs/runbooks/config-reality.md`
-
-## Start The API
-
-```bash
-cd backend
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-api
-```
-
-Expected result:
-
-- process starts without exiting
-- API responds on `http://127.0.0.1:8080/healthz`
-
-## Start The Worker
-
-In a second terminal:
-
-```bash
-cd backend
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-worker
-```
-
-Expected result:
-
-- worker starts without exiting
-- log output indicates polling has started
-
-## Start The Scheduler
-
-In a third terminal:
-
-```bash
-cd backend
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token go run ./cmd/platform-scheduler
-```
-
-Expected result:
-
-- scheduler starts without exiting
-- refresh logs appear periodically
-
-## Start The Web Dev Server
-
-In a fourth terminal:
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-Expected result:
-
-- Vite serves the UI on `http://127.0.0.1:3000`
-
-## Verify Health
-
-```bash
-curl http://127.0.0.1:8080/healthz
-```
-
-Expected result:
-
-- JSON health payload with a healthy status
-
-## Trigger A Pipeline
-
-Browser path:
-
-- open `http://127.0.0.1:3000`
-- paste an `editor` or `admin` token into the sidebar token field
-- go to `Pipelines`
-- click `Run now`
-
-CLI path:
-
-```bash
-cd backend
-PLATFORM_API_BASE_URL=http://127.0.0.1:8080 \
-PLATFORM_ADMIN_TOKEN=local-dev-admin-token \
-go run ./cmd/platformctl remote trigger personal_finance_pipeline
-```
-
-## Expected Artifacts
-
-After a successful run, expect files under the repo-local `var/` tree such as:
-
-- `var/data/raw/raw_transactions.csv`
-- `var/data/mart/mart_monthly_cashflow.json`
-- `var/data/metrics/metrics_savings_rate.json`
-- `var/artifacts/runs/<run_id>/...`
-
-## If This Fails, Check This Next
-
-- API fails to start:
-  verify Go toolchain and DuckDB CGO prerequisites
-- worker never processes runs:
-  verify API and worker are using the same effective data root
-- browser cannot trigger runs:
-  verify you are using an `editor` or `admin` token
-- CLI remote command fails:
-  verify you are using an `admin` token
-- data paths look wrong:
-  inspect `docs/runbooks/config-reality.md` and confirm your working directory
+That is confusing for a new reader. `localhost-e2e.md` now owns the real
+host-run procedure. This file is a signpost so older links and habits do not
+send you into a dead end.

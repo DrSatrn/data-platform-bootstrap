@@ -9,10 +9,15 @@ The implementation intentionally emphasizes teaching value. Code is organized ar
 If you are new to the project, use this reading order:
 
 1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
-2. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
-3. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
+   Product overview and the shortest explanation of what this repo is.
+2. [docs/README.md](/Users/streanor/Documents/Playground/data-platform/docs/README.md)
+   Full documentation map organized by user journey.
+3. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
+   The canonical first-run document.
 4. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
+   Day-to-day operating guide.
 5. [making-changes.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/making-changes.md)
+   Safe extension path for contributors.
 
 ## Product Goals
 
@@ -40,6 +45,18 @@ platform proves the architecture end to end with ingestion, orchestration,
 transformation, metadata registration, quality checks, analytics serving,
 database-backed saved dashboards, and a richer reporting surface around
 cashflow, category spend, and budget variance.
+
+Recent repo state after the current v1 integration pass:
+
+- the web app now has bookmarkable URL routing across the main product pages
+- routed frontend surfaces now include explicit loading/error states plus an
+  error boundary path
+- the dashboard experience has been decomposed into reusable UI components
+- backend automated coverage now extends further into transforms, quality, and
+  integration-oriented skeleton paths
+- GitHub Actions CI now verifies backend tests, manifest validation, frontend
+  build, and frontend tests
+- the earlier `ingestion/` stub has been removed
 
 When PostgreSQL has been migrated and is reachable, the runtime now uses it as
 the primary control plane for run snapshots, queue state, audit, native
@@ -200,8 +217,8 @@ The platform now includes first-party operational features owned by this reposit
 
 ## Start Here
 
-Use the canonical quickstart instead of guessing between the overlapping
-runbooks:
+Use the canonical quickstart instead of guessing between overlapping startup
+docs:
 
 - [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
 

@@ -124,7 +124,7 @@ func externalToolJob(projectRef, profilesRef string) orchestration.Job {
 	return orchestration.Job{
 		ID:      "build_finance_dbt",
 		Type:    orchestration.JobTypeExternalTool,
-		Timeout: "2s",
+		Timeout: "30s",
 		ExternalTool: &orchestration.ExternalToolSpec{
 			Tool:       "dbt",
 			Action:     "build",
