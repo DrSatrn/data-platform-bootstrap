@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Expanded the reporting contract so dashboards now carry owner, tags, audience intent, dashboard-wide default filters, and saved presets.
-	•	Wired the React dashboard surface to apply dashboard-wide filters and selected presets before widget-level query filters.
-	•	Extended filesystem and PostgreSQL-backed dashboard persistence so the richer reporting definitions survive normal saves and reloads.
-	•	Updated dashboard manifests, operator docs, and contributor docs so the richer report asset shape is explicit instead of implied.
+	•	Implemented `platformctl backup restore` as the symmetric restore path for first-party recovery bundles.
+	•	Automated filesystem reconstitution for the data root, artifact root, and DuckDB snapshot, including the `staging`, `intermediate`, and `profiles` layers.
+	•	Automated PostgreSQL control-plane replay for run snapshots, queue requests, dashboards, audit events, and metadata projection tables, with restored `active` queue rows intentionally requeued.
+	•	Added `make restore-drill` and `make restore-e2e`, then updated the recovery docs so cold operators now have an executable restore path instead of a manual extraction recipe.
 
 Next workstep to execute
-	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer reporting layout and sharing workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.
+	•	Start Workstream 2 from `new-thread-eng-feedback.md`: replace static token RBAC with a native identity/session model while preserving bootstrap compatibility for self-hosted installs.
 
 Session Close Handoff
 
@@ -77,70 +77,49 @@ Current state at session end
 	•	The platform now supports lightweight bearer-token RBAC, with browser session awareness and protected write/admin endpoints.
 	•	The platform now records privileged actions in a durable audit trail, exposes them through the API, and renders them in the System page.
 	•	The platform can now persist the synchronized metadata catalog in PostgreSQL, which is a meaningful step away from purely in-memory control-plane metadata.
-	•	The platform now includes a first-party backup/export subsystem with CLI, admin-terminal, script, and runbook support, and the smoke workflows verify that those bundles can be created and validated successfully.
+	•	The platform now includes a first-party backup/export and restore subsystem with CLI, script, and runbook support, and the repo now has both a safe restore drill and an end-to-end restored-runtime boot proof.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
 	•	The scheduler now honors declared pipeline timezones and supports the cron subset needed by the current slice, including step fields and day-of-week matching.
 	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
 
 Files changed in the latest workstep
-	•	Backup subsystem:
+	•	Backup and restore implementation:
 		•	`backend/internal/backup/service.go`
+		•	`backend/internal/backup/restore.go`
 		•	`backend/internal/backup/service_test.go`
-		•	`backend/internal/backup/README.md`
-		•	`backend/internal/orchestration/models.go`
-		•	`backend/internal/orchestration/queue.go`
-		•	`backend/internal/db/queue.go`
-		•	`backend/internal/admin/service.go`
-		•	`backend/internal/app/runtime.go`
 		•	`backend/cmd/platformctl/main.go`
 	•	Recovery workflows and docs:
-		•	`infra/scripts/backup_snapshot.sh`
-		•	`infra/scripts/benchmark_suite.sh`
-		•	`infra/scripts/localhost_smoke.sh`
-		•	`infra/scripts/compose_smoke.sh`
+		•	`infra/scripts/restore_drill.sh`
+		•	`infra/scripts/restore_e2e.sh`
 		•	`infra/scripts/README.md`
 		•	`docs/runbooks/backups.md`
-		•	`docs/runbooks/benchmarking.md`
-		•	`docs/runbooks/bootstrap.md`
-		•	`docs/runbooks/localhost-e2e.md`
-		•	`docs/runbooks/README.md`
+		•	`docs/runbooks/operator-manual.md`
 		•	`README.md`
 		•	`Makefile`
+		•	`new-thread-eng-feedback.md`
 		•	`plan.md`
 		•	`codex.md`
 
 Validated at end of session
 	•	`go test ./...` passed
 	•	`go run ./cmd/platformctl validate-manifests` passed
+	•	`npm test` passed
 	•	`npm run build` passed
 	•	`git diff --check` passed
-	•	Host-run smoke passed:
-		•	`PLATFORM_SMOKE_PORT=18089 sh infra/scripts/localhost_smoke.sh`
-	•	Packaged Compose smoke passed:
-		•	`sh infra/scripts/compose_smoke.sh`
 	•	Backup workflow passed:
 		•	`sh infra/scripts/backup_snapshot.sh`
-		•	output: `var/backups/platform-backup-20260315T020505Z.tar.gz`
-	•	Packaged-stack benchmark baseline passed:
-		•	`sh infra/scripts/benchmark_suite.sh`
-		•	output: `var/benchmarks/benchmark-20260315T011516Z.json`
-	•	RBAC session proof passed:
-		•	anonymous: `/api/v1/session` returns anonymous with read-only capabilities
-		•	admin token: `/api/v1/session` returns admin with full capabilities
-	•	Post-RBAC benchmark baseline passed:
-		•	output: `var/benchmarks/benchmark-20260315T013521Z.json`
-	•	Post-audit benchmark baseline passed:
-		•	output: `var/benchmarks/benchmark-20260315T014235Z.json`
-	•	Post-metadata-projection benchmark baseline passed:
-		•	output: `var/benchmarks/benchmark-20260315T015128Z.json`
-	•	Packaged PostgreSQL metadata projection proof passed:
-		•	after `/api/v1/catalog`, `select count(*) from data_assets;` returned `6`
+		•	output: `var/backups/platform-backup-20260315T042324Z.tar.gz`
+	•	Safe restore drill passed:
+		•	`sh infra/scripts/restore_drill.sh`
+	•	Restore E2E passed:
+		•	`sh infra/scripts/restore_e2e.sh`
+		•	output: restored API served reports, catalog, profile, analytics, and artifacts from restored state
 
 Important fixes made during this session
-	•	The backup workflow now uses explicit temporary Go caches under `/tmp`, which avoids host cache permission failures during sandboxed runs and makes the operator path more portable.
-	•	The admin terminal backup verification path is constrained to the configured backup directory so the built-in management surface cannot be used as a generic arbitrary-file probe.
-	•	The smoke workflows now assert backup creation and verification, which closes a meaningful recovery-readiness gap in the previous validation matrix.
+	•	Recovery is now symmetric: the platform can restore a backup bundle into a stopped runtime instead of leaving operators with a manual tar extraction drill.
+	•	Restore now clears and rebuilds the local data root, artifact root, and DuckDB snapshot deterministically rather than layering files on top of stale state.
+	•	Restored `active` queue rows are intentionally downgraded to `queued`, which is safer and more truthful than pretending in-flight claims can resume without exported claim tokens.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -155,21 +134,18 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is deeper enterprise-readiness across validation and metadata-backed user experience.
+	•	The cleanest next increment is Workstream 2 from `new-thread-eng-feedback.md`.
 	•	The next agent can focus on:
-		•	restore automation on top of the new backup bundle format
-		•	dashboard presets/sharing workflows
-		•	richer widget-specific controls and layout behavior
-		•	more advanced dataset drill-downs and lineage visualization using the existing catalog API
-		•	deeper PostgreSQL normalization for reporting and metadata state
-		•	expanding the benchmark suite into load, queue, artifact, save/update, and scheduled-run latency budgets
+		•	replacing static token injection with a native identity and session store
+		•	wiring `/api/v1/session` to login/logout semantics
+		•	attaching audit events to database-backed user identities
+		•	keeping `PLATFORM_ADMIN_TOKEN` as a bootstrap path for first-run recovery
 
 Biggest remaining gaps
 	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
 	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
 	•	The access-control layer is real, but it is still a lightweight token model rather than a full user, team, session, and audit system.
 	•	The audit trail is now durable and useful, but it is still relatively narrow in scope and not yet a full governance/history subsystem.
-	•	The platform now has a real backup/export path, but not yet a one-command restore automation workflow.
 	•	The metadata catalog is now projectable into PostgreSQL, but most runtime reads still begin from manifests and synchronize on demand rather than reading from a fully normalized repository-first model.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.

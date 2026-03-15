@@ -201,9 +201,12 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 	}{
 		{source: filepath.Join(s.cfg.DataRoot, "control_plane"), target: "files/data/control_plane", kind: "data_root"},
 		{source: filepath.Join(s.cfg.DataRoot, "raw"), target: "files/data/raw", kind: "data_root"},
+		{source: filepath.Join(s.cfg.DataRoot, "staging"), target: "files/data/staging", kind: "data_root"},
+		{source: filepath.Join(s.cfg.DataRoot, "intermediate"), target: "files/data/intermediate", kind: "data_root"},
 		{source: filepath.Join(s.cfg.DataRoot, "mart"), target: "files/data/mart", kind: "data_root"},
 		{source: filepath.Join(s.cfg.DataRoot, "metrics"), target: "files/data/metrics", kind: "data_root"},
 		{source: filepath.Join(s.cfg.DataRoot, "quality"), target: "files/data/quality", kind: "data_root"},
+		{source: filepath.Join(s.cfg.DataRoot, "profiles"), target: "files/data/profiles", kind: "data_root"},
 		{source: s.cfg.ArtifactRoot, target: "files/artifacts", kind: "artifact_root"},
 		{source: s.cfg.DuckDBPath, target: "files/duckdb/platform.duckdb", kind: "duckdb"},
 		{source: s.cfg.ManifestRoot, target: "files/repo/manifests", kind: "repo_snapshot"},

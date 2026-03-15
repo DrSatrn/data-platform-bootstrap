@@ -17,3 +17,9 @@ migration runners, manifest validators, and smoke-test helpers.
 - `backup_snapshot.sh`: creates and verifies a first-party recovery bundle
   using `platformctl backup`, giving operators a repeatable backup path
   outside the broader smoke workflows.
+- `restore_drill.sh`: runs the real restore command into an isolated temporary
+  runtime root so operators can validate restore behavior without touching live
+  state.
+- `restore_e2e.sh`: creates a real bundle from an isolated smoke runtime,
+  restores that bundle into a second isolated runtime root, and boots the API
+  against the restored state.

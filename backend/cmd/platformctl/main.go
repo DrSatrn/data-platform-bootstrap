@@ -570,7 +570,7 @@ func migrate() error {
 
 func runBackup(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH")
+		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH | restore --file PATH --yes [--postgres-mode auto|required|skip]")
 	}
 
 	service, closeFn, err := newBackupService()
@@ -636,8 +636,47 @@ func runBackup(args []string) error {
 			manifest.Counts.BundleFiles,
 		)
 		return nil
+	case "restore":
+		flagSet := flag.NewFlagSet("backup restore", flag.ContinueOnError)
+		filePath := flagSet.String("file", "", "backup bundle to restore")
+		yes := flagSet.Bool("yes", false, "confirm overwriting the target runtime roots")
+		postgresMode := flagSet.String("postgres-mode", string(backup.PostgresRestoreAuto), "postgres restore behavior: auto|required|skip")
+		dataRoot := flagSet.String("data-root", "", "override restore target data root")
+		artifactRoot := flagSet.String("artifact-root", "", "override restore target artifact root")
+		duckdbPath := flagSet.String("duckdb-path", "", "override restore target DuckDB file")
+		extractRoot := flagSet.String("extract-root", "", "optional extraction workspace to keep after restore")
+		if err := flagSet.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *filePath == "" {
+			return fmt.Errorf("--file is required")
+		}
+		result, err := service.Restore(backup.RestoreOptions{
+			BundlePath:         *filePath,
+			Confirm:            *yes,
+			TargetDataRoot:     *dataRoot,
+			TargetArtifactRoot: *artifactRoot,
+			TargetDuckDBPath:   *duckdbPath,
+			ExtractRoot:        *extractRoot,
+			PostgresMode:       backup.PostgresRestoreMode(strings.ToLower(strings.TrimSpace(*postgresMode))),
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("backup bundle restored: %s\n", result.BundlePath)
+		fmt.Printf("data_root=%s artifact_root=%s duckdb_path=%s postgres_restored=%t requeued_requests=%d\n",
+			result.DataRoot,
+			result.ArtifactRoot,
+			result.DuckDBPath,
+			result.PostgresRestored,
+			result.QueueRequestsRequeued,
+		)
+		for _, warning := range result.Warnings {
+			fmt.Printf("warning=%s\n", warning)
+		}
+		return nil
 	default:
-		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH")
+		return fmt.Errorf("usage: platformctl backup create [--out PATH] | list | verify --file PATH | restore --file PATH --yes [--postgres-mode auto|required|skip]")
 	}
 }
 

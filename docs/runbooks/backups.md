@@ -9,14 +9,18 @@ What is implemented today:
 
 - bundle creation
 - bundle verification
-- isolated restore drill extraction
+- one-command filesystem restore via `platformctl backup restore`
+- automatic PostgreSQL control-plane replay when the configured database is reachable
+- isolated restore drills that do not overwrite the live runtime
+- a restore E2E drill that boots the API against restored state
 
-What is intentionally not implemented yet:
+What is still intentionally unfinished:
 
-- destructive one-command restore into a live runtime root
-- automatic PostgreSQL row replay from bundle exports
+- artifact metadata rows are rebuilt lazily from the filesystem rather than exported/restored as first-class snapshot rows
+- in-flight queue claims are restored as `queued`, not resumable `active`, because claim tokens are intentionally not exported in backup bundles
+- restore does not attempt to revive a running stack in place; stop the target runtime first
 
-That means recovery is now concrete and drillable, but still operator-driven.
+That means recovery is now symmetric and executable, with the remaining edges called out plainly instead of hidden behind manual steps.
 
 ## Create A Backup
 
@@ -69,8 +73,8 @@ Expected success result:
 
 ## Safe Restore Drill
 
-This drill proves you can extract and inspect a bundle without overwriting live
-state.
+This drill proves the real restore command can rebuild a fresh runtime root
+without touching live state.
 
 Command:
 
@@ -85,70 +89,104 @@ Expected success result:
 - output includes:
   - `bundle_path=...`
   - `restore_root=/tmp/...`
-  - `next_step_copy_data_from=...`
-  - `next_step_copy_artifacts_from=...`
+  - `restored_data_root=...`
+  - `restored_artifact_root=...`
 
 What this checks:
 
-- `manifest.json` is extractable
-- control-plane exports are present
-- extracted data and artifact directories exist
+- the bundle verifies before restore
+- the restore command can rebuild a fresh data root, artifact root, and DuckDB file
+- the restored runtime root contains control-plane runs plus data/artifact directories
 
-## Manual Restore Procedure
+## One-Command Restore
 
 Use this only into a stopped target environment.
 
-1. Stop the platform processes or Compose stack.
-2. Verify the bundle:
+Command:
 
 ```sh
 cd backend
-go run ./cmd/platformctl backup verify --file ../var/backups/<bundle-name>.tar.gz
+go run ./cmd/platformctl backup restore \
+  --file ../var/backups/<bundle-name>.tar.gz \
+  --yes
 ```
 
-3. Extract the bundle into an isolated working directory:
+What the command does:
+
+- verifies the bundle before applying it
+- replaces the configured data root with the archived `files/data` tree
+- replaces the configured artifact root with the archived `files/artifacts` tree
+- replaces the configured DuckDB file with the archived snapshot
+- if PostgreSQL is reachable, reapplies migrations and restores:
+  - `run_snapshots`
+  - `queue_requests`
+  - `dashboards`
+  - `audit_events`
+  - `data_assets`
+  - `asset_columns`
+
+Expected success result:
+
+- output includes `backup bundle restored:`
+- output includes the target `data_root`, `artifact_root`, and `duckdb_path`
+- output includes `postgres_restored=true` in preferred Postgres mode, or a warning if auto mode skipped PostgreSQL because it was unavailable
+
+Optional flags:
+
+- `--postgres-mode auto|required|skip`
+  - `auto`: restore PostgreSQL when reachable, otherwise restore only the filesystem and print a warning
+  - `required`: fail if PostgreSQL cannot be reached
+  - `skip`: restore only the filesystem roots
+- `--data-root`, `--artifact-root`, `--duckdb-path`
+  - override the target runtime roots
+- `--extract-root`
+  - keep the extracted bundle workspace instead of using an internal temporary directory
+
+## Restore E2E Drill
+
+This drill proves more than tar extraction. It creates a real bundle from an
+isolated smoke runtime, restores that bundle into a second isolated runtime,
+and boots the API against the restored state.
+
+Command:
 
 ```sh
-mkdir -p /tmp/platform-restore
-tar -xzf var/backups/<bundle-name>.tar.gz -C /tmp/platform-restore
+cd /Users/streanor/Documents/Playground/data-platform
+make restore-e2e
 ```
 
-4. Restore filesystem-backed data into the target runtime root:
+Expected success result:
 
-```sh
-cp -R /tmp/platform-restore/files/data/. var/data/
-cp -R /tmp/platform-restore/files/artifacts/. var/artifacts/
-cp /tmp/platform-restore/files/duckdb/platform.duckdb var/duckdb/platform.duckdb
-```
+- output includes `restore e2e passed`
+- output includes:
+  - `backup_path=...`
+  - `restore_root=/tmp/...`
+  - `restored_api_url=http://127.0.0.1:...`
+  - `manual_run_id=...`
 
-5. If PostgreSQL was recreated, reapply migrations before starting the stack:
+What this checks:
 
-```sh
-cd backend
-go run ./cmd/platformctl migrate
-```
+- a real runtime can generate a valid bundle
+- the restore command can rebuild a second runtime root from that bundle
+- the restored API can serve reports, catalog, dataset profile, analytics, and artifacts from restored state
 
-6. Restart the platform.
-
-7. Run the post-restore checks below.
-
-## What Comes Back From Filesystem Restore
+## What Comes Back Today
 
 Restored directly from the bundle:
 
-- local data root content
+- local data root content, including `raw`, `staging`, `intermediate`, `mart`, `metrics`, `quality`, `profiles`, and control-plane files when present
 - local artifacts
 - DuckDB file
-- control-plane JSON snapshots in the extracted export directory
+- PostgreSQL control-plane snapshot tables when PostgreSQL restore is enabled
 
-Recreated separately:
+Restored with deliberate caveats:
 
-- PostgreSQL schema via migrations
-- PostgreSQL rows are not automatically replayed yet
+- active queue rows come back as `queued` because bundle exports intentionally do not carry worker claim tokens
+- artifact bytes are restored directly, while PostgreSQL artifact index rows are rebuilt lazily by the running platform if needed
 
-In preferred Postgres mode, the live DB remains authoritative after restart.
-Today’s bundle exports give you inspection and future replay material, not an
-automated relational restore path.
+Not restored yet:
+
+- a richer normalized relational history beyond the current snapshot/projection tables
 
 ## Post-Restore Validation
 
@@ -185,3 +223,4 @@ Expected success result:
 3. confirm `var/data`, `var/artifacts`, and `var/duckdb` were restored into the correct repo root
 4. if using Postgres, confirm migrations ran successfully before restart
 5. if API is healthy but catalog/profile fail, confirm the restored data files actually exist under `var/data`
+6. if `postgres_restored=false`, confirm whether the target environment was intentionally file-only or whether PostgreSQL was unreachable during restore

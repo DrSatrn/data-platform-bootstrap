@@ -5,7 +5,7 @@
 SHELL := /bin/sh
 COMPOSE_ENV_FILE := $(if $(wildcard .env.compose),--env-file .env.compose,)
 
-.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup restore-drill
+.PHONY: doctor fmt lint test build backend-build web-build up down smoke compose-smoke bootstrap benchmark backup restore-drill restore-e2e
 
 doctor:
 	@echo "Review codex.md before first build."
@@ -54,6 +54,9 @@ backup:
 
 restore-drill:
 	sh infra/scripts/restore_drill.sh
+
+restore-e2e:
+	sh infra/scripts/restore_e2e.sh
 
 bootstrap:
 	docker compose $(COMPOSE_ENV_FILE) -f infra/compose/docker-compose.yml up -d --build

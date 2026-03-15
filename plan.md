@@ -59,22 +59,27 @@ The next highest-leverage gap is platform hardening:
    - Expose recovery primitives through the CLI and admin terminal.
 
 6. Next likely follow-on work
-   - Report sharing/preset workflows, deeper dataset drill-downs, and broader
-     control-plane normalization in PostgreSQL.
+   - Replace static token RBAC with a native identity/session model while
+     keeping bootstrap compatibility for self-hosted installs.
+   - Normalize more mutable state into PostgreSQL so dashboards and metadata
+     become database-first runtime entities rather than projections.
    - Expand the benchmark suite with scheduled-run, artifact, report-save, and
      queue latency budgets.
 
 ## Latest Completed Workstep
 
-- Expanded the reporting contract so dashboards now carry owner, tags,
-  audience intent, dashboard-wide default filters, and saved presets.
-- Wired dashboard presets through the React reporting surface so widget
-  hydration honors dashboard context before widget-level filters.
-- Extended the persisted dashboard stores, dashboard manifests, and validation
-  path so the richer report definition survives filesystem and PostgreSQL-backed
-  persistence paths.
-- Updated operator and contributor docs so the richer dashboard/report shape is
-  documented alongside the implementation.
+- Implemented `platformctl backup restore` as the symmetric restore path for
+  first-party recovery bundles.
+- Automated filesystem reconstitution for the data root, artifact root, and
+  DuckDB snapshot, including the `staging`, `intermediate`, and `profiles`
+  layers.
+- Automated PostgreSQL control-plane replay for run snapshots, queue
+  requests, dashboards, audit events, and metadata projection tables, with
+  restored `active` queue rows intentionally requeued.
+- Added `make restore-drill` and `make restore-e2e` so recovery is both
+  non-destructive and end-to-end verifiable.
+- Updated recovery docs so cold operators now have a real restore procedure
+  instead of a manual extraction recipe.
 
 ## Deferred / Prompt-Requiring Tests
 
@@ -86,7 +91,7 @@ interactive pass is useful:
 - manual product review of information architecture and copy
 - exploratory testing of admin terminal commands and operator ergonomics
 - user preference review for default dashboard layouts and widget presets
-- manual disaster-recovery drill using an extracted backup bundle
+- manual operator review of restore warning language and recovery ergonomics
 
 ## Update Rule
 

@@ -143,10 +143,10 @@ Before any area is considered complete:
 
 ## Workstream 1: Restore Automation
 Checklist:
-- [ ] Build `platformctl backup restore` that cleanly ingests a `.tar.gz`.
-- [ ] Automate Postgres and filesystem reconstitution.
-- [ ] Update `docs/runbooks/backups.md` reflecting the automated process.
-- [ ] Add a `make restore-e2e` drill.
+- [x] Build `platformctl backup restore` that cleanly ingests a `.tar.gz`.
+- [x] Automate Postgres and filesystem reconstitution.
+- [x] Update `docs/runbooks/backups.md` reflecting the automated process.
+- [x] Add a `make restore-e2e` drill.
 
 ## Workstream 2: Identity and Auth Native System
 Checklist:

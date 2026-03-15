@@ -111,6 +111,7 @@ The platform now includes a first-party backup/export path built in-repo:
 - `platformctl backup create`
 - `platformctl backup verify`
 - `platformctl backup list`
+- `platformctl backup restore`
 - admin terminal commands: `backups`, `backup create`, `backup verify <bundle>`
 
 Each backup bundle is a portable `.tar.gz` archive containing:
@@ -134,7 +135,13 @@ Use:
 make restore-drill
 ```
 
-when you want a safe extraction drill without overwriting live state. See
+when you want a safe restore drill without overwriting live state, or:
+
+```bash
+make restore-e2e
+```
+
+when you want the repo-owned end-to-end recovery proof. See
 [backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md)
 for the full recovery procedure.
 

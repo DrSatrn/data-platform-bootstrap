@@ -200,6 +200,19 @@ Run a safe restore drill:
 make restore-drill
 ```
 
+Run the full restore proof:
+
+```sh
+make restore-e2e
+```
+
+Run a direct restore into the configured runtime roots:
+
+```sh
+cd backend
+go run ./cmd/platformctl backup restore --file ../var/backups/<bundle-name>.tar.gz --yes
+```
+
 ## Normal Maintenance Tasks
 
 ### Confirm the stack is healthy
@@ -232,6 +245,13 @@ make benchmark
 
 ```sh
 make backup
+```
+
+### Prove recovery still works
+
+```sh
+make restore-drill
+make restore-e2e
 ```
 
 ## Where To Look When Something Breaks
