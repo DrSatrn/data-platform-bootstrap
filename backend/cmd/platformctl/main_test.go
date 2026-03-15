@@ -33,6 +33,8 @@ func TestBuildBenchmarkAssertionsIncludesQueueAndSchedulerChecks(t *testing.T) {
 			QueueTotalAfter:   13,
 			QueueVisibleMS:    400,
 		},
+		&benchmarkConcurrentScenario{Requests: 5, Successes: 5},
+		&benchmarkTriggerBurst{RequestedTriggers: 3, AcceptedTriggers: 3},
 		benchmarkSchedulerSummary{
 			RefreshedAt: time.Now().UTC(),
 			LagSeconds:  5,
@@ -55,6 +57,8 @@ func TestBuildBenchmarkAssertionsFailsStaleScheduler(t *testing.T) {
 	assertions := buildBenchmarkAssertions(
 		[]benchmarkResult{{Name: "health", Iterations: 5, Successes: 5}},
 		nil,
+		nil,
+		nil,
 		benchmarkSchedulerSummary{
 			RefreshedAt: time.Now().UTC().Add(-10 * time.Minute),
 			LagSeconds:  600,
@@ -71,5 +75,34 @@ func TestBuildBenchmarkAssertionsFailsStaleScheduler(t *testing.T) {
 	}
 	if !foundFailure {
 		t.Fatalf("expected stale scheduler assertion failure, got %#v", assertions)
+	}
+}
+
+func TestBuildBenchmarkAssertionsIncludesConcurrentAnalyticsAndTriggerBurstChecks(t *testing.T) {
+	assertions := buildBenchmarkAssertions(
+		[]benchmarkResult{{Name: "health", Iterations: 3, Successes: 3}},
+		nil,
+		&benchmarkConcurrentScenario{Requests: 5, Successes: 5},
+		&benchmarkTriggerBurst{RequestedTriggers: 2, AcceptedTriggers: 2},
+		benchmarkSchedulerSummary{
+			RefreshedAt: time.Now().UTC(),
+			LagSeconds:  2,
+		},
+		2*time.Second,
+		30*time.Second,
+	)
+
+	foundConcurrent := false
+	foundBurst := false
+	for _, assertion := range assertions {
+		if assertion.Name == "concurrent_analytics_has_successes" {
+			foundConcurrent = true
+		}
+		if assertion.Name == "trigger_burst_accepts_triggers" {
+			foundBurst = true
+		}
+	}
+	if !foundConcurrent || !foundBurst {
+		t.Fatalf("expected concurrent analytics and trigger burst assertions, got %#v", assertions)
 	}
 }

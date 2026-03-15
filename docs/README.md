@@ -39,6 +39,8 @@ on what you are trying to do.
 
 - [uat-checklist.md](/Users/streanor/Documents/Playground/data-platform/uat-checklist.md)
   Manual user acceptance checklist.
+- [uat-results-2026-03-15.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/uat-results-2026-03-15.md)
+  Latest recorded UAT execution evidence.
 - [benchmarking.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/benchmarking.md)
   Run the benchmark gate and understand the output.
 - [backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md)
@@ -149,6 +151,8 @@ These are internal design notes, not first-stop user docs.
   Main operator handbook.
 - [backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md)
   Backup and restore.
+- [uat-results-2026-03-15.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/uat-results-2026-03-15.md)
+  Recorded UAT evidence from the latest release-readiness pass.
 - [benchmarking.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/benchmarking.md)
   Benchmark gate.
 - [config-reality.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/config-reality.md)

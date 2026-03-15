@@ -144,3 +144,31 @@ func TestQueryMetricExposesAvailableDimensions(t *testing.T) {
 		t.Fatalf("expected available dimensions and measures, got %+v", result)
 	}
 }
+
+func TestQueryInventoryDatasetBuildsRowsFromSampleData(t *testing.T) {
+	root := t.TempDir()
+	dataDir := filepath.Join(root, "inventory_operations")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir inventory sample dir: %v", err)
+	}
+
+	csv := "sku,movement_date,movement_type,warehouse,quantity,unit_cost\n" +
+		"sku_a,2026-02-01,receipt,brisbane,10,2.5\n" +
+		"sku_a,2026-02-05,sale,brisbane,-4,2.5\n" +
+		"sku_b,2026-03-01,receipt,sydney,6,1.2\n"
+	if err := os.WriteFile(filepath.Join(dataDir, "stock_movements.csv"), []byte(csv), 0o644); err != nil {
+		t.Fatalf("write stock movements sample: %v", err)
+	}
+
+	service := NewService(root, filepath.Join(root, "materialized"), filepath.Join(root, "duckdb", "platform.duckdb"), filepath.Join(root, "sql"))
+	result, err := service.QueryDataset("mart_inventory_monthly_summary", QueryOptions{})
+	if err != nil {
+		t.Fatalf("query inventory dataset: %v", err)
+	}
+	if len(result.Series) == 0 {
+		t.Fatal("expected inventory dataset rows")
+	}
+	if result.Series[0]["sku"] == nil || result.Series[0]["warehouse"] == nil {
+		t.Fatalf("expected sku and warehouse in inventory row, got %#v", result.Series[0])
+	}
+}

@@ -102,9 +102,12 @@ Expected result:
 
 Role required: `viewer`
 
+Use a real native session token from `/api/v1/session`, not the older static
+example tokens.
+
 ```sh
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
 ```
 
 Expected result:
@@ -117,8 +120,8 @@ Expected result:
 Role required: `viewer`
 
 ```sh
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/reports
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/reports
 ```
 
 Expected result:

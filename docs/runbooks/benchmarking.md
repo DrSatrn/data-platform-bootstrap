@@ -20,8 +20,11 @@ The benchmark command currently measures:
 - `/api/v1/system/audit`
 - `/api/v1/admin/terminal/execute` with the `status` command
 - a concurrent manual-trigger load scenario against `personal_finance_pipeline`
+- a concurrent analytics burst with multiple `/api/v1/analytics` requests in flight
+- a back-to-back trigger burst against the selected pipeline
 - queue visibility under that load
 - scheduler heartbeat freshness from `/api/v1/system/overview`
+- an optional post-restore benchmark rerun against the API booted from `make restore-e2e`
 
 ## Prerequisites
 
@@ -50,8 +53,12 @@ PLATFORM_ADMIN_TOKEN=local-dev-admin-token \
 PLATFORM_BENCHMARK_ITERATIONS=10 \
 PLATFORM_BENCHMARK_LOAD_TRIGGERS=6 \
 PLATFORM_BENCHMARK_LOAD_CONCURRENCY=3 \
+PLATFORM_BENCHMARK_ANALYTICS_REQUESTS=8 \
+PLATFORM_BENCHMARK_ANALYTICS_CONCURRENCY=5 \
+PLATFORM_BENCHMARK_TRIGGER_BURST=4 \
 PLATFORM_BENCHMARK_QUEUE_VISIBLE_THRESHOLD_MS=7000 \
 PLATFORM_BENCHMARK_SCHEDULER_LAG_THRESHOLD_SECONDS=120 \
+PLATFORM_BENCHMARK_POST_RESTORE=1 \
 make benchmark
 ```
 
@@ -68,6 +75,9 @@ go run ./cmd/platformctl benchmark \
   --pipeline personal_finance_pipeline \
   --load-triggers 6 \
   --load-concurrency 3 \
+  --analytics-requests 8 \
+  --analytics-concurrency 5 \
+  --trigger-burst 4 \
   --queue-visible-threshold-ms 7000 \
   --scheduler-lag-threshold-seconds 120 \
   --out ../var/benchmarks/manual-benchmark.json
@@ -94,6 +104,13 @@ The benchmark report includes:
   - maximum queued, active, total, and inflight request counts observed
   - queue visibility latency
   - run IDs and trigger errors
+- one concurrent-analytics block with:
+  - total requests and concurrency
+  - successes and failures
+  - latency distribution for the burst
+- one trigger-burst block with:
+  - requested versus accepted back-to-back triggers
+  - acceptance latency distribution
 - one scheduler summary block with:
   - latest heartbeat time
   - scheduler lag in seconds
@@ -105,8 +122,12 @@ The benchmark report includes:
 - Run after major backend or frontend changes that affect API hydration paths.
 - Compare reports over time to spot regressions in catalog, analytics, or admin
   surfaces.
+- Leave post-restore benchmarking enabled for release-style verification unless
+  you are intentionally isolating a single benchmark issue.
 - Treat a failed benchmark command as a real regression signal. It now fails if:
   - any target records zero successes
+  - the concurrent analytics burst records zero successes
+  - the trigger burst records zero accepted triggers
   - the load scenario cannot surface accepted queue requests within the budget
   - the scheduler heartbeat is stale beyond the configured threshold
 - Use the benchmark output together with the smoke scripts:

@@ -44,7 +44,7 @@ If you are new to the repo, start with `make smoke`.
 
 Use this table instead of guessing:
 
-- Anonymous: `GET /healthz`, `GET /api/v1/session`
+- Anonymous: `GET /healthz`, `GET|POST|DELETE /api/v1/session`
 - Viewer: read product surfaces such as pipelines, catalog, analytics, quality,
   reports, artifacts, system overview, logs, and audit
 - Editor: manual pipeline triggers and dashboard create/update/delete
@@ -206,7 +206,8 @@ Expected success result:
 
 After this quickstart:
 
-1. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
-2. [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
-3. [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
-4. [trace-one-pipeline.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/trace-one-pipeline.md)
+1. [deployment.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/deployment.md)
+2. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
+3. [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
+4. [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
+5. [trace-one-pipeline.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/trace-one-pipeline.md)

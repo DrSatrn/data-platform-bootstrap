@@ -20,6 +20,8 @@ This document explains how the platform is decomposed into bounded contexts and 
 - `quality`: quality definitions and results
 - `analytics`: curated query-serving endpoints
 - `reporting`: saved reports and dashboards
+- `authz`: native users, sessions, roles, and capability enforcement
+- `backup`: bundle creation, verification, and restore flow
 - `observability`: logs, health, metrics, diagnostics
 - `storage`: local filesystem and future object-store abstraction
 

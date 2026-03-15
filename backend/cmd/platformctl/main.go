@@ -97,13 +97,15 @@ type benchmarkResult struct {
 }
 
 type benchmarkReport struct {
-	ServerURL        string                     `json:"server_url"`
-	GeneratedAt      time.Time                  `json:"generated_at"`
-	Iterations       int                        `json:"iterations"`
-	Results          []benchmarkResult          `json:"results"`
-	LoadScenario     *benchmarkLoadScenario     `json:"load_scenario,omitempty"`
-	SchedulerSummary benchmarkSchedulerSummary  `json:"scheduler_summary"`
-	Assertions       []benchmarkAssertionResult `json:"assertions"`
+	ServerURL           string                       `json:"server_url"`
+	GeneratedAt         time.Time                    `json:"generated_at"`
+	Iterations          int                          `json:"iterations"`
+	Results             []benchmarkResult            `json:"results"`
+	LoadScenario        *benchmarkLoadScenario       `json:"load_scenario,omitempty"`
+	ConcurrentAnalytics *benchmarkConcurrentScenario `json:"concurrent_analytics,omitempty"`
+	TriggerBurst        *benchmarkTriggerBurst       `json:"trigger_burst,omitempty"`
+	SchedulerSummary    benchmarkSchedulerSummary    `json:"scheduler_summary"`
+	Assertions          []benchmarkAssertionResult   `json:"assertions"`
 }
 
 type benchmarkLoadScenario struct {
@@ -130,6 +132,35 @@ type benchmarkAssertionResult struct {
 	Observed string `json:"observed,omitempty"`
 	Expected string `json:"expected,omitempty"`
 	Message  string `json:"message,omitempty"`
+}
+
+type benchmarkConcurrentScenario struct {
+	Name        string   `json:"name"`
+	Path        string   `json:"path"`
+	Requests    int      `json:"requests"`
+	Concurrency int      `json:"concurrency"`
+	Successes   int      `json:"successes"`
+	Failures    int      `json:"failures"`
+	AverageMS   float64  `json:"average_ms"`
+	P50MS       float64  `json:"p50_ms"`
+	P95MS       float64  `json:"p95_ms"`
+	MinMS       float64  `json:"min_ms"`
+	MaxMS       float64  `json:"max_ms"`
+	DurationMS  float64  `json:"duration_ms"`
+	Errors      []string `json:"errors,omitempty"`
+}
+
+type benchmarkTriggerBurst struct {
+	PipelineID        string   `json:"pipeline_id"`
+	RequestedTriggers int      `json:"requested_triggers"`
+	AcceptedTriggers  int      `json:"accepted_triggers"`
+	FailedTriggers    int      `json:"failed_triggers"`
+	AverageAcceptMS   float64  `json:"average_accept_ms"`
+	P50AcceptMS       float64  `json:"p50_accept_ms"`
+	P95AcceptMS       float64  `json:"p95_accept_ms"`
+	DurationMS        float64  `json:"duration_ms"`
+	RunIDs            []string `json:"run_ids,omitempty"`
+	Errors            []string `json:"errors,omitempty"`
 }
 
 type benchmarkOverview struct {
@@ -803,6 +834,9 @@ func runBenchmark(args []string) error {
 	pipelineID := flagSet.String("pipeline", "personal_finance_pipeline", "pipeline id for concurrent load benchmarking")
 	loadTriggers := flagSet.Int("load-triggers", 4, "number of concurrent manual run triggers for the load scenario")
 	loadConcurrency := flagSet.Int("load-concurrency", 2, "number of concurrent trigger workers in the load scenario")
+	analyticsRequests := flagSet.Int("analytics-requests", 5, "total analytics requests for the concurrent analytics scenario")
+	analyticsConcurrency := flagSet.Int("analytics-concurrency", 5, "parallel analytics requests for the concurrent analytics scenario")
+	triggerBurst := flagSet.Int("trigger-burst", 3, "number of back-to-back pipeline triggers for the trigger burst scenario")
 	queueVisibleThresholdMS := flagSet.Int("queue-visible-threshold-ms", 5000, "maximum allowed time for accepted queue requests to become visible")
 	schedulerLagThresholdSeconds := flagSet.Int("scheduler-lag-threshold-seconds", 90, "maximum allowed scheduler heartbeat lag in seconds")
 	pollIntervalMS := flagSet.Int("poll-interval-ms", 200, "poll interval for queue visibility checks")
@@ -819,6 +853,15 @@ func runBenchmark(args []string) error {
 	if *loadConcurrency <= 0 {
 		return fmt.Errorf("load-concurrency must be positive")
 	}
+	if *analyticsRequests < 0 {
+		return fmt.Errorf("analytics-requests must be zero or positive")
+	}
+	if *analyticsConcurrency <= 0 {
+		return fmt.Errorf("analytics-concurrency must be positive")
+	}
+	if *triggerBurst < 0 {
+		return fmt.Errorf("trigger-burst must be zero or positive")
+	}
 	if *queueVisibleThresholdMS <= 0 {
 		return fmt.Errorf("queue-visible-threshold-ms must be positive")
 	}
@@ -828,8 +871,8 @@ func runBenchmark(args []string) error {
 	if *pollIntervalMS <= 0 {
 		return fmt.Errorf("poll-interval-ms must be positive")
 	}
-	if *loadTriggers > 0 && strings.TrimSpace(*token) == "" {
-		return fmt.Errorf("token is required when load-triggers is greater than zero")
+	if (*loadTriggers > 0 || *triggerBurst > 0) && strings.TrimSpace(*token) == "" {
+		return fmt.Errorf("token is required when load-triggers or trigger-burst is greater than zero")
 	}
 
 	report := benchmarkReport{
@@ -886,6 +929,27 @@ func runBenchmark(args []string) error {
 		}
 		report.LoadScenario = &loadScenario
 	}
+	if *analyticsRequests > 0 {
+		concurrentAnalytics, err := runBenchmarkConcurrentScenario(
+			client,
+			report.ServerURL,
+			*token,
+			benchmarkTarget{Name: "analytics_concurrent", Method: http.MethodGet, Path: "/api/v1/analytics?dataset=mart_budget_vs_actual", Token: true},
+			*analyticsRequests,
+			*analyticsConcurrency,
+		)
+		if err != nil {
+			return err
+		}
+		report.ConcurrentAnalytics = &concurrentAnalytics
+	}
+	if *triggerBurst > 0 {
+		triggerBurstScenario, err := runBenchmarkTriggerBurst(client, report.ServerURL, *token, *pipelineID, *triggerBurst)
+		if err != nil {
+			return err
+		}
+		report.TriggerBurst = &triggerBurstScenario
+	}
 
 	overview, err := fetchBenchmarkOverview(client, report.ServerURL, *token)
 	if err != nil {
@@ -895,6 +959,8 @@ func runBenchmark(args []string) error {
 	report.Assertions = buildBenchmarkAssertions(
 		report.Results,
 		report.LoadScenario,
+		report.ConcurrentAnalytics,
+		report.TriggerBurst,
 		report.SchedulerSummary,
 		time.Duration(*queueVisibleThresholdMS)*time.Millisecond,
 		time.Duration(*schedulerLagThresholdSeconds)*time.Second,
@@ -931,6 +997,32 @@ func runBenchmark(args []string) error {
 		)
 		if len(report.LoadScenario.Errors) > 0 {
 			fmt.Printf("  load_errors=%s\n", strings.Join(report.LoadScenario.Errors, " | "))
+		}
+	}
+	if report.ConcurrentAnalytics != nil {
+		fmt.Printf(
+			"concurrent_analytics path=%s success=%d/%d concurrency=%d p50=%.2fms p95=%.2fms duration=%.2fms\n",
+			report.ConcurrentAnalytics.Path,
+			report.ConcurrentAnalytics.Successes,
+			report.ConcurrentAnalytics.Requests,
+			report.ConcurrentAnalytics.Concurrency,
+			report.ConcurrentAnalytics.P50MS,
+			report.ConcurrentAnalytics.P95MS,
+			report.ConcurrentAnalytics.DurationMS,
+		)
+	}
+	if report.TriggerBurst != nil {
+		fmt.Printf(
+			"trigger_burst pipeline=%s accepted=%d/%d p50=%.2fms p95=%.2fms duration=%.2fms\n",
+			report.TriggerBurst.PipelineID,
+			report.TriggerBurst.AcceptedTriggers,
+			report.TriggerBurst.RequestedTriggers,
+			report.TriggerBurst.P50AcceptMS,
+			report.TriggerBurst.P95AcceptMS,
+			report.TriggerBurst.DurationMS,
+		)
+		if len(report.TriggerBurst.Errors) > 0 {
+			fmt.Printf("  trigger_burst_errors=%s\n", strings.Join(report.TriggerBurst.Errors, " | "))
 		}
 	}
 	fmt.Printf(
@@ -1068,11 +1160,13 @@ func runBenchmarkLoadScenario(
 func buildBenchmarkAssertions(
 	results []benchmarkResult,
 	loadScenario *benchmarkLoadScenario,
+	concurrentAnalytics *benchmarkConcurrentScenario,
+	triggerBurst *benchmarkTriggerBurst,
 	schedulerSummary benchmarkSchedulerSummary,
 	queueVisibleThreshold time.Duration,
 	schedulerLagThreshold time.Duration,
 ) []benchmarkAssertionResult {
-	assertions := make([]benchmarkAssertionResult, 0, len(results)+3)
+	assertions := make([]benchmarkAssertionResult, 0, len(results)+5)
 	for _, result := range results {
 		assertions = append(assertions, benchmarkAssertionResult{
 			Name:     fmt.Sprintf("target_%s_has_successes", result.Name),
@@ -1097,6 +1191,24 @@ func buildBenchmarkAssertions(
 			Expected: fmt.Sprintf("<= %.0fms and queue_after >= %d", queueVisibleThreshold.Seconds()*1000, loadScenario.QueueTotalBefore+loadScenario.AcceptedTriggers),
 		})
 	}
+	if concurrentAnalytics != nil {
+		assertions = append(assertions, benchmarkAssertionResult{
+			Name:     "concurrent_analytics_has_successes",
+			Status:   passFail(concurrentAnalytics.Successes > 0),
+			Observed: fmt.Sprintf("%d/%d", concurrentAnalytics.Successes, concurrentAnalytics.Requests),
+			Expected: "at least 1 analytics success",
+			Message:  strings.Join(concurrentAnalytics.Errors, " | "),
+		})
+	}
+	if triggerBurst != nil {
+		assertions = append(assertions, benchmarkAssertionResult{
+			Name:     "trigger_burst_accepts_triggers",
+			Status:   passFail(triggerBurst.AcceptedTriggers > 0),
+			Observed: fmt.Sprintf("%d/%d accepted", triggerBurst.AcceptedTriggers, triggerBurst.RequestedTriggers),
+			Expected: "at least 1 accepted trigger",
+			Message:  strings.Join(triggerBurst.Errors, " | "),
+		})
+	}
 
 	assertions = append(assertions, benchmarkAssertionResult{
 		Name:     "scheduler_heartbeat_freshness",
@@ -1106,6 +1218,108 @@ func buildBenchmarkAssertions(
 	})
 
 	return assertions
+}
+
+func runBenchmarkConcurrentScenario(
+	client *http.Client,
+	server string,
+	token string,
+	target benchmarkTarget,
+	requests int,
+	concurrency int,
+) (benchmarkConcurrentScenario, error) {
+	scenario := benchmarkConcurrentScenario{
+		Name:        target.Name,
+		Path:        target.Path,
+		Requests:    requests,
+		Concurrency: concurrency,
+		Errors:      []string{},
+	}
+	if requests == 0 {
+		return scenario, nil
+	}
+	if concurrency > requests {
+		concurrency = requests
+		scenario.Concurrency = concurrency
+	}
+	started := time.Now()
+	var (
+		mu        sync.Mutex
+		waitGroup sync.WaitGroup
+		guard     = make(chan struct{}, concurrency)
+		durations []float64
+	)
+	for index := 0; index < requests; index++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			guard <- struct{}{}
+			defer func() { <-guard }()
+
+			elapsed, _, err := benchmarkRequest(client, server, token, target)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				scenario.Failures++
+				scenario.Errors = append(scenario.Errors, err.Error())
+				return
+			}
+			scenario.Successes++
+			durations = append(durations, elapsed)
+		}()
+	}
+	waitGroup.Wait()
+	scenario.DurationMS = time.Since(started).Seconds() * 1000
+	if len(durations) > 0 {
+		sort.Float64s(durations)
+		scenario.AverageMS = average(durations)
+		scenario.P50MS = percentile(durations, 50)
+		scenario.P95MS = percentile(durations, 95)
+		scenario.MinMS = durations[0]
+		scenario.MaxMS = durations[len(durations)-1]
+	}
+	return scenario, nil
+}
+
+func runBenchmarkTriggerBurst(
+	client *http.Client,
+	server string,
+	token string,
+	pipelineID string,
+	requestedTriggers int,
+) (benchmarkTriggerBurst, error) {
+	scenario := benchmarkTriggerBurst{
+		PipelineID:        pipelineID,
+		RequestedTriggers: requestedTriggers,
+		RunIDs:            []string{},
+		Errors:            []string{},
+	}
+	if requestedTriggers == 0 {
+		return scenario, nil
+	}
+	started := time.Now()
+	durations := make([]float64, 0, requestedTriggers)
+	for index := 0; index < requestedTriggers; index++ {
+		attemptStarted := time.Now()
+		runID, err := triggerPipelineBenchmark(client, server, token, pipelineID)
+		elapsed := time.Since(attemptStarted).Seconds() * 1000
+		if err != nil {
+			scenario.FailedTriggers++
+			scenario.Errors = append(scenario.Errors, err.Error())
+			continue
+		}
+		scenario.AcceptedTriggers++
+		scenario.RunIDs = append(scenario.RunIDs, runID)
+		durations = append(durations, elapsed)
+	}
+	scenario.DurationMS = time.Since(started).Seconds() * 1000
+	if len(durations) > 0 {
+		sort.Float64s(durations)
+		scenario.AverageAcceptMS = average(durations)
+		scenario.P50AcceptMS = percentile(durations, 50)
+		scenario.P95AcceptMS = percentile(durations, 95)
+	}
+	return scenario, nil
 }
 
 func defaultBenchmarkTargets() []benchmarkTarget {

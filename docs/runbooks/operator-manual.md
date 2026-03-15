@@ -8,11 +8,13 @@ build the system originally and needs a reliable path to operate it.
 
 If you are new to the repo, read in this order:
 
-1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
-2. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
-3. [runtime-wiring.md](/Users/streanor/Documents/Playground/data-platform/docs/architecture/runtime-wiring.md)
-4. [deployment.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/deployment.md)
-5. this document
+1. [README.md](/Users/streanor/Documents/Playground/coding-tracker/README.md)
+2. [quickstart.md](/Users/streanor/Documents/Playground/coding-tracker/docs/runbooks/quickstart.md)
+3. [runtime-wiring.md](/Users/streanor/Documents/Playground/coding-tracker/docs/architecture/runtime-wiring.md)
+4. [deployment.md](/Users/streanor/Documents/Playground/coding-tracker/docs/runbooks/deployment.md)
+5. [security.md](/Users/streanor/Documents/Playground/coding-tracker/docs/security.md)
+6. this document
+7. [upgrading.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/upgrading.md)
 
 ## Tooling Prerequisites
 
@@ -43,6 +45,10 @@ What that does:
 - builds the React app
 
 ## Access Model Summary
+
+For the deeper security posture, session lifecycle, password storage, rate
+limiting, and host-run binding guidance, read
+[security.md](/Users/streanor/Documents/Playground/coding-tracker/docs/security.md).
 
 - Anonymous: `GET /healthz`, `GET|POST|DELETE /api/v1/session`
 - Bootstrap admin: `PLATFORM_ADMIN_TOKEN` for first-run admin and recovery
@@ -77,7 +83,7 @@ If the running stack disagrees with that summary, trust the System page or
 
 ### 1. Canonical first-run path
 
-Use [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md).
+Use [quickstart.md](/Users/streanor/Documents/Playground/coding-tracker/docs/runbooks/quickstart.md).
 That document owns first-run setup. This manual assumes you already completed
 one successful smoke or packaged boot.
 
@@ -166,13 +172,13 @@ go run ./cmd/platformctl remote --token <token> status
 List semantic metrics:
 
 ```sh
-curl http://127.0.0.1:8080/api/v1/metrics
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/metrics
 ```
 
 Fetch a runtime dataset profile:
 
 ```sh
-curl "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
 ```
 
 Update metadata annotations:
@@ -188,7 +194,7 @@ curl -X PATCH \
 Run a grouped dataset drill-down:
 
 ```sh
-curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual&group_by=category&drill_dimension=month&drill_value=2026-01&sort_by=variance_amount&sort_direction=desc"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual&group_by=category&drill_dimension=month&drill_value=2026-01&sort_by=variance_amount&sort_direction=desc"
 ```
 
 Trigger a pipeline:
@@ -248,6 +254,12 @@ Run the full restore proof:
 make restore-e2e
 ```
 
+Run the resilience drill bundle:
+
+```sh
+sh infra/scripts/resilience_drill.sh
+```
+
 Run a direct restore into the configured runtime roots:
 
 ```sh
@@ -286,8 +298,9 @@ make benchmark
 ```
 
 The benchmark now asserts on queue visibility and scheduler freshness in
-addition to endpoint latency. Treat a non-zero exit as a release gate failure,
-not just a noisy measurement script.
+addition to endpoint latency, concurrent analytics pressure, trigger bursts,
+and an optional post-restore rerun. Treat a non-zero exit as a release gate
+failure, not just a noisy measurement script.
 
 ### Capture a recovery point
 
@@ -300,6 +313,7 @@ make backup
 ```sh
 make restore-drill
 make restore-e2e
+sh infra/scripts/resilience_drill.sh
 ```
 
 ## Where To Look When Something Breaks

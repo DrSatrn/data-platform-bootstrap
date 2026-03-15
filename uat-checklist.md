@@ -3,14 +3,8 @@
 Use this checklist after you have the platform running. It is written for a
 human tester, not for an AI agent.
 
-UAT annotation for 2026-03-15:
-
-- `make bootstrap`: PASS
-- Total numbered sections exercised: 12
-- Explicit failures observed: 2
-- Key failures:
-  - data quality was not fully passing because `check_uncategorized_transactions` returned `warning`
-  - `benchmark` is not a supported admin-terminal command in this build
+For the latest recorded execution evidence, see
+[uat-results-2026-03-15.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/uat-results-2026-03-15.md).
 
 Recommended starting point:
 
@@ -35,11 +29,6 @@ Important note:
 
 ## 1. Confirm The Stack Is Reachable
 
-UAT result: ✅ PASS
-
-- `GET http://127.0.0.1:3000/` returned the SPA shell successfully
-- `GET http://127.0.0.1:8080/healthz` returned `200` with `{"environment":"development","status":"ok"}`
-
 Open the web UI:
 
 - `http://127.0.0.1:3000`
@@ -63,12 +52,6 @@ If something goes wrong:
    [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
 
 ## 2. Create Or Use Test Accounts
-
-UAT result: ✅ PASS
-
-- created `viewer-demo`, `editor-demo`, and `admin-demo` via `POST /api/v1/admin/users`
-- an equivalent admin account `operator-admin` was also created and used for the live admin-path checks
-- user creation calls returned HTTP `201`
 
 If you already have native users, use them. If not, create three test users
 with the bootstrap admin token.
@@ -118,11 +101,6 @@ If something goes wrong:
 
 ### Anonymous
 
-UAT result: ✅ PASS
-
-- `GET /api/v1/session` returned `anonymous`
-- anonymous capabilities showed `view_platform: false`
-
 Open the UI in a fresh browser session without signing in.
 
 What success looks like:
@@ -137,13 +115,6 @@ If something goes wrong:
   [access-matrix.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/access-matrix.md)
 
 ### Viewer
-
-UAT result: ✅ PASS
-
-- signed in as `viewer-demo`
-- viewer session had `view_platform: true` and no privileged capabilities
-- viewer-triggered `POST /api/v1/pipelines` returned `403`
-- viewer-triggered `POST /api/v1/admin/terminal/execute` returned `403`
 
 Sign in as `viewer-demo`.
 
@@ -163,14 +134,6 @@ If something goes wrong:
 
 ### Editor
 
-UAT result: ✅ PASS
-
-- signed in as `editor-demo`
-- editor-triggered `POST /api/v1/pipelines` returned `202`
-- editor created and deleted a dashboard successfully
-- editor updated metadata annotations successfully
-- editor-triggered `POST /api/v1/admin/terminal/execute` returned `403`
-
 Sign out, then sign in as `editor-demo`.
 
 What success looks like:
@@ -187,12 +150,6 @@ If something goes wrong:
 
 ### Admin
 
-UAT result: ✅ PASS
-
-- signed in with an admin-capable session (`operator-admin`)
-- admin terminal command `status` succeeded
-- admin user-management endpoint remained accessible with admin credentials
-
 Sign out, then sign in as `admin-demo`.
 
 What success looks like:
@@ -206,12 +163,6 @@ If something goes wrong:
 - confirm the session token belongs to an admin user, not the editor account
 
 ## 4. Trigger A Real Pipeline Run
-
-UAT result: ✅ PASS
-
-- triggered `personal_finance_pipeline` as admin
-- run `run_20260315T071313.236188567` progressed `queued` -> `succeeded`
-- job-level statuses updated and all jobs completed successfully
 
 Sign in as `editor-demo` or `admin-demo`.
 
@@ -238,11 +189,6 @@ If something goes wrong:
 
 ## 5. Verify Run Artifacts
 
-UAT result: ✅ PASS
-
-- `GET /api/v1/artifacts?run_id=run_20260315T071313.236188567` returned raw, staging, intermediate, mart, metric, and quality outputs
-- artifact reads returned real content for the generated files
-
 From the `Pipelines` page, open artifacts for the run you just triggered.
 
 What success looks like:
@@ -258,13 +204,6 @@ If something goes wrong:
 3. if the list is empty, inspect worker logs for artifact-write failures
 
 ## 6. Verify The Dataset Catalog
-
-UAT result: ✅ PASS
-
-- `GET /api/v1/catalog` returned the asset catalog successfully
-- `mart_monthly_cashflow`, `mart_category_spend`, and `mart_budget_vs_actual` were present
-- `GET /api/v1/catalog/profile?asset_id=mart_category_spend` returned `row_count: 5` with column-level samples and ranges
-- lineage and freshness data were present in the catalog payload
 
 Go to:
 
@@ -290,12 +229,6 @@ If something goes wrong:
 
 ## 7. Verify The Metrics Browser
 
-UAT result: ✅ PASS
-
-- `GET /metrics` returned `200`
-- `GET /api/v1/metrics` returned `metrics_savings_rate` and `metrics_category_variance`
-- metric preview data loaded and a narrow empty filter returned an empty series instead of an error
-
 Go to:
 
 - `Metrics`
@@ -318,13 +251,6 @@ If something goes wrong:
 3. try a known-good metric before assuming all metrics are broken
 
 ## 8. Verify Dashboard And Reporting Workflows
-
-UAT result: ✅ PASS
-
-- `GET /reports` returned `200`
-- the default finance dashboard was present through `GET /api/v1/reports`
-- created dashboard `uat_finance_variance`, saved it, and confirmed it persisted on a later `GET /api/v1/reports`
-- filtered analytics queries for `mart_budget_vs_actual` returned live data for `2026-01` through `2026-03`
 
 Sign in as `editor-demo` or `admin-demo`.
 
@@ -355,13 +281,6 @@ If something goes wrong:
 
 ## 9. Verify The System Page
 
-UAT result: ✅ PASS
-
-- `GET /system` returned `200`
-- `GET /api/v1/system/overview` returned scheduler lag, source-of-truth modes, queue summary, and failure watch data
-- the overview showed `postgres` as the source of truth for runs and dashboards
-- `GET /api/v1/system/audit` included the live pipeline trigger and dashboard save events
-
 Go to:
 
 - `System`
@@ -389,12 +308,6 @@ If something goes wrong:
 
 ## 10. Verify The Admin Terminal
 
-UAT result: ❌ FAIL
-
-- `status` worked and returned structured output
-- `backups` worked and returned structured output
-- `benchmark` did not work in the admin terminal and returned `unknown command "benchmark"`
-
 Sign in as `admin-demo` or use the bootstrap admin token override.
 
 Go to:
@@ -418,14 +331,6 @@ If something goes wrong:
 
 ## 11. Verify Backup And Recovery Visibility
 
-UAT result: ✅ PASS
-
-- `make backup` exited `0`
-- output included both `backup bundle created:` and `backup bundle verified:`
-- bundle path produced by `make backup`: `/Users/streanor/Documents/Playground/data-platform/var/backups/platform-backup-20260315T071852Z.tar.gz`
-- separate admin-terminal `backup create` also succeeded, and the reported container path existed on disk
-- note: the admin-terminal `backups` inventory did not immediately list the newly created terminal bundle even though the file existed
-
 From an admin-capable terminal outside the browser, run:
 
 ```sh
@@ -446,12 +351,6 @@ If something goes wrong:
 
 ## 12. Optional Negative Tests
 
-UAT result:
-
-- ✅ PASS: stopped the worker, triggered a new run, confirmed it stayed `queued`, then restarted the worker and saw the run complete successfully
-- ✅ PASS: queried analytics with `from_month=9999-99&to_month=9999-99` and received an empty series instead of an error
-- ⚪ NOT RUN: the optional dbt-backed external-tool pipeline was not exercised in this pass
-
 Run these only if you want extra confidence:
 
 - stop the worker and confirm a new run remains queued until the worker comes back
@@ -469,10 +368,3 @@ The UAT pass is successful if:
 - artifacts, datasets, metrics, dashboards, and system views all load
 - audit and admin features work for admin users
 - backup creation and verification complete successfully
-
-Observed outcome: ✅ PASS WITH CAVEATS
-
-- the core v1 path worked end to end: auth, orchestration, artifacts, catalog, metrics, dashboards, system views, and backup creation all worked
-- two issues remain visible from this UAT:
-  - quality is not fully passing because one check is in `warning`
-  - the checklist expectation for admin-terminal `benchmark` does not match the current command surface

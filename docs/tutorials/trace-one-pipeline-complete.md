@@ -95,10 +95,12 @@ If something goes wrong:
 
 ## Step 4: Inspect The Control-Plane View Of The Run
 
+Role required: `viewer`
+
 Query the pipelines API:
 
 ```sh
-curl http://127.0.0.1:8080/api/v1/pipelines
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/pipelines
 ```
 
 Look for:
@@ -146,16 +148,18 @@ If something goes wrong:
 
 ## Step 6: Inspect The Dataset Catalog
 
+Role required: `viewer`
+
 Query the catalog:
 
 ```sh
-curl http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/catalog
 ```
 
 Query one runtime profile:
 
 ```sh
-curl "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
 ```
 
 What success looks like:
@@ -170,16 +174,18 @@ If something goes wrong:
 
 ## Step 7: Inspect The Analytics Layer
 
+Role required: `viewer`
+
 Query a curated dataset:
 
 ```sh
-curl "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
 ```
 
 Query a metric:
 
 ```sh
-curl "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
 ```
 
 What success looks like:
@@ -194,10 +200,12 @@ If something goes wrong:
 
 ## Step 8: Inspect The Reporting Layer
 
+Role required: `viewer`
+
 Query saved dashboards:
 
 ```sh
-curl http://127.0.0.1:8080/api/v1/reports
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/reports
 ```
 
 Then open the browser:

@@ -10,29 +10,30 @@ No production handlers were changed in this work block.
 - Endpoint/method contracts reviewed: `18`
 - Plain-text error responses found: `0`
 - Handlers missing JSON `Content-Type` on error: `0`
-- Inconsistencies found: `7`
-- Critical issues found: `2`
+- Inconsistencies found: `5`
+- Critical issues found: `0`
+
+## Post-Hardening Update
+
+The highest-risk findings from the original audit have been addressed:
+
+- handler responses no longer expose raw `err.Error()` strings to clients
+- handler-local role checks now use the same structured `403` envelope shape as
+  the shared role middleware
+
+The remaining issues are still worth fixing, but they are now mostly about
+status-code discipline and API ergonomics rather than direct information
+leakage.
 
 ## Key Findings
 
-### Critical
-
-1. Several handlers return raw Go error strings directly to clients.
-   - Affects: analytics, authz session/user, metadata patch/profile, quality, reporting, storage, audit.
-   - Risk: internal implementation details leak through operator-facing APIs.
-
-2. Forbidden-response shapes are inconsistent.
-   - `authz.RequireRole(...)` returns `{error, required_role, current_role}`.
-   - Admin terminal, metadata patch, reporting write/delete, orchestration trigger, and user admin handlers return only `{error}`.
-   - Risk: frontend and operators cannot rely on one authorization-error contract.
-
 ### Moderate
 
-3. `storage.Handler` returns `400` for artifact read/list failures that may be server-side or not-found conditions.
-4. `reporting.Handler` uses `400` for save failures but `500` for delete failures from the same store layer.
-5. `metadata.CatalogHandler` maps all annotation-store failures to `400`, even if the underlying store error is operational.
-6. `authz.UserHandler` maps most service failures to `400`, even when the cause may be persistence/backend failure.
-7. `analytics.MetricCatalogHandler` silently swallows preview query errors and returns empty previews.
+1. `storage.Handler` returns `400` for artifact read/list failures that may be not-found or internal storage errors.
+2. `reporting.Handler` uses `400` for save failures but `500` for delete failures from the same store layer.
+3. `metadata.CatalogHandler` maps all annotation-store failures to `400`, even if the underlying store error is operational.
+4. `authz.UserHandler` maps most service failures to `400`, even when the cause may be persistence/backend failure.
+5. `analytics.MetricCatalogHandler` silently swallows preview query errors and returns empty previews.
 
 ## Endpoint Review
 
