@@ -10,6 +10,7 @@ let mockAuth: any = {
     capabilities: {
       view_platform: true,
       trigger_runs: false,
+      edit_metadata: false,
       edit_dashboards: false,
       run_admin_terminal: false
     }
@@ -76,6 +77,60 @@ let mockSystemState: any = {
   refresh: vi.fn(async () => {})
 };
 
+let mockDatasetState: any = {
+  data: {
+    summary: {
+      total_assets: 1,
+      documented_columns: 1,
+      total_columns: 1,
+      assets_missing_docs: 0,
+      assets_missing_quality: 0,
+      assets_containing_pii: 0
+    },
+    assets: [
+      {
+        id: "mart_budget_vs_actual",
+        name: "Budget vs Actual",
+        layer: "mart",
+        kind: "table",
+        description: "Budget tracking dataset",
+        owner: "platform-team",
+        source_refs: ["raw_transactions"],
+        quality_check_refs: ["quality_budget"],
+        documentation_refs: ["docs/budget.md"],
+        freshness_status: { state: "fresh", message: "Within SLA" },
+        coverage: { documented_columns: 1, total_columns: 1, has_documentation: true, has_quality_checks: true, contains_pii: false },
+        lineage: { upstream: ["raw_transactions"], downstream: ["metrics_category_variance"] },
+        columns: [{ name: "month", type: "text", description: "Month grain" }]
+      }
+    ]
+  },
+  error: null,
+  profile: null,
+  profileError: null,
+  profileLoading: false,
+  saveAnnotations: vi.fn(async () => {}),
+  saveError: null,
+  savePending: false,
+  selectedAssetID: "mart_budget_vs_actual",
+  selectedAsset: {
+    id: "mart_budget_vs_actual",
+    name: "Budget vs Actual",
+    layer: "mart",
+    kind: "table",
+    description: "Budget tracking dataset",
+    owner: "platform-team",
+    source_refs: ["raw_transactions"],
+    quality_check_refs: ["quality_budget"],
+    documentation_refs: ["docs/budget.md"],
+    freshness_status: { state: "fresh", message: "Within SLA" },
+    coverage: { documented_columns: 1, total_columns: 1, has_documentation: true, has_quality_checks: true, contains_pii: false },
+    lineage: { upstream: ["raw_transactions"], downstream: ["metrics_category_variance"] },
+    columns: [{ name: "month", type: "text", description: "Month grain" }]
+  },
+  setSelectedAssetID: vi.fn()
+};
+
 vi.mock("../features/auth/useAuth", () => ({
   useAuth: () => mockAuth
 }));
@@ -91,11 +146,15 @@ vi.mock("../features/dashboard/useDashboardData", () => ({
 vi.mock("../features/system/useSystemData", () => ({
   useSystemData: () => mockSystemState
 }));
+vi.mock("../features/datasets/useDatasets", () => ({
+  useDatasets: () => mockDatasetState
+}));
 vi.mock("../components/AdminTerminal", () => ({
   AdminTerminal: () => <div>Admin Terminal Stub</div>
 }));
 
 import { DashboardPage } from "./DashboardPage";
+import { DatasetsPage } from "./DatasetsPage";
 import { PipelinesPage } from "./PipelinesPage";
 import { SystemPage } from "./SystemPage";
 
@@ -107,6 +166,7 @@ describe("operator page states", () => {
         capabilities: {
           view_platform: true,
           trigger_runs: false,
+          edit_metadata: false,
           edit_dashboards: false,
           run_admin_terminal: false
         }
@@ -168,6 +228,12 @@ describe("operator page states", () => {
       refreshing: false,
       refresh: vi.fn(async () => {})
     };
+    mockDatasetState = {
+      ...mockDatasetState,
+      saveAnnotations: vi.fn(async () => {}),
+      saveError: null,
+      savePending: false
+    };
   });
 
   it("shows the read-only pipeline guidance when the session cannot trigger runs", () => {
@@ -217,5 +283,13 @@ describe("operator page states", () => {
     const html = renderToStaticMarkup(<SystemPage />);
     expect(html).toContain("System error");
     expect(html).toContain("Viewer role required to access the system view.");
+  });
+
+  it("renders metadata editing controls when the session can edit metadata", () => {
+    mockAuth.session.capabilities.edit_metadata = true;
+    mockAuth.session.principal.role = "editor";
+    const html = renderToStaticMarkup(<DatasetsPage />);
+    expect(html).toContain("Edit annotations");
+    expect(html).toContain("Budget vs Actual");
   });
 });

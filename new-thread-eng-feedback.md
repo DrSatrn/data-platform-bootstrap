@@ -157,9 +157,9 @@ Checklist:
 
 ## Workstream 3: Deep Postgres Normalization
 Checklist:
-- [ ] Move dashboards to be purely Postgres-backed in runtime, treating manifests only as initial seeds.
-- [ ] Do the same for `metadata` catalogs so UI-driven annotations persist directly to the database.
-- [ ] Update `backend/internal/reporting/store.go` and `metadata/catalog.go` to reflect database-first supremacy over sync-on-read mechanisms.
+- [x] Move dashboards to be purely Postgres-backed in runtime, treating manifests only as initial seeds.
+- [x] Do the same for `metadata` catalogs so UI-driven annotations persist directly to the database.
+- [x] Update `backend/internal/reporting/store.go` and `metadata/catalog.go` to reflect database-first supremacy over sync-on-read mechanisms.
 
 ## Workstream 4: Reporting Polish
 Checklist:

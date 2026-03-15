@@ -203,6 +203,7 @@ func (s *Service) SessionForRequest(r *http.Request) Session {
 		Capabilities: map[string]bool{
 			"view_platform":      Allowed(principal, RoleViewer),
 			"trigger_runs":       Allowed(principal, RoleEditor),
+			"edit_metadata":      Allowed(principal, RoleEditor),
 			"edit_dashboards":    Allowed(principal, RoleEditor),
 			"run_admin_terminal": Allowed(principal, RoleAdmin),
 			"manage_users":       Allowed(principal, RoleAdmin),
@@ -359,6 +360,7 @@ func capabilitiesForRole(role Role) map[string]bool {
 	return map[string]bool{
 		"view_platform":      roleRank(role) >= roleRank(RoleViewer),
 		"trigger_runs":       roleRank(role) >= roleRank(RoleEditor),
+		"edit_metadata":      roleRank(role) >= roleRank(RoleEditor),
 		"edit_dashboards":    roleRank(role) >= roleRank(RoleEditor),
 		"run_admin_terminal": roleRank(role) >= roleRank(RoleAdmin),
 		"manage_users":       roleRank(role) >= roleRank(RoleAdmin),

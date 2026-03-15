@@ -56,9 +56,11 @@ Writes:
 - run snapshots
 - audit events
 - platform users and session rows when the native identity store is available
-- dashboard changes
-- metadata projection at startup and on scheduler refresh when PostgreSQL-backed
-  metadata is enabled
+- dashboard changes written directly to PostgreSQL when the preferred control
+  plane is available, otherwise to the fallback filesystem store
+- metadata seeds projected from manifests at startup and on scheduler refresh,
+  plus runtime metadata annotation edits written directly to PostgreSQL when
+  the preferred control plane is available
 - system overview summaries derived from runs, queue state, and backup inventory
 - cached dataset profile snapshots under `data/profiles/` when the catalog UI
   requests runtime profiling
@@ -234,14 +236,17 @@ This is the runtime contract the docs and System page should agree on.
   PostgreSQL stores artifact metadata/index rows only
 - dashboards:
   source of truth is PostgreSQL `dashboards`
-  filesystem dashboard storage is a mirror and local-first fallback
+  repo-managed dashboard YAML is initial seed material only
+  filesystem dashboard storage is fallback-only when PostgreSQL is unavailable
 - audit:
   source of truth is PostgreSQL `audit_events`
   filesystem audit log is a mirror and fallback
 - metadata:
-  source of truth is PostgreSQL projection tables
-  manifests are projected on startup and scheduler refresh, then used as fallback
-  only if the projection is empty or PostgreSQL is unavailable
+  source of truth is PostgreSQL `data_assets` and `asset_columns`
+  manifests seed structural catalog fields on startup and scheduler refresh
+  runtime owner/description/docs/quality/column-description edits persist
+  directly to PostgreSQL annotation columns
+  manifests are only used directly when PostgreSQL is unavailable
 - identity:
   source of truth is PostgreSQL `platform_users` and `platform_sessions`
   `PLATFORM_ADMIN_TOKEN` remains a bootstrap override and recovery path
@@ -253,6 +258,22 @@ This is the runtime contract the docs and System page should agree on.
 - identity falls back to bootstrap-admin-token-only access because the native
   session store is unavailable without PostgreSQL
 - the product remains runnable, but the preferred normalized control-plane path is not active
+
+## Runtime Metadata Editing Contract
+
+When PostgreSQL is available, metadata edits happen through the API and write
+directly into annotation columns on `data_assets` and `asset_columns`.
+
+Today the mutable operator-managed fields are:
+
+- asset owner
+- asset description
+- documentation refs
+- quality check refs
+- column descriptions
+
+Those overrides survive scheduler refreshes and manifest reseeds because the
+manifest sync updates structural fields only.
 
 ## Layer Map
 

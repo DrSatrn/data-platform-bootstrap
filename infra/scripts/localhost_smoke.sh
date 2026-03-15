@@ -192,6 +192,19 @@ printf "%s" "$budget_payload" | grep -q '"variance_amount"'
 metrics_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/metrics")
 printf "%s" "$metrics_payload" | grep -q '"metrics_savings_rate"'
 
+metadata_patch_status=$(curl -s -o /tmp/data-platform-smoke-metadata.$$ -w '%{http_code}' -X PATCH "$API_URL/api/v1/catalog" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"asset_id":"mart_budget_vs_actual","owner":"platform-governance","description":"Localhost smoke annotation","documentation_refs":["docs/localhost-annotation.md"],"quality_check_refs":["quality_localhost_annotation"],"column_descriptions":[{"name":"month","description":"Month grain from localhost smoke"}]}')
+
+if [ "$metadata_patch_status" -eq 200 ]; then
+  curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/catalog" | grep -q '"Localhost smoke annotation"'
+else
+  echo "skipping metadata annotation smoke because the host-run stack is using manifest-only catalog fallback"
+fi
+
+rm -f /tmp/data-platform-smoke-metadata.$$
+
 identity_status=$(curl -s -o /tmp/data-platform-smoke-identity.$$ -w '%{http_code}' -X POST "$API_URL/api/v1/admin/users" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H 'Content-Type: application/json' \

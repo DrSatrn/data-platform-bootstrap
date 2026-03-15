@@ -46,7 +46,7 @@ What that does:
 - Anonymous: `GET /healthz`, `GET|POST|DELETE /api/v1/session`
 - Bootstrap admin: `PLATFORM_ADMIN_TOKEN` for first-run admin and recovery
 - Viewer: read APIs and read-only product pages
-- Editor: manual run triggers and dashboard writes
+- Editor: manual run triggers, dashboard writes, and metadata annotation edits
 - Admin: admin terminal, user management, and `platformctl remote ...`
 
 Normal operation should use native users plus `/api/v1/session` login. If a
@@ -63,9 +63,11 @@ Current intended behavior:
 - runs: PostgreSQL primary when available, filesystem mirror/fallback
 - queue: PostgreSQL primary when available, filesystem fallback
 - artifacts: filesystem bytes are authoritative, PostgreSQL is metadata/index only
-- dashboards: PostgreSQL primary when available, filesystem mirror/fallback
+- dashboards: PostgreSQL primary when available, manifest seeding only, filesystem fallback
 - audit: PostgreSQL primary when available, filesystem mirror/fallback
-- metadata: PostgreSQL projection when available, manifest loader fallback
+- metadata: PostgreSQL primary when available for catalog reads and runtime
+  annotations, manifest seeding for structural fields, manifest loader fallback
+  only when PostgreSQL is unavailable
 
 If the running stack disagrees with that summary, trust the System page or
 `/api/v1/system/overview` over this document.
@@ -88,7 +90,9 @@ make smoke
 
 This starts an isolated localhost API, worker, and scheduler, validates a real
 run, validates artifacts, validates the admin terminal, and now validates
-backup creation and verification too.
+backup creation and verification too. When PostgreSQL is not enabled in that
+host-run flow, the smoke script explicitly skips metadata editing and native
+identity checks rather than pretending they are active.
 
 ### 3. Packaged self-host style stack
 
@@ -168,6 +172,16 @@ Fetch a runtime dataset profile:
 
 ```sh
 curl "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+```
+
+Update metadata annotations:
+
+```sh
+curl -X PATCH \
+  -H "Authorization: Bearer <editor-or-admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"asset_id":"mart_budget_vs_actual","owner":"platform-governance","description":"Runtime annotation override","documentation_refs":["docs/runtime-annotation.md"],"quality_check_refs":["quality_runtime_annotation"],"column_descriptions":[{"name":"month","description":"Month grain override"}]}' \
+  http://127.0.0.1:8080/api/v1/catalog
 ```
 
 Trigger a pipeline:

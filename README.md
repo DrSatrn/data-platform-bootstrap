@@ -38,13 +38,14 @@ If you are new to the project, use this reading order:
 This implementation now covers a more polished v2-style finance slice. The
 platform proves the architecture end to end with ingestion, orchestration,
 transformation, metadata registration, quality checks, analytics serving,
-file-backed saved dashboards, and a richer reporting surface around cashflow,
-category spend, and budget variance.
+database-backed saved dashboards, and a richer reporting surface around
+cashflow, category spend, and budget variance.
 
-When PostgreSQL has been migrated and is reachable, the runtime now prefers a
-PostgreSQL-backed control plane for run snapshots, queue state, and artifact
-metadata. The filesystem path remains the local-first fallback when PostgreSQL
-is unavailable. The live source-of-truth breakdown is exposed in
+When PostgreSQL has been migrated and is reachable, the runtime now uses it as
+the primary control plane for run snapshots, queue state, audit, native
+identity, dashboards, and metadata annotations. The filesystem path remains
+the local-first fallback when PostgreSQL is unavailable. The live
+source-of-truth breakdown is exposed in
 `GET /api/v1/system/overview` and rendered in the System page as the
 `Source Of Truth` card.
 
@@ -74,7 +75,7 @@ The platform now has a native identity and session model:
 - database-backed `viewer`, `editor`, and `admin` users authenticate with
   username/password and receive a bearer session token
 - `viewer` can access read-only product APIs and pages
-- `editor` can trigger runs and modify saved dashboards
+- `editor` can trigger runs, modify saved dashboards, and update metadata annotations
 - `admin` can use the admin terminal, manage users, and perform all editor
   actions
 
@@ -186,6 +187,8 @@ The platform now includes first-party operational features owned by this reposit
 - a browser-based admin terminal in the management portal
 - a `platformctl remote ...` command that connects to the running app from any local terminal
 - saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
+- database-backed metadata annotations editable from the Datasets page when the
+  PostgreSQL control plane is active
 - browser-based dashboard management with create, duplicate, edit, delete, reorder, report owner/audience metadata, dashboard-wide default filters, and saved preset flows
 - first-party line and bar chart widgets rendered without external BI or charting products
 - a semantic metrics browser page backed by repo-managed metric manifests

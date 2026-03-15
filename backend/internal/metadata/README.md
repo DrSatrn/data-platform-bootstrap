@@ -6,7 +6,9 @@ support detail.
 
 Current responsibilities include:
 
-- synchronizing repo-managed assets into the catalog API surface
-- projecting asset and column metadata into PostgreSQL when enabled
+- seeding repo-managed assets into PostgreSQL when enabled
+- serving the catalog from PostgreSQL when the preferred control plane is available
+- persisting runtime metadata annotations such as owner, description, docs refs,
+  quality refs, and column descriptions directly into PostgreSQL
 - deriving freshness and lineage summaries for operators
 - generating cached dataset profiles from current local materializations

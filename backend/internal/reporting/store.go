@@ -1,8 +1,8 @@
 // Package reporting owns saved dashboard definitions and the backend API
-// contract used by the frontend reporting experience. The store is intentionally
-// local-first: it persists dashboards under the platform data root and seeds
-// itself from repo-managed dashboard manifests so product behavior remains
-// versioned and inspectable.
+// contract used by the frontend reporting experience. PostgreSQL is the
+// preferred runtime source of truth for mutable dashboards; repo-managed YAML
+// now acts as initial seed material for clean environments rather than the live
+// persistence path when the database is available.
 package reporting
 
 import (
@@ -26,8 +26,9 @@ type Store interface {
 }
 
 // MultiStore lets the platform prefer one reporting store while keeping a
-// secondary local-first mirror. This is useful when PostgreSQL is available
-// but we still want filesystem-backed resilience and an easy seed source.
+// secondary fallback. The runtime no longer uses this for the normal
+// PostgreSQL-backed path, but the helper remains available for unusual tests or
+// recovery flows that still want mirrored writes.
 type MultiStore struct {
 	primary   Store
 	secondary Store
@@ -140,7 +141,8 @@ func (s *MemoryStore) DeleteDashboard(dashboardID string) error {
 }
 
 // FileStore persists dashboards under the platform data root and seeds missing
-// state from repo-managed dashboard manifests.
+// state from repo-managed dashboard manifests. It is the fallback store used
+// when PostgreSQL is unavailable.
 type FileStore struct {
 	mu            sync.RWMutex
 	path          string
@@ -226,15 +228,17 @@ func (s *FileStore) ensureSeeded() error {
 		return fmt.Errorf("read dashboard store: %w", err)
 	}
 
-	dashboards, err := s.loadSeedDashboards()
+	dashboards, err := LoadSeedDashboards(s.dashboardRoot)
 	if err != nil {
 		return err
 	}
 	return s.writeDashboardsLocked(dashboards)
 }
 
-func (s *FileStore) loadSeedDashboards() ([]Dashboard, error) {
-	pattern := filepath.Join(s.dashboardRoot, "*.yaml")
+// LoadSeedDashboards reads repo-managed dashboard manifests for first-run
+// seeding. The returned dashboards are validated and sorted for stable writes.
+func LoadSeedDashboards(dashboardRoot string) ([]Dashboard, error) {
+	pattern := filepath.Join(dashboardRoot, "*.yaml")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("glob dashboard manifests: %w", err)
@@ -262,6 +266,36 @@ func (s *FileStore) loadSeedDashboards() ([]Dashboard, error) {
 		return compareStrings(left.Name, right.Name)
 	})
 	return dashboards, nil
+}
+
+// SeedStore inserts repo-managed dashboards into a mutable store only when the
+// dashboard ID does not already exist. This keeps manifests useful for clean
+// environment bootstrapping without overriding runtime edits.
+func SeedStore(store Store, dashboardRoot string) error {
+	if store == nil {
+		return nil
+	}
+	seeds, err := LoadSeedDashboards(dashboardRoot)
+	if err != nil {
+		return err
+	}
+	existing, err := store.ListDashboards()
+	if err != nil {
+		return err
+	}
+	existingIDs := map[string]struct{}{}
+	for _, dashboard := range existing {
+		existingIDs[dashboard.ID] = struct{}{}
+	}
+	for _, dashboard := range seeds {
+		if _, present := existingIDs[dashboard.ID]; present {
+			continue
+		}
+		if err := store.SaveDashboard(dashboard); err != nil {
+			return fmt.Errorf("seed dashboard %s: %w", dashboard.ID, err)
+		}
+	}
+	return nil
 }
 
 func (s *FileStore) readDashboardsLocked() ([]Dashboard, error) {

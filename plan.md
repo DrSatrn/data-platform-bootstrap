@@ -59,26 +59,26 @@ The next highest-leverage gap is platform hardening:
    - Expose recovery primitives through the CLI and admin terminal.
 
 6. Next likely follow-on work
-   - Normalize more mutable state into PostgreSQL so dashboards and metadata
-     become database-first runtime entities rather than projections.
    - Build richer reporting layout and dataset drill-down behavior on top of
-     the stronger control-plane state model.
-   - Expand the benchmark suite with scheduled-run, artifact, report-save, and
-     queue latency budgets.
+     the stronger database-first control-plane state model.
+   - Expand the benchmark suite with scheduled-run, artifact, report-save,
+     queue-depth, and scheduler-latency budgets.
+   - Tighten verification around concurrent operator workflows and packaged
+     upgrade paths.
 
 ## Latest Completed Workstep
 
-- Implemented a PostgreSQL-backed native identity and session layer with
-  bootstrap-admin compatibility.
-- Added `/api/v1/session` login/logout plus admin user-management APIs.
-- Expanded audit events to capture database-backed `actor_user_id` values.
-- Updated the browser auth flow so operators can sign in with username and
-  password while still keeping the bootstrap token override for recovery.
-- Extended smoke coverage so packaged deployments now create a native user,
-  log in, read product APIs via a session token, and log out again.
-- Updated backup and restore handling so native users are now included in
-  recovery bundles and restored with hashed credentials while live sessions are
-  intentionally cleared.
+- Completed Workstream 3 from `new-thread-eng-feedback.md`.
+- Reporting runtime is now PostgreSQL-first when the preferred control plane is
+  available; repo dashboard YAML is treated as initial seed material only.
+- Metadata now supports a database-backed annotation path for owner,
+  description, docs refs, quality refs, and column descriptions through
+  `PATCH /api/v1/catalog`.
+- The Datasets page now exposes an editor flow for those runtime annotations.
+- Added migration `0007_metadata_annotations.sql` and updated restore behavior
+  so restored metadata remains sticky even after later manifest reseeds.
+- Smoke coverage now proves metadata annotation persistence in the packaged
+  stack and reports explicit skips when host-run fallback mode is active.
 
 ## Deferred / Prompt-Requiring Tests
 
@@ -91,6 +91,7 @@ interactive pass is useful:
 - exploratory testing of admin terminal commands and operator ergonomics
 - user preference review for default dashboard layouts and widget presets
 - manual operator review of identity-management UX and copy
+- manual dataset-editor UX review and column-doc editing ergonomics
 
 ## Update Rule
 

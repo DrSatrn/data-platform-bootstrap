@@ -83,6 +83,12 @@ curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/quality" | 
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?run_id=$manual_run_id" | grep -q '"metrics/metrics_savings_rate.json"'
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
 curl -fsS "$WEB_URL" | grep -q 'Data Platform'
+curl -fsS -X PATCH "$API_URL/api/v1/catalog" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"asset_id":"mart_budget_vs_actual","owner":"platform-governance","description":"Compose smoke annotation","documentation_refs":["docs/runtime-annotation.md"],"quality_check_refs":["quality_runtime_annotation"],"column_descriptions":[{"name":"month","description":"Month grain from compose smoke"}]}' |
+  grep -q '"platform-governance"'
+curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/catalog" | grep -q '"Compose smoke annotation"'
 
 curl -fsS -X POST "$API_URL/api/v1/admin/users" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \

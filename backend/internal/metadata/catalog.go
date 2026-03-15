@@ -1,6 +1,7 @@
-// This file provides a small concurrency-safe in-memory metadata catalog. The
-// in-memory form is enough for the scaffold and keeps the API useful while the
-// Postgres-backed implementation is still under construction.
+// This file provides the in-memory enrichment layer that sits on top of the
+// persisted metadata catalog. PostgreSQL now owns the runtime source of truth
+// when available; this catalog only snapshots loaded assets so enrichment and
+// summary logic can stay concurrency-safe and testable.
 package metadata
 
 import "sync"

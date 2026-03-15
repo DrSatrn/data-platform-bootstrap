@@ -3,15 +3,15 @@
 This package owns saved reports, dashboards, and the backend API contract used
 by the frontend reporting experience.
 
-The current implementation is local-first rather than purely in-memory:
+The current implementation is database-first when PostgreSQL is available and
+local-first only as a fallback:
 
 - dashboard definitions are seeded from repo-managed YAML under
   `packages/dashboards`
-- saved dashboards are persisted under the platform data root so edits survive
-  restart
-- when PostgreSQL is bootstrapped, reporting persistence can be mirrored into
-  the database while still keeping the filesystem-backed source of truth
-  available as a local-first fallback
+- when PostgreSQL is bootstrapped, the runtime reads and writes dashboards
+  directly from the `dashboards` table
+- the filesystem store remains the fallback runtime path only when PostgreSQL
+  is unavailable
 - the dashboard UI hydrates widgets through constrained analytics queries rather
   than hardcoded page-specific data fetches
 - the UI now supports creating, duplicating, editing, deleting, and reordering

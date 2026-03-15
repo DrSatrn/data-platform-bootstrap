@@ -142,7 +142,7 @@ func TestResolveRequestAndCapabilities(t *testing.T) {
 	if session.Principal.Subject != "bob" || session.Principal.Role != RoleEditor {
 		t.Fatalf("unexpected principal: %#v", session.Principal)
 	}
-	if !session.Capabilities["edit_dashboards"] || session.Capabilities["run_admin_terminal"] {
+	if !session.Capabilities["edit_dashboards"] || !session.Capabilities["edit_metadata"] || session.Capabilities["run_admin_terminal"] {
 		t.Fatalf("unexpected capabilities: %#v", session.Capabilities)
 	}
 	if !session.Capabilities["view_platform"] {

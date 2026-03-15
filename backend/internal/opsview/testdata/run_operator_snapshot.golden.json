@@ -1,0 +1,126 @@
+{
+  "run_id": "run_fixture",
+  "pipeline_id": "personal_finance_dbt_pipeline",
+  "status": "failed",
+  "trigger": "manual_api",
+  "updated_at": "2026-03-15T14:00:00Z",
+  "job_count": 1,
+  "failed_job_count": 1,
+  "external_tool_runs": [
+    {
+      "run_id": "run_fixture",
+      "pipeline_id": "personal_finance_dbt_pipeline",
+      "job_id": "build_finance_dbt",
+      "tool": "dbt",
+      "action": "build",
+      "status": "failed",
+      "failure_class": "execution_failed",
+      "last_event_at": "2026-03-15T13:59:30Z",
+      "events": [
+        {
+          "time": "2026-03-15T13:59:00Z",
+          "level": "info",
+          "message": "external tool command started",
+          "fields": {
+            "action": "build",
+            "job_id": "build_finance_dbt",
+            "tool": "dbt"
+          }
+        },
+        {
+          "time": "2026-03-15T13:59:30Z",
+          "level": "error",
+          "message": "external tool failed",
+          "fields": {
+            "action": "build",
+            "failure_class": "execution_failed",
+            "job_id": "build_finance_dbt",
+            "tool": "dbt"
+          }
+        }
+      ],
+      "log_artifacts": [
+        {
+          "run_id": "run_fixture",
+          "relative_path": "external_tools/build_finance_dbt/logs/stderr.log",
+          "size_bytes": 0,
+          "modified_at": "0001-01-01T00:00:00Z",
+          "content_type": ""
+        },
+        {
+          "run_id": "run_fixture",
+          "relative_path": "external_tools/build_finance_dbt/logs/stdout.log",
+          "size_bytes": 0,
+          "modified_at": "0001-01-01T00:00:00Z",
+          "content_type": ""
+        }
+      ],
+      "output_artifacts": [
+        {
+          "run_id": "run_fixture",
+          "relative_path": "external_tools/build_finance_dbt/target/run_results.json",
+          "size_bytes": 0,
+          "modified_at": "0001-01-01T00:00:00Z",
+          "content_type": ""
+        }
+      ],
+      "evidence": {
+        "run_id": "run_fixture",
+        "total_artifacts": 3,
+        "log_artifact_count": 2,
+        "output_artifact_count": 1,
+        "artifact_paths": [
+          "external_tools/build_finance_dbt/logs/stderr.log",
+          "external_tools/build_finance_dbt/logs/stdout.log",
+          "external_tools/build_finance_dbt/target/run_results.json"
+        ],
+        "log_paths": [
+          "external_tools/build_finance_dbt/logs/stderr.log",
+          "external_tools/build_finance_dbt/logs/stdout.log"
+        ],
+        "output_paths": [
+          "external_tools/build_finance_dbt/target/run_results.json"
+        ]
+      }
+    }
+  ],
+  "evidence_groups": [
+    {
+      "key": "artifacts:metrics",
+      "kind": "artifacts",
+      "label": "Artifacts: metrics",
+      "artifact_count": 1,
+      "artifact_paths": [
+        "metrics/metrics_savings_rate.json"
+      ]
+    },
+    {
+      "key": "external_tool_logs:build_finance_dbt",
+      "kind": "external_tool_logs",
+      "label": "External Tool Logs: build_finance_dbt",
+      "artifact_count": 2,
+      "artifact_paths": [
+        "external_tools/build_finance_dbt/logs/stderr.log",
+        "external_tools/build_finance_dbt/logs/stdout.log"
+      ]
+    },
+    {
+      "key": "external_tool_outputs:build_finance_dbt",
+      "kind": "external_tool_outputs",
+      "label": "External Tool Outputs: build_finance_dbt",
+      "artifact_count": 1,
+      "artifact_paths": [
+        "external_tools/build_finance_dbt/target/run_results.json"
+      ]
+    }
+  ],
+  "attention": {
+    "total_jobs": 1,
+    "failed_jobs": 1,
+    "running_jobs": 0,
+    "succeeded_jobs": 0,
+    "jobs_missing_logs": 0,
+    "jobs_missing_outputs": 0
+  },
+  "has_external_tool_runs": true
+}

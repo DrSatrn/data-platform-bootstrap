@@ -119,6 +119,26 @@ type ColumnProfile struct {
 
 // Store defines the persistence behavior for the synchronized metadata catalog.
 type Store interface {
-	SyncAssets([]DataAsset) error
+	SeedAssets([]DataAsset) error
 	ListAssets() ([]DataAsset, error)
+	UpdateAnnotations(AssetAnnotationsPatch) error
+}
+
+// AssetAnnotationsPatch captures the operator-managed metadata fields that are
+// intentionally mutable at runtime. These annotations live in PostgreSQL so
+// the catalog can become database-first without giving up manifest seeding.
+type AssetAnnotationsPatch struct {
+	AssetID            string                  `json:"asset_id"`
+	Owner              *string                 `json:"owner,omitempty"`
+	Description        *string                 `json:"description,omitempty"`
+	QualityCheckRefs   *[]string               `json:"quality_check_refs,omitempty"`
+	DocumentationRefs  *[]string               `json:"documentation_refs,omitempty"`
+	ColumnDescriptions []ColumnAnnotationPatch `json:"column_descriptions,omitempty"`
+}
+
+// ColumnAnnotationPatch describes one operator-supplied column documentation
+// update. Omitted descriptions leave the current persisted annotation intact.
+type ColumnAnnotationPatch struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
 }

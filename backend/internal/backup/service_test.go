@@ -28,12 +28,16 @@ type metadataStub struct {
 	assets []metadata.DataAsset
 }
 
-func (s metadataStub) SyncAssets([]metadata.DataAsset) error {
+func (s metadataStub) SeedAssets([]metadata.DataAsset) error {
 	return nil
 }
 
 func (s metadataStub) ListAssets() ([]metadata.DataAsset, error) {
 	return s.assets, nil
+}
+
+func (s metadataStub) UpdateAnnotations(metadata.AssetAnnotationsPatch) error {
+	return nil
 }
 
 func TestCreateAndVerifyBackup(t *testing.T) {

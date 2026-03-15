@@ -75,6 +75,8 @@ core repo cleanup:
 - `backend/internal/execution/external_tool_failures_test.go`
 - `backend/internal/execution/external_tool_operator_inspection_test.go`
 - `backend/internal/opsview/external_tool_summary_test.go`
+- `backend/internal/opsview/snapshot_builders_test.go`
+- `backend/internal/opsview/golden_snapshot_test.go`
 - `backend/internal/storage/handler_external_tool_test.go`
 - `backend/internal/storage/handler_external_tool_read_test.go`
 
@@ -354,6 +356,43 @@ Whether hot files were touched:
 
 - no specifically blocked files were touched
 - no shared runtime files were edited in this tranche
+
+## Opsview Snapshot Tranche Status
+
+Exact new files in this tranche:
+
+- `backend/internal/opsview/snapshot_models.go`
+- `backend/internal/opsview/snapshot_builders.go`
+- `backend/internal/opsview/snapshot_builders_test.go`
+- `backend/internal/opsview/golden_snapshot_test.go`
+- `backend/internal/opsview/testdata/run_operator_snapshot.golden.json`
+
+What is now verifiably true:
+
+- `opsview` can now build run-level operator snapshots from pipeline runs plus
+  artifacts without any handler or runtime wiring
+- artifacts can be grouped into stable evidence buckets for external-tool logs,
+  external-tool outputs, and other artifact namespaces
+- compact attention rollups can summarize multiple run snapshots for future
+  overview panels
+- golden JSON coverage now exists for one representative run snapshot payload
+
+What remains intentionally unfinished:
+
+- these snapshot and rollup builders are still backend-only and unwired
+- no handler, storage, or runtime endpoints return these payloads yet
+- the golden file is additive test coverage, not a published API contract
+
+Exact test commands run in this tranche:
+
+```bash
+cd backend && go test ./internal/opsview
+```
+
+Whether hot files were touched:
+
+- no specifically blocked files were touched
+- no shared runtime or handler files were edited in this tranche
 
 ## Integration Queue
 

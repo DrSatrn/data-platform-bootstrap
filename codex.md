@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Implemented a PostgreSQL-backed native identity and session layer with bootstrap-admin compatibility.
-	•	Added `/api/v1/session` login/logout plus admin user-management APIs and browser-side login/logout flows.
-	•	Expanded audit events to capture database-backed `actor_user_id` values instead of only free-text subjects.
-	•	Updated smoke, backup, and restore workflows so native users are validated in packaged mode and included in recovery bundles, while live sessions are intentionally cleared on restore.
+	•	Completed Workstream 3 from `new-thread-eng-feedback.md`.
+	•	Dashboards now run PostgreSQL-first when the preferred control plane is available, with repo YAML treated as seed material rather than live runtime truth.
+	•	Metadata now supports database-backed annotation edits for owner, description, docs refs, quality refs, and column descriptions through `PATCH /api/v1/catalog`.
+	•	The Datasets page now exposes an editor flow for those annotations, and packaged smoke validates that persistence path.
 
 Next workstep to execute
-	•	Start Workstream 3 from `new-thread-eng-feedback.md`: push dashboards and metadata further toward database-first runtime ownership instead of manifest-first projection semantics.
+	•	Start Workstream 4 from `new-thread-eng-feedback.md`: reporting layout tooling and deeper dataset drill-down behavior.
 
 Session Close Handoff
 
@@ -71,12 +71,12 @@ Current state at session end
 	•	The platform is in a v2-ready state for the personal-finance slice and is fully runnable both through host-run binaries and the packaged Docker Compose deployment.
 	•	The backend supports API, worker, scheduler, admin terminal, artifact inspection, constrained analytics serving, quality status, reporting APIs, and `platformctl`.
 	•	The frontend now renders the dashboard from saved dashboard definitions plus constrained analytics queries rather than hardcoded page-specific data loading, and operators can manage those dashboards directly from the browser.
-	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, persisted locally under the platform data root through the file-backed reporting store, and mirrored into PostgreSQL when the DB-backed reporting store is active.
+	•	Dashboard definitions are seeded from repo-managed YAML under `packages/dashboards`, but PostgreSQL is now the live runtime store when the preferred control plane is active.
 	•	The reporting UI now supports KPI, table, line, and bar widgets without introducing external charting dependencies.
 	•	The metadata/catalog API now enriches assets with runtime freshness state, derived coverage signals, and lineage edges, and that state is surfaced in the Datasets and System pages.
 	•	The platform now supports a native PostgreSQL-backed identity and session model, with the bootstrap admin token preserved as the recovery and first-run path.
 	•	The platform now records privileged actions in a durable audit trail, exposes them through the API, and renders them in the System page.
-	•	The platform can now persist the synchronized metadata catalog in PostgreSQL, which is a meaningful step away from purely in-memory control-plane metadata.
+	•	The platform now serves the metadata catalog from PostgreSQL when available and persists runtime metadata annotations directly into database annotation columns.
 	•	The platform now includes a first-party backup/export and restore subsystem with CLI, script, and runbook support, and native users are part of that recovery story.
 	•	The analytical layer now includes `mart_monthly_cashflow`, `mart_category_spend`, `mart_budget_vs_actual`, `metrics_savings_rate`, and `metrics_category_variance`.
 	•	The worker ingests transactions, account balances, and budget rules, then materializes the richer marts and metrics through version-controlled DuckDB SQL.
@@ -84,74 +84,57 @@ Current state at session end
 	•	The repo now includes a first-party benchmark workflow that can emit JSON latency baselines from a running stack.
 
 Files changed in the latest workstep
-	•	Identity, session, and audit implementation:
-		•	`infra/migrations/0006_identity_auth.sql`
-		•	`backend/internal/authz/service.go`
-		•	`backend/internal/authz/handler.go`
-		•	`backend/internal/authz/service_test.go`
-		•	`backend/internal/authz/handler_test.go`
-		•	`backend/internal/db/identity_store.go`
-		•	`backend/internal/db/control_plane.go`
-		•	`backend/internal/audit/store.go`
-		•	`backend/internal/db/audit_store.go`
+	•	Database-first reporting and metadata:
+		•	`infra/migrations/0007_metadata_annotations.sql`
+		•	`backend/internal/reporting/store.go`
+		•	`backend/internal/reporting/store_test.go`
+		•	`backend/internal/metadata/models.go`
+		•	`backend/internal/metadata/projector.go`
+		•	`backend/internal/metadata/catalog.go`
+		•	`backend/internal/metadata/handler.go`
+		•	`backend/internal/metadata/catalog_handler_test.go`
+		•	`backend/internal/db/metadata_store.go`
 		•	`backend/internal/app/runtime.go`
-		•	`backend/internal/admin/service.go`
-		•	`backend/internal/admin/handler.go`
-		•	`backend/internal/orchestration/handler.go`
-		•	`backend/internal/reporting/handler.go`
-	•	Frontend auth and operator UX:
-		•	`web/src/features/auth/useAuth.tsx`
-		•	`web/src/features/system/useIdentityAdmin.ts`
-		•	`web/src/features/system/useSystemData.ts`
-		•	`web/src/app/App.tsx`
-		•	`web/src/app/App.test.tsx`
-		•	`web/src/pages/SystemPage.tsx`
-		•	`web/src/lib/api.ts`
-		•	`web/src/lib/api.test.ts`
-	•	Recovery and docs sync:
-		•	`backend/internal/backup/service.go`
 		•	`backend/internal/backup/restore.go`
-		•	`backend/internal/backup/service_test.go`
+	•	Frontend metadata editor and capability updates:
+		•	`web/src/features/auth/useAuth.tsx`
+		•	`web/src/features/datasets/useDatasets.ts`
+		•	`web/src/pages/DatasetsPage.tsx`
+		•	`web/src/pages/PageStates.test.tsx`
+		•	`web/src/app/App.test.tsx`
+	•	Docs and verification sync:
+		•	`README.md`
+		•	`docs/architecture/runtime-wiring.md`
+		•	`docs/runbooks/operator-manual.md`
+		•	`backend/internal/reporting/README.md`
+		•	`backend/internal/metadata/README.md`
 		•	`infra/scripts/localhost_smoke.sh`
 		•	`infra/scripts/compose_smoke.sh`
-		•	`infra/scripts/restore_drill.sh`
-		•	`README.md`
-		•	`.env.example`
-		•	`docs/runbooks/quickstart.md`
-		•	`docs/runbooks/bootstrap.md`
-		•	`docs/runbooks/operator-manual.md`
-		•	`docs/runbooks/backups.md`
-		•	`docs/runbooks/localhost-e2e.md`
-		•	`docs/architecture/runtime-wiring.md`
 		•	`new-thread-eng-feedback.md`
 		•	`plan.md`
 		•	`codex.md`
 
 Validated at end of session
-	•	`go test ./...` passed
+	•	Targeted backend packages passed:
+		•	`go test ./internal/app ./internal/authz ./internal/backup ./internal/db ./internal/metadata ./internal/reporting ./internal/observability`
+	•	Full `go test ./...` currently fails in unrelated `internal/execution` external-tool tests because concurrent dbt-runner work is in flight:
+		•	`TestRunExternalToolFailsForNonZeroExitAndMirrorsLogs`
+		•	`TestRunExternalToolFailsWhenRequiredArtifactIsMissing`
 	•	`go run ./cmd/platformctl validate-manifests` passed
 	•	`npm test` passed
 	•	`npm run build` passed
 	•	`git diff --check` passed
 	•	Host-run smoke passed:
 		•	`PLATFORM_SMOKE_PORT=18090 sh infra/scripts/localhost_smoke.sh`
-		•	host-run stacks without PostgreSQL now report that native identity checks were skipped because bootstrap-only auth is active
+		•	host-run stacks without PostgreSQL now report that native identity and metadata-annotation checks were skipped because fallback mode is active
 	•	Packaged Compose smoke passed:
 		•	`sh infra/scripts/compose_smoke.sh`
-		•	packaged stacks now create a native user, log in, read via a session token, and log out
-	•	Backup workflow passed:
-		•	`sh infra/scripts/backup_snapshot.sh`
-		•	output: `var/backups/platform-backup-20260315T044358Z.tar.gz`
-	•	Safe restore drill passed:
-		•	`sh infra/scripts/restore_drill.sh`
-	•	Restore E2E passed:
-		•	`sh infra/scripts/restore_e2e.sh`
-		•	output: restored API served reports, catalog, profile, analytics, and artifacts from restored state
+		•	packaged stacks now create a native user, log in, persist metadata annotations, and read the updated catalog
 
 Important fixes made during this session
-	•	Normal operator access now uses native users plus session tokens instead of requiring static environment-provided bearer tokens.
-	•	The bootstrap admin token still works when PostgreSQL is absent, which keeps first-run and recovery paths safe.
-	•	Native users are now part of backup bundles so the new auth layer does not silently fall outside the recovery story.
+	•	The runtime no longer treats dashboard manifests as the live mutable store when PostgreSQL is enabled.
+	•	Metadata annotations now survive scheduler reseeds because manifest sync updates structural catalog fields without overwriting annotation columns.
+	•	Restore now writes effective metadata into annotation columns so recovered environments keep the operator-visible catalog state sticky across later reseeds.
 
 Important repo/runtime truths
 	•	PostgreSQL remains the preferred control-plane backend when available, but the platform still falls back to filesystem-backed persistence for local-first resilience.
@@ -166,18 +149,17 @@ Important repo/runtime truths
 		•	Postgres is not published externally
 
 Best next session starting point
-	•	The cleanest next increment is Workstream 3 from `new-thread-eng-feedback.md`.
+	•	The cleanest next increment is Workstream 4 from `new-thread-eng-feedback.md`.
 	•	The next agent can focus on:
-		•	moving dashboards further toward PostgreSQL-first runtime ownership
-		•	doing the same for metadata annotations and dynamic catalog state
-		•	reducing remaining sync-on-read and projection-first runtime paths
-		•	keeping manifests as seed/deployment material rather than mutable runtime truth
+		•	adding explicit widget layout/grid metadata
+		•	enabling resizing and richer reordering in the dashboard UI
+		•	improving dataset drill-down behavior in the analytics service and Datasets page
 
 Biggest remaining gaps
-	•	Reporting CRUD now exists in the browser, but the reporting product still lacks layout tooling, sharing semantics, and more advanced report-level controls.
-	•	PostgreSQL-backed reporting persistence exists, but broader reporting state is not yet fully normalized in the database.
+	•	Reporting CRUD now exists in the browser, but the reporting product still lacks explicit layout tooling, resizing, and richer report-level controls.
+	•	Analytics drill-down and dimensional exploration are still narrower than the eventual internal BI experience needs.
 	•	The access-control layer now has native users and sessions, but it still needs richer team/user administration and stronger policy depth.
-	•	The audit trail is now durable and useful, but it is still relatively narrow in scope and not yet a full governance/history subsystem.
+	•	Benchmark breadth and queue/scheduler latency assertions are still pending from the engineer contract.
 	•	The metadata catalog is now projectable into PostgreSQL, but most runtime reads still begin from manifests and synchronize on demand rather than reading from a fully normalized repository-first model.
 	•	Analytics is richer than before but still intentionally constrained; this is not an arbitrary BI query layer.
 	•	Scheduler coverage is improved but still not a complete cron engine for all future cases.

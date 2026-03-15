@@ -485,9 +485,15 @@ func restorePostgresState(
 			insert into data_assets (
 				id, name, layer, owner_id, kind, description,
 				source_refs, freshness_expected_within, freshness_warn_after,
-				quality_check_refs, documentation_refs
+				quality_check_refs, documentation_refs,
+				annotation_owner_id, annotation_description,
+				annotation_quality_check_refs, annotation_documentation_refs,
+				annotation_updated_at, manifest_synced_at
 			)
-			values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10::jsonb, $11::jsonb)
+			values (
+				$1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10::jsonb, $11::jsonb,
+				$12, $13, $14::jsonb, $15::jsonb, $16, $17
+			)
 		`,
 			asset.ID,
 			asset.Name,
@@ -500,14 +506,23 @@ func restorePostgresState(
 			asset.Freshness.WarnAfter,
 			string(qualityRefs),
 			string(docRefs),
+			asset.Owner,
+			asset.Description,
+			string(qualityRefs),
+			string(docRefs),
+			time.Now().UTC(),
+			time.Now().UTC(),
 		); err != nil {
 			return 0, nil, fmt.Errorf("restore metadata asset %s: %w", asset.ID, err)
 		}
 		for _, column := range asset.Columns {
 			if _, err := tx.ExecContext(ctx, `
-				insert into asset_columns (asset_id, column_name, column_type, description, is_pii)
-				values ($1, $2, $3, $4, $5)
-			`, asset.ID, column.Name, column.Type, column.Description, column.IsPII); err != nil {
+				insert into asset_columns (
+					asset_id, column_name, column_type, description, is_pii,
+					annotation_description, annotation_updated_at
+				)
+				values ($1, $2, $3, $4, $5, $6, $7)
+			`, asset.ID, column.Name, column.Type, column.Description, column.IsPII, column.Description, time.Now().UTC()); err != nil {
 				return 0, nil, fmt.Errorf("restore metadata column %s.%s: %w", asset.ID, column.Name, err)
 			}
 		}

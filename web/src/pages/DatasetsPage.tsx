@@ -2,10 +2,25 @@
 // Operators can scan the catalog quickly on the left, then inspect ownership,
 // freshness, lineage references, and column documentation for the selected
 // asset on the right.
+import { useEffect, useState } from "react";
+
+import { useAuth } from "../features/auth/useAuth";
 import { Asset, AssetProfile, useDatasets } from "../features/datasets/useDatasets";
 
 export function DatasetsPage() {
-  const { data, error, profile, profileError, profileLoading, selectedAsset, selectedAssetID, setSelectedAssetID } = useDatasets();
+  const {
+    data,
+    error,
+    profile,
+    profileError,
+    profileLoading,
+    saveAnnotations,
+    saveError,
+    savePending,
+    selectedAsset,
+    selectedAssetID,
+    setSelectedAssetID
+  } = useDatasets();
 
   if (error) {
     return <section className="panel">Datasets error: {error}</section>;
@@ -61,7 +76,15 @@ export function DatasetsPage() {
       </article>
 
       {selectedAsset ? (
-        <DatasetDetail asset={selectedAsset} profile={profile} profileError={profileError} profileLoading={profileLoading} />
+        <DatasetDetail
+          asset={selectedAsset}
+          profile={profile}
+          profileError={profileError}
+          profileLoading={profileLoading}
+          saveAnnotations={saveAnnotations}
+          saveError={saveError}
+          savePending={savePending}
+        />
       ) : (
         <article className="card">
           <h2>No dataset selected</h2>
@@ -76,13 +99,43 @@ function DatasetDetail({
   asset,
   profile,
   profileError,
-  profileLoading
+  profileLoading,
+  saveAnnotations,
+  saveError,
+  savePending
 }: {
   asset: Asset;
   profile: AssetProfile | null;
   profileError: string | null;
   profileLoading: boolean;
+  saveAnnotations: ReturnType<typeof useDatasets>["saveAnnotations"];
+  saveError: string | null;
+  savePending: boolean;
 }) {
+  const { session } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(() => buildDraft(asset));
+
+  useEffect(() => {
+    setDraft(buildDraft(asset));
+    setIsEditing(false);
+  }, [asset]);
+
+  async function submitAnnotations() {
+    await saveAnnotations({
+      asset_id: asset.id,
+      owner: draft.owner,
+      description: draft.description,
+      quality_check_refs: splitLines(draft.qualityCheckRefs),
+      documentation_refs: splitLines(draft.documentationRefs),
+      column_descriptions: asset.columns.map((column, index) => ({
+        name: column.name,
+        description: draft.columnDescriptions[index] ?? ""
+      }))
+    });
+    setIsEditing(false);
+  }
+
   return (
     <article className="card">
       <div className="row-between">
@@ -91,13 +144,30 @@ function DatasetDetail({
           <span className="badge">{asset.layer}</span>
           <span className="badge">{asset.kind}</span>
           <span className="badge">{asset.freshness_status.state}</span>
+          {session?.capabilities.edit_metadata ? (
+            <button className="mini-button" onClick={() => setIsEditing((value) => !value)} type="button">
+              {isEditing ? "Cancel edit" : "Edit annotations"}
+            </button>
+          ) : null}
         </div>
       </div>
       <p>{asset.description}</p>
+      {!session?.capabilities.edit_metadata ? (
+        <p className="muted">Editor role required to update owners, docs, and column descriptions.</p>
+      ) : null}
+      {saveError ? <p className="muted">Save error: {saveError}</p> : null}
       <div className="form-grid">
         <div className="subcard">
           <p className="muted">Owner</p>
-          <strong>{asset.owner}</strong>
+          {isEditing ? (
+            <input
+              className="terminal-input"
+              onChange={(event) => setDraft((current) => ({ ...current, owner: event.target.value }))}
+              value={draft.owner}
+            />
+          ) : (
+            <strong>{asset.owner}</strong>
+          )}
         </div>
         <div className="subcard">
           <p className="muted">Freshness</p>
@@ -123,6 +193,45 @@ function DatasetDetail({
           <p className="muted">{asset.lineage.downstream.length} downstream</p>
         </div>
       </div>
+      {isEditing ? (
+        <div className="stack">
+          <label className="stack">
+            <span className="muted">Description</span>
+            <textarea
+              className="terminal-input"
+              onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
+              rows={3}
+              value={draft.description}
+            />
+          </label>
+          <div className="form-grid">
+            <label className="stack">
+              <span className="muted">Documentation refs (one per line)</span>
+              <textarea
+                className="terminal-input"
+                onChange={(event) => setDraft((current) => ({ ...current, documentationRefs: event.target.value }))}
+                rows={4}
+                value={draft.documentationRefs}
+              />
+            </label>
+            <label className="stack">
+              <span className="muted">Quality check refs (one per line)</span>
+              <textarea
+                className="terminal-input"
+                onChange={(event) => setDraft((current) => ({ ...current, qualityCheckRefs: event.target.value }))}
+                rows={4}
+                value={draft.qualityCheckRefs}
+              />
+            </label>
+          </div>
+          <div className="row-between">
+            <h3>Column Documentation Overrides</h3>
+            <button className="button" disabled={savePending} onClick={() => void submitAnnotations()} type="button">
+              {savePending ? "Saving..." : "Save annotations"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="stack">
         <ReferenceStrip label="Sources" values={asset.source_refs} />
         <ReferenceStrip label="Upstream assets" values={asset.lineage.upstream} />
@@ -162,7 +271,25 @@ function DatasetDetail({
             <tr key={column.name}>
               <td>{column.name}</td>
               <td>{column.type}</td>
-              <td>{column.description || "No column documentation yet."}</td>
+              <td>
+                {isEditing ? (
+                  <textarea
+                    className="terminal-input"
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        columnDescriptions: current.columnDescriptions.map((value, index) =>
+                          asset.columns[index].name === column.name ? event.target.value : value
+                        )
+                      }))
+                    }
+                    rows={2}
+                    value={draft.columnDescriptions[asset.columns.findIndex((item) => item.name === column.name)] ?? ""}
+                  />
+                ) : (
+                  column.description || "No column documentation yet."
+                )}
+              </td>
               <td>{column.is_pii ? "PII" : "-"}</td>
             </tr>
           ))}
@@ -208,6 +335,23 @@ function DatasetDetail({
       </div>
     </article>
   );
+}
+
+function buildDraft(asset: Asset) {
+  return {
+    owner: asset.owner,
+    description: asset.description,
+    documentationRefs: asset.documentation_refs.join("\n"),
+    qualityCheckRefs: asset.quality_check_refs.join("\n"),
+    columnDescriptions: asset.columns.map((column) => column.description ?? "")
+  };
+}
+
+function splitLines(value: string) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function ReferenceStrip({ label, values }: { label: string; values: string[] }) {

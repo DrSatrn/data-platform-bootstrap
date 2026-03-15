@@ -142,13 +142,16 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	if err := metadata.ProjectStore(loader, persistence.metadata); err != nil {
 		logger.Warn("metadata projection on startup failed", slog.String("error", err.Error()))
 	}
+	if err := reporting.SeedStore(persistence.reports, cfg.DashboardRoot); err != nil {
+		logger.Warn("dashboard seed on startup failed", slog.String("error", err.Error()))
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
 	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService, persistence.audit))
 	mux.Handle("/api/v1/admin/users", authz.NewUserHandler(authService, persistence.audit))
 	mux.Handle("/api/v1/pipelines", authz.RequireRole(authService, authz.RoleViewer, orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit)))
-	mux.Handle("/api/v1/catalog", authz.RequireRole(authService, authz.RoleViewer, metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata)))
+	mux.Handle("/api/v1/catalog", authz.RequireRole(authService, authz.RoleViewer, metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata, authService, persistence.audit)))
 	mux.Handle("/api/v1/catalog/profile", authz.RequireRole(authService, authz.RoleViewer, metadata.NewProfileHandler(profileService)))
 	mux.Handle("/api/v1/quality", authz.RequireRole(authService, authz.RoleViewer, quality.NewHandler(qualityService)))
 	mux.Handle("/api/v1/analytics", authz.RequireRole(authService, authz.RoleViewer, analytics.NewHandler(analyticsService)))
@@ -250,11 +253,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 	}
 
 	logger.Info("postgres control plane enabled")
-	if fileReports != nil {
-		reportStore = reporting.NewMultiStore(controlPlane.Dashboards, fileReports)
-	} else {
-		reportStore = controlPlane.Dashboards
-	}
+	reportStore = controlPlane.Dashboards
 	if fileAudit != nil {
 		auditStore = audit.NewMultiStore(controlPlane.Audit, fileAudit)
 	} else {
@@ -292,9 +291,8 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			"dashboards": {
 				SourceOfTruth: "postgres",
 				ReadPath:      "postgres dashboards",
-				WritePath:     "postgres first, filesystem mirror",
-				Mirrors:       []string{"filesystem dashboard store"},
-				Fallback:      "filesystem dashboards if postgres is unavailable at startup",
+				WritePath:     "postgres dashboards",
+				Fallback:      "repo seed manifests plus filesystem dashboard store when postgres is unavailable at startup",
 			},
 			"audit": {
 				SourceOfTruth: "postgres",
@@ -304,10 +302,10 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 				Fallback:      "filesystem audit log if postgres is unavailable at startup",
 			},
 			"metadata": {
-				SourceOfTruth: "postgres projection",
+				SourceOfTruth: "postgres",
 				ReadPath:      "postgres data_assets and asset_columns",
-				WritePath:     "manifest projection on startup and scheduler ticks",
-				Fallback:      "manifest loader when the projection is empty or postgres is unavailable",
+				WritePath:     "postgres manifest seeding plus postgres annotation updates",
+				Fallback:      "manifest loader when postgres is unavailable",
 			},
 			"identity": {
 				SourceOfTruth: "postgres",

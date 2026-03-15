@@ -14,6 +14,7 @@ let mockAuth = {
     capabilities: {
       view_platform: true,
       trigger_runs: false,
+      edit_metadata: false,
       edit_dashboards: false,
       run_admin_terminal: false,
       manage_users: false

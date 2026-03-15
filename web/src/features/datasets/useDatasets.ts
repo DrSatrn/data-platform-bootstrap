@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "../auth/useAuth";
-import { fetchJSON } from "../../lib/api";
+import { fetchJSON, patchJSON } from "../../lib/api";
 
 export type Asset = {
   id: string;
@@ -73,6 +73,15 @@ type DatasetPayload = {
   }>;
 };
 
+type AssetUpdatePayload = {
+  asset_id: string;
+  owner?: string;
+  description?: string;
+  quality_check_refs?: string[];
+  documentation_refs?: string[];
+  column_descriptions?: Array<{ name: string; description?: string }>;
+};
+
 export function useDatasets() {
   const { loading, session } = useAuth();
   const [data, setData] = useState<DatasetPayload | null>(null);
@@ -81,6 +90,17 @@ export function useDatasets() {
   const [profile, setProfile] = useState<AssetProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  function loadCatalog() {
+    return fetchJSON<DatasetPayload>("/api/v1/catalog").then((payload) => {
+      setData(payload);
+      setError(null);
+      setSelectedAssetID((current) => current ?? payload.assets[0]?.id ?? null);
+      return payload;
+    });
+  }
 
   useEffect(() => {
     if (loading) {
@@ -92,12 +112,7 @@ export function useDatasets() {
       return;
     }
 
-    fetchJSON<DatasetPayload>("/api/v1/catalog")
-      .then((payload) => {
-        setData(payload);
-        setError(null);
-        setSelectedAssetID((current) => current ?? payload.assets[0]?.id ?? null);
-      })
+    loadCatalog()
       .catch((err) => setError(err instanceof Error ? err.message : "Unknown datasets error"));
   }, [loading, session]);
 
@@ -127,5 +142,37 @@ export function useDatasets() {
       .finally(() => setProfileLoading(false));
   }, [selectedAssetID, session]);
 
-  return { data, error, profile, profileError, profileLoading, selectedAssetID, selectedAsset, setSelectedAssetID };
+  async function saveAnnotations(payload: AssetUpdatePayload) {
+    if (!session?.capabilities.edit_metadata) {
+      throw new Error("Editor role required to update metadata.");
+    }
+    setSavePending(true);
+    setSaveError(null);
+    try {
+      const response = await patchJSON<{ asset: Asset }, AssetUpdatePayload>("/api/v1/catalog", payload);
+      await loadCatalog();
+      setSelectedAssetID(response.asset.id);
+      return response.asset;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown metadata update error";
+      setSaveError(message);
+      throw err;
+    } finally {
+      setSavePending(false);
+    }
+  }
+
+  return {
+    data,
+    error,
+    profile,
+    profileError,
+    profileLoading,
+    saveAnnotations,
+    saveError,
+    savePending,
+    selectedAssetID,
+    selectedAsset,
+    setSelectedAssetID
+  };
 }

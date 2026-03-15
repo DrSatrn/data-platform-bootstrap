@@ -147,3 +147,49 @@ func TestFileStoreDeleteDashboardRemovesEntry(t *testing.T) {
 		}
 	}
 }
+
+func TestSeedStoreOnlyCreatesMissingDashboards(t *testing.T) {
+	root := t.TempDir()
+	dashboardRoot := filepath.Join(root, "dashboards")
+	if err := os.MkdirAll(dashboardRoot, 0o755); err != nil {
+		t.Fatalf("mkdir dashboard root: %v", err)
+	}
+	manifest := `id: finance_overview
+name: Finance Overview
+description: Seeded dashboard
+widgets:
+  - id: savings_rate
+    name: Savings Rate
+    type: kpi
+    metric_ref: metrics_savings_rate
+`
+	if err := os.WriteFile(filepath.Join(dashboardRoot, "finance_overview.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write dashboard manifest: %v", err)
+	}
+
+	store := NewMemoryStore()
+	if err := store.SaveDashboard(Dashboard{
+		ID:          "finance_overview",
+		Name:        "Finance Overview",
+		Description: "Runtime override",
+		Widgets: []DashboardWidget{
+			{ID: "cashflow", Name: "Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},
+		},
+	}); err != nil {
+		t.Fatalf("save existing dashboard: %v", err)
+	}
+
+	if err := SeedStore(store, dashboardRoot); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	dashboards, err := store.ListDashboards()
+	if err != nil {
+		t.Fatalf("list dashboards: %v", err)
+	}
+	for _, dashboard := range dashboards {
+		if dashboard.ID == "finance_overview" && dashboard.Description != "Runtime override" {
+			t.Fatalf("expected runtime dashboard to survive seeding, got %+v", dashboard)
+		}
+	}
+}
