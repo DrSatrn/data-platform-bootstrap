@@ -59,10 +59,24 @@ core repo cleanup:
 - `backend/internal/manifests/loader_test.go`
 - `backend/internal/manifests/external_tool_loader_test.go`
 - `web/src/lib/api.test.ts`
+- `web/src/features/management/terminal/sessionModel.test.ts`
+- `web/src/features/management/terminal/followupPlanner.test.ts`
+- `web/src/features/management/console/ManagementConsolePreview.test.tsx`
+- `web/src/features/management/runbooks/runbookDock.test.ts`
+- `web/src/features/management/evidence/evidenceBoard.test.ts`
+- `web/src/features/management/opsview/opsviewBridge.test.ts`
+- `web/src/features/management/opsview/OpsviewSummaryPanel.test.tsx`
 - `backend/internal/orchestration/external_tool_validation_test.go`
+- `backend/internal/orchestration/external_tool_validation_artifacts_test.go`
+- `backend/internal/orchestration/handler_external_tool_test.go`
 - `backend/internal/externaltools/dbt_test.go`
 - `backend/internal/externaltools/runner_test.go`
 - `backend/internal/execution/external_tool_test.go`
+- `backend/internal/execution/external_tool_failures_test.go`
+- `backend/internal/execution/external_tool_operator_inspection_test.go`
+- `backend/internal/opsview/external_tool_summary_test.go`
+- `backend/internal/storage/handler_external_tool_test.go`
+- `backend/internal/storage/handler_external_tool_read_test.go`
 
 ### Docs
 
@@ -70,8 +84,16 @@ core repo cleanup:
 - `docs/runbooks/access-matrix.md`
 - `docs/runbooks/local-host-run.md`
 - `docs/runbooks/optional-external-tools.md`
+- `docs/runbooks/external-tool-troubleshooting.md`
+- `docs/runbooks/dbt-operator-checklist.md`
 - `docs/tutorials/trace-one-pipeline-complete.md`
 - `docs/reference/external-tool-jobs.md`
+- `docs/reference/opsview-read-models.md`
+- `docs/product/web-terminal-blueprint.md`
+- `docs/product/operator-followup-blueprint.md`
+- `docs/product/management-console-integration-map.md`
+- `docs/product/operator-evidence-blueprint.md`
+- `docs/product/opsview-ui-bridge.md`
 
 ### Frontend Management Prototypes
 
@@ -81,9 +103,37 @@ core repo cleanup:
 - `web/src/features/management/terminal/commandCatalog.ts`
 - `web/src/features/management/terminal/commandCatalog.test.ts`
 - `web/src/features/management/terminal/OperatorWorkbench.tsx`
+- `web/src/features/management/terminal/sessionModel.ts`
+- `web/src/features/management/terminal/sessionModel.test.ts`
+- `web/src/features/management/terminal/mockSessions.ts`
+- `web/src/features/management/terminal/followupPlanner.ts`
+- `web/src/features/management/terminal/followupPlanner.test.ts`
+- `web/src/features/management/terminal/mockFollowups.ts`
+- `web/src/features/management/terminal/TerminalTranscript.tsx`
+- `web/src/features/management/terminal/OperatorSessionDeck.tsx`
+- `web/src/features/management/terminal/ArtifactFollowupPanel.tsx`
+- `web/src/features/management/terminal/NextStepBoard.tsx`
 - `web/src/features/management/inventory/assetAttention.ts`
 - `web/src/features/management/inventory/assetAttention.test.ts`
+- `web/src/features/management/runbooks/runbookDock.ts`
+- `web/src/features/management/runbooks/runbookDock.test.ts`
+- `web/src/features/management/runbooks/RunbookDockPanel.tsx`
+- `web/src/features/management/evidence/evidenceBoard.ts`
+- `web/src/features/management/evidence/evidenceBoard.test.ts`
+- `web/src/features/management/evidence/EvidenceBoardPanel.tsx`
+- `web/src/features/management/opsview/opsviewBridge.ts`
+- `web/src/features/management/opsview/opsviewBridge.test.ts`
+- `web/src/features/management/opsview/mockOpsview.ts`
+- `web/src/features/management/opsview/OpsviewSummaryPanel.tsx`
+- `web/src/features/management/opsview/OpsviewSummaryPanel.test.tsx`
 - `web/src/features/management/console/ControlPlaneWorkspace.tsx`
+- `web/src/features/management/console/mockManagementPreview.ts`
+- `web/src/features/management/console/ManagementConsolePreview.tsx`
+- `web/src/features/management/console/ManagementConsolePreview.test.tsx`
+- `web/src/features/management/externalTools/externalToolRunSummary.ts`
+- `web/src/features/management/externalTools/externalToolRunSummary.test.ts`
+- `web/src/features/management/externalTools/ExternalToolRunInspector.tsx`
+- `web/src/features/management/externalTools/ExternalToolRunInspector.test.tsx`
 
 ### Product And Reference Drafts
 
@@ -100,6 +150,11 @@ They are designed to address critique areas without touching existing wiring:
 - test floor expansion
 - future management-console building blocks
 - terminal command taxonomy and operator workbench scaffolding
+- web-terminal session modeling for guided in-app operations
+- operator follow-up planning after terminal commands finish
+- composite preview surface showing how staged management modules fit together
+- operator evidence and runbook docking around terminal and external-tool work
+- frontend bridge layer for future backend `opsview` read-model payloads
 
 None of these files are intended to be the final canonical truth by themselves.
 They are merge-ready building blocks for the later doc and wiring pass.
@@ -123,6 +178,12 @@ Current additive-first work for optional pipeline tools:
 - additive example dbt project exists at `packages/external_tools/dbt_finance_demo/`
 - paused example pipeline manifest exists at
   `packages/manifests/pipelines/personal_finance_dbt_pipeline.yaml`
+- troubleshooting runbooks now exist at:
+  - `docs/runbooks/external-tool-troubleshooting.md`
+  - `docs/runbooks/dbt-operator-checklist.md`
+- failure-drill fixture manifests now exist under
+  `packages/manifests/fixtures/external_tools/`
+- fixture dbt projects now exist under `packages/external_tools/fixtures/`
 
 Minimal shared-file touch in this tranche:
 
@@ -157,6 +218,142 @@ Current status from this tranche:
   `internal/externaltools`, and `internal/execution`
 - execution-level coverage now verifies external tool log and artifact mirroring
   through `backend/internal/execution/external_tool_test.go`
+
+## External Tool Visibility Tranche Status
+
+Exact files added or changed in this tranche:
+
+- changed: `backend/internal/orchestration/validation_external_tool.go`
+- added: `backend/internal/orchestration/external_tool_validation_artifacts_test.go`
+- added: `backend/internal/orchestration/handler_external_tool_test.go`
+- added: `backend/internal/storage/handler_external_tool_test.go`
+- added: `backend/internal/execution/external_tool_failures_test.go`
+- added: `web/src/features/management/externalTools/externalToolRunSummary.ts`
+- added: `web/src/features/management/externalTools/externalToolRunSummary.test.ts`
+- added: `web/src/features/management/externalTools/ExternalToolRunInspector.tsx`
+- added: `web/src/features/management/externalTools/ExternalToolRunInspector.test.tsx`
+
+What is verified now:
+
+- pipeline API responses can surface external tool lifecycle events from stored
+  runs
+- artifact listing can surface external tool declared outputs plus stdout/stderr
+  log artifacts
+- execution failure coverage now explicitly exercises:
+  - missing binary
+  - non-zero exit
+  - missing required artifact
+  - invalid repo-relative refs
+- validation now rejects duplicate declared external tool artifact paths
+- additive frontend management modules can group and render external tool run
+  events plus artifact visibility without touching routed pages
+
+What remains intentionally unfinished:
+
+- no new control-plane or page-route wiring was added for the management UI
+- no new tool breadth beyond dbt
+- canonical docs and canonical page flows remain for the later merge pass
+- fixture manifests and projects are drills only and are not wired into the
+  normal manifest loader
+
+Verification commands for this tranche:
+
+```bash
+cd backend && go test ./internal/orchestration ./internal/storage ./internal/execution ./internal/externaltools ./internal/manifests ./internal/config
+cd web && npm test -- src/features/management/externalTools/externalToolRunSummary.test.ts src/features/management/externalTools/ExternalToolRunInspector.test.tsx
+```
+
+Hot-file note for this tranche:
+
+- no specifically blocked coordination files were touched
+- one shared orchestration validation file was updated surgically:
+  `backend/internal/orchestration/validation_external_tool.go`
+
+## External Tool Troubleshooting Tranche Status
+
+Exact new files in this tranche:
+
+- `docs/runbooks/external-tool-troubleshooting.md`
+- `docs/runbooks/dbt-operator-checklist.md`
+- `packages/manifests/fixtures/external_tools/README.md`
+- `packages/manifests/fixtures/external_tools/dbt_non_zero_exit_pipeline.yaml`
+- `packages/manifests/fixtures/external_tools/dbt_missing_artifact_pipeline.yaml`
+- `packages/manifests/fixtures/external_tools/dbt_invalid_repo_ref_pipeline.yaml`
+- `packages/external_tools/fixtures/README.md`
+- `packages/external_tools/fixtures/dbt_non_zero_exit_fixture/dbt_project.yml`
+- `packages/external_tools/fixtures/dbt_non_zero_exit_fixture/profiles/profiles.yml`
+- `packages/external_tools/fixtures/dbt_non_zero_exit_fixture/models/broken_model.sql`
+- `packages/external_tools/fixtures/dbt_missing_artifact_fixture/dbt_project.yml`
+- `packages/external_tools/fixtures/dbt_missing_artifact_fixture/profiles/profiles.yml`
+- `packages/external_tools/fixtures/dbt_missing_artifact_fixture/models/fixture_note.sql`
+- `backend/internal/storage/handler_external_tool_read_test.go`
+- `backend/internal/execution/external_tool_operator_inspection_test.go`
+
+What is now verifiably true:
+
+- operators have additive troubleshooting docs for the four primary external
+  tool failure modes
+- operators can inspect external tool stdout/stderr artifact content through the
+  artifact handler read path
+- worker-produced external tool outputs are inspectable through the storage
+  service after execution, including log artifacts and declared output files
+- additive fixture manifests and dbt project variants now exist for non-zero
+  exit, missing artifact, and invalid repo-ref drills
+
+What remains intentionally unfinished:
+
+- fixture manifests are not part of the normal manifest load path
+- fixture dbt projects are operator drills, not guaranteed production-ready dbt
+  examples
+- no canonical docs or UI routes were updated in this tranche
+
+Exact test commands run in this tranche:
+
+```bash
+cd backend && go test ./internal/storage ./internal/execution ./internal/orchestration ./internal/externaltools ./internal/manifests ./internal/config
+```
+
+Whether hot files were touched:
+
+- no specifically blocked files were touched
+- no new shared runtime wiring files were edited in this tranche
+
+## Opsview Read Model Tranche Status
+
+Exact new files in this tranche:
+
+- `backend/internal/opsview/models.go`
+- `backend/internal/opsview/external_tool_summary.go`
+- `backend/internal/opsview/external_tool_summary_test.go`
+- `docs/reference/opsview-read-models.md`
+
+What is now verifiably true:
+
+- there is a backend-only read-model package for future management-console use
+- external tool run events and artifacts can be grouped into pure
+  operator-facing summaries by job id
+- stdout/stderr artifacts are grouped as logs and declared outputs are grouped
+  separately
+- evidence summaries preserve artifact paths for future UI linking
+- empty and missing cases return safe empty summaries without runtime wiring
+
+What remains intentionally unfinished:
+
+- the new opsview package is not wired into handlers, runtime, or storage
+- no routed UI work or management-console integration was added in this tranche
+- the attention summary is a compact backend helper, not yet a canonical API
+  contract
+
+Exact test commands run in this tranche:
+
+```bash
+cd backend && go test ./internal/opsview ./internal/storage ./internal/execution
+```
+
+Whether hot files were touched:
+
+- no specifically blocked files were touched
+- no shared runtime files were edited in this tranche
 
 ## Integration Queue
 
@@ -212,7 +409,18 @@ Current status from this thread:
 - frontend `npm test` passed with:
   - `web/src/lib/api.test.ts`
   - `web/src/features/management/terminal/commandCatalog.test.ts`
+  - `web/src/features/management/terminal/sessionModel.test.ts`
+  - `web/src/features/management/terminal/followupPlanner.test.ts`
+  - `web/src/features/management/runbooks/runbookDock.test.ts`
+  - `web/src/features/management/evidence/evidenceBoard.test.ts`
+  - `web/src/features/management/opsview/opsviewBridge.test.ts`
+  - `web/src/features/management/opsview/OpsviewSummaryPanel.test.tsx`
   - `web/src/features/management/inventory/assetAttention.test.ts`
+  - `web/src/features/management/externalTools/externalToolRunSummary.test.ts`
+  - `web/src/features/management/externalTools/ExternalToolRunInspector.test.tsx`
+  - `web/src/features/management/console/ManagementConsolePreview.test.tsx`
+  - `web/src/app/App.test.tsx`
+  - `web/src/pages/PageStates.test.tsx`
 
 The doc additions are intentionally unwired and should be treated as draft
 integration material until the main docs pass is ready.

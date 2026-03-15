@@ -1,0 +1,25 @@
+id: fixture_dbt_missing_artifact_pipeline
+name: Fixture DBT Missing Artifact Pipeline
+description: Draft fixture manifest that declares a required artifact not produced by the fixture project.
+owner: platform-team
+tags:
+  - fixture
+  - external-tool
+  - dbt
+jobs:
+  - id: run_dbt_missing_artifact
+    name: Run DBT Missing Artifact Fixture
+    type: external_tool
+    timeout: 2m
+    external_tool:
+      tool: dbt
+      action: build
+      project_ref: packages/external_tools/fixtures/dbt_missing_artifact_fixture
+      config_ref: packages/external_tools/fixtures/dbt_missing_artifact_fixture/profiles
+      profile: dbt_missing_artifact_fixture
+      target: dev
+      artifacts:
+        - path: target/run_results.json
+          required: true
+        - path: target/manifest.json
+          required: true

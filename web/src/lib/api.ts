@@ -51,6 +51,25 @@ export async function deleteJSON<TResponse>(path: string, token?: string): Promi
   return (await response.json()) as TResponse;
 }
 
+export async function patchJSON<TResponse, TRequest>(path: string, payload: TRequest, token?: string): Promise<TResponse> {
+  const resolvedToken = token ?? browserToken();
+  const response = await fetch(path, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {})
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed for ${path}: ${response.status}`);
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 function browserToken() {
   if (typeof window === "undefined") {
     return undefined;

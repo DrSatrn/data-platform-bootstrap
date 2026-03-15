@@ -36,6 +36,7 @@ type runtimePersistence struct {
 	reports   reporting.Store
 	audit     audit.Store
 	metadata  metadata.Store
+	identity  authz.Repository
 	modes     map[string]observability.PersistenceMode
 }
 
@@ -123,10 +124,10 @@ func RunWorker(ctx context.Context) error {
 func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observability.Service, persistence runtimePersistence) http.Handler {
 	loader := manifests.NewLoader(cfg.ManifestRoot)
 	catalog := metadata.NewCatalog()
-	authService, err := authz.NewService(cfg.AdminToken, cfg.AccessTokens)
+	authService, err := authz.NewService(cfg.AdminToken, cfg.AccessTokens, persistence.identity, 24*time.Hour)
 	if err != nil {
 		logger.Error("failed to initialize authz service", slog.String("error", err.Error()))
-		authService, _ = authz.NewService(cfg.AdminToken, "")
+		authService, _ = authz.NewService(cfg.AdminToken, "", nil, 24*time.Hour)
 	}
 	qualityService := quality.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
 	analyticsService := analytics.NewService(cfg.SampleDataRoot, cfg.DataRoot, cfg.DuckDBPath, cfg.SQLRoot)
@@ -136,15 +137,16 @@ func newRouter(logger *slog.Logger, cfg config.Settings, telemetry *observabilit
 	if snapshotter, ok := persistence.queue.(backup.QueueSnapshotter); ok {
 		queueSnapshots = snapshotter
 	}
-	backupService := backup.NewService(cfg, loader, persistence.store, queueSnapshots, persistence.reports, persistence.audit, persistence.metadata)
-	adminService := admin.NewService(cfg, loader, persistence.store, controlService, qualityService, persistence.reports, persistence.artifacts, telemetry, backupService)
+	backupService := backup.NewService(cfg, loader, persistence.store, queueSnapshots, persistence.reports, persistence.audit, persistence.metadata, persistence.identity)
+	adminService := admin.NewService(cfg, loader, persistence.store, controlService, authService, qualityService, persistence.reports, persistence.artifacts, telemetry, backupService)
 	if err := metadata.ProjectStore(loader, persistence.metadata); err != nil {
 		logger.Warn("metadata projection on startup failed", slog.String("error", err.Error()))
 	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", observability.HealthHandler(cfg))
-	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService))
+	mux.Handle("/api/v1/session", authz.NewSessionHandler(authService, persistence.audit))
+	mux.Handle("/api/v1/admin/users", authz.NewUserHandler(authService, persistence.audit))
 	mux.Handle("/api/v1/pipelines", authz.RequireRole(authService, authz.RoleViewer, orchestration.NewPipelineHandler(loader, persistence.store, controlService, logger, authService, persistence.audit)))
 	mux.Handle("/api/v1/catalog", authz.RequireRole(authService, authz.RoleViewer, metadata.NewCatalogHandler(loader, catalog, cfg.DataRoot, persistence.metadata)))
 	mux.Handle("/api/v1/catalog/profile", authz.RequireRole(authService, authz.RoleViewer, metadata.NewProfileHandler(profileService)))
@@ -203,6 +205,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 			reports:   reportStore,
 			audit:     auditStore,
 			metadata:  nil,
+			identity:  nil,
 			modes: map[string]observability.PersistenceMode{
 				"runs": {
 					SourceOfTruth: "filesystem",
@@ -237,6 +240,11 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 					ReadPath:      "manifest loader",
 					WritePath:     "manifest loader only; no persisted projection",
 				},
+				"identity": {
+					SourceOfTruth: "bootstrap token only",
+					ReadPath:      "bootstrap token and anonymous fallback",
+					WritePath:     "native identity store unavailable without postgres",
+				},
 			},
 		}, nil
 	}
@@ -259,6 +267,7 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 		reports:   reportStore,
 		audit:     auditStore,
 		metadata:  controlPlane.Metadata,
+		identity:  controlPlane.Identity,
 		modes: map[string]observability.PersistenceMode{
 			"runs": {
 				SourceOfTruth: "postgres",
@@ -299,6 +308,12 @@ func buildRuntimePersistence(ctx context.Context, cfg config.Settings, logger *s
 				ReadPath:      "postgres data_assets and asset_columns",
 				WritePath:     "manifest projection on startup and scheduler ticks",
 				Fallback:      "manifest loader when the projection is empty or postgres is unavailable",
+			},
+			"identity": {
+				SourceOfTruth: "postgres",
+				ReadPath:      "postgres platform_users and platform_sessions",
+				WritePath:     "postgres platform_users and platform_sessions",
+				Fallback:      "bootstrap admin token only when postgres is unavailable",
 			},
 		},
 	}, nil

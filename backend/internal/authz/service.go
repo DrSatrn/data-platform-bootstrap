@@ -1,16 +1,24 @@
-// Package authz implements a lightweight role-based access layer for the local
-// platform. It keeps the current product safe enough for self-hosted use
-// without dragging in a full external identity provider before the core
-// platform is ready.
+// Package authz implements the platform's native identity, session, and role
+// enforcement layer. The current design keeps bootstrap simple for self-hosted
+// installs while moving normal operator access onto a database-backed user and
+// session model.
 package authz
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
-// Role identifies the effective permission level for a bearer token.
+// Role identifies the effective permission level for a principal.
 type Role string
 
 const (
@@ -20,15 +28,62 @@ const (
 	RoleAdmin     Role = "admin"
 )
 
+const defaultSessionTTL = 24 * time.Hour
+
 // Principal is the resolved identity attached to one request.
 type Principal struct {
-	Subject string `json:"subject"`
-	Role    Role   `json:"role"`
+	UserID     string `json:"user_id,omitempty"`
+	Subject    string `json:"subject"`
+	Role       Role   `json:"role"`
+	AuthSource string `json:"auth_source,omitempty"`
 }
 
-// Service resolves bearer tokens and exposes capability checks for handlers.
-type Service struct {
-	tokens map[string]Principal
+// User describes one database-backed platform identity.
+type User struct {
+	ID          string    `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	Role        Role      `json:"role"`
+	IsActive    bool      `json:"is_active"`
+	IsBootstrap bool      `json:"is_bootstrap"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// StoredUser extends the visible user shape with password material needed by
+// the repository-backed authentication flow.
+type StoredUser struct {
+	User
+	PasswordHash string
+	PasswordSalt string
+}
+
+// SessionRecord captures one persisted login session.
+type SessionRecord struct {
+	ID         string
+	UserID     string
+	TokenHash  string
+	CreatedAt  time.Time
+	LastSeenAt time.Time
+	ExpiresAt  time.Time
+	RevokedAt  *time.Time
+}
+
+// Repository defines the durable identity and session operations needed by the
+// auth service. PostgreSQL-backed implementations satisfy this today.
+type Repository interface {
+	EnsureBootstrapUser(username, displayName string) (User, error)
+	ListUsers() ([]User, error)
+	ListStoredUsers() ([]StoredUser, error)
+	GetUserByUsername(username string) (StoredUser, bool, error)
+	GetUserByID(id string) (User, bool, error)
+	CreateUser(user StoredUser) (User, error)
+	UpdateUserPassword(username, passwordHash, passwordSalt string) (User, error)
+	SetUserActive(username string, active bool) (User, error)
+	CreateSession(record SessionRecord) error
+	GetSessionByTokenHash(tokenHash string) (SessionRecord, User, bool, error)
+	TouchSession(sessionID string, seenAt time.Time) error
+	RevokeSession(sessionID string, revokedAt time.Time) error
 }
 
 // Session summarizes the current request identity and product capabilities.
@@ -37,15 +92,43 @@ type Session struct {
 	Capabilities map[string]bool `json:"capabilities"`
 }
 
-// NewService builds a role resolver from configured access tokens plus the
-// legacy admin token.
-func NewService(adminToken, accessTokens string) (*Service, error) {
-	service := &Service{tokens: map[string]Principal{}}
-	if strings.TrimSpace(adminToken) != "" {
-		service.tokens[strings.TrimSpace(adminToken)] = Principal{
-			Subject: "local-admin",
-			Role:    RoleAdmin,
+// LoginResult returns the created session token plus the resolved session
+// payload so browser clients can update immediately after login.
+type LoginResult struct {
+	Token   string  `json:"token"`
+	Session Session `json:"session"`
+}
+
+// Service resolves bootstrap tokens, legacy static tokens, and database-backed
+// sessions. Legacy access tokens are still accepted as a compatibility bridge,
+// but the normal path is now username/password login plus session creation.
+type Service struct {
+	bootstrapToken string
+	bootstrapUser  User
+	legacyTokens   map[string]Principal
+	repository     Repository
+	sessionTTL     time.Duration
+}
+
+// NewService constructs the identity/session service.
+func NewService(adminToken, accessTokens string, repository Repository, sessionTTL time.Duration) (*Service, error) {
+	if sessionTTL <= 0 {
+		sessionTTL = defaultSessionTTL
+	}
+
+	service := &Service{
+		bootstrapToken: strings.TrimSpace(adminToken),
+		legacyTokens:   map[string]Principal{},
+		repository:     repository,
+		sessionTTL:     sessionTTL,
+	}
+
+	if service.bootstrapToken != "" && repository != nil {
+		bootstrapUser, err := repository.EnsureBootstrapUser("bootstrap-admin", "Bootstrap Admin")
+		if err != nil {
+			return nil, fmt.Errorf("ensure bootstrap user: %w", err)
 		}
+		service.bootstrapUser = bootstrapUser
 	}
 
 	if strings.TrimSpace(accessTokens) == "" {
@@ -64,32 +147,51 @@ func NewService(adminToken, accessTokens string) (*Service, error) {
 		if err != nil {
 			return nil, err
 		}
-		service.tokens[parts[0]] = Principal{
-			Subject: parts[2],
-			Role:    role,
+		service.legacyTokens[parts[0]] = Principal{
+			Subject:    parts[2],
+			Role:       role,
+			AuthSource: "legacy_token",
 		}
 	}
 	return service, nil
 }
 
-// ResolveRequest converts a bearer token into a principal. Missing or unknown
-// tokens degrade to anonymous rather than exploding the request path.
+// ResolveRequest converts the current bearer token into a principal. Unknown or
+// expired tokens degrade to anonymous rather than exploding the request path.
 func (s *Service) ResolveRequest(r *http.Request) Principal {
-	header := strings.TrimSpace(r.Header.Get("Authorization"))
-	if header == "" {
-		return Principal{Subject: "anonymous", Role: RoleAnonymous}
+	token := bearerToken(r)
+	if token == "" {
+		return anonymousPrincipal()
 	}
-	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer"))
-	if principal, ok := s.tokens[token]; ok {
+	if s.bootstrapToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(s.bootstrapToken)) == 1 {
+		return s.bootstrapPrincipal()
+	}
+	if principal, ok := s.legacyTokens[token]; ok {
 		return principal
 	}
-	return Principal{Subject: "anonymous", Role: RoleAnonymous}
-}
+	if s.repository == nil {
+		return anonymousPrincipal()
+	}
 
-// Allowed reports whether the principal is allowed to perform an action at the
-// requested minimum role.
-func Allowed(principal Principal, minimum Role) bool {
-	return roleRank(principal.Role) >= roleRank(minimum)
+	tokenHash := hashToken(token)
+	session, user, ok, err := s.repository.GetSessionByTokenHash(tokenHash)
+	if err != nil || !ok {
+		return anonymousPrincipal()
+	}
+	if !user.IsActive {
+		return anonymousPrincipal()
+	}
+	now := time.Now().UTC()
+	if session.RevokedAt != nil || !session.ExpiresAt.After(now) {
+		return anonymousPrincipal()
+	}
+	_ = s.repository.TouchSession(session.ID, now)
+	return Principal{
+		UserID:     user.ID,
+		Subject:    user.Username,
+		Role:       user.Role,
+		AuthSource: "session",
+	}
 }
 
 // SessionForRequest returns the resolved principal plus coarse UI capability
@@ -103,7 +205,163 @@ func (s *Service) SessionForRequest(r *http.Request) Session {
 			"trigger_runs":       Allowed(principal, RoleEditor),
 			"edit_dashboards":    Allowed(principal, RoleEditor),
 			"run_admin_terminal": Allowed(principal, RoleAdmin),
+			"manage_users":       Allowed(principal, RoleAdmin),
 		},
+	}
+}
+
+// Login authenticates a username/password against the native identity store
+// and returns a bearer session token.
+func (s *Service) Login(username, password string) (LoginResult, error) {
+	if s.repository == nil {
+		return LoginResult{}, fmt.Errorf("native identity store is unavailable; use the bootstrap admin token")
+	}
+	username = strings.TrimSpace(username)
+	if username == "" || password == "" {
+		return LoginResult{}, fmt.Errorf("username and password are required")
+	}
+	storedUser, ok, err := s.repository.GetUserByUsername(username)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	if !ok || !storedUser.IsActive {
+		return LoginResult{}, errors.New("invalid username or password")
+	}
+	if !verifyPassword(password, storedUser.PasswordSalt, storedUser.PasswordHash) {
+		return LoginResult{}, errors.New("invalid username or password")
+	}
+
+	token, err := randomToken()
+	if err != nil {
+		return LoginResult{}, err
+	}
+	now := time.Now().UTC()
+	record := SessionRecord{
+		ID:         "session_" + uuid.NewString(),
+		UserID:     storedUser.ID,
+		TokenHash:  hashToken(token),
+		CreatedAt:  now,
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(s.sessionTTL),
+	}
+	if err := s.repository.CreateSession(record); err != nil {
+		return LoginResult{}, err
+	}
+
+	session := Session{
+		Principal: Principal{
+			UserID:     storedUser.ID,
+			Subject:    storedUser.Username,
+			Role:       storedUser.Role,
+			AuthSource: "session",
+		},
+		Capabilities: capabilitiesForRole(storedUser.Role),
+	}
+	return LoginResult{Token: token, Session: session}, nil
+}
+
+// Logout revokes the current database-backed session token. Bootstrap and
+// legacy tokens simply return success so the browser can clear local state.
+func (s *Service) Logout(r *http.Request) error {
+	token := bearerToken(r)
+	if token == "" {
+		return nil
+	}
+	if s.bootstrapToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(s.bootstrapToken)) == 1 {
+		return nil
+	}
+	if _, ok := s.legacyTokens[token]; ok {
+		return nil
+	}
+	if s.repository == nil {
+		return nil
+	}
+	session, _, ok, err := s.repository.GetSessionByTokenHash(hashToken(token))
+	if err != nil || !ok {
+		return err
+	}
+	return s.repository.RevokeSession(session.ID, time.Now().UTC())
+}
+
+// ListUsers returns the visible platform identities.
+func (s *Service) ListUsers() ([]User, error) {
+	if s.repository == nil {
+		return []User{}, nil
+	}
+	return s.repository.ListUsers()
+}
+
+// CreateUser creates a new native platform user.
+func (s *Service) CreateUser(username, displayName string, role Role, password string) (User, error) {
+	if s.repository == nil {
+		return User{}, fmt.Errorf("native identity store is unavailable")
+	}
+	if strings.TrimSpace(username) == "" || strings.TrimSpace(displayName) == "" || password == "" {
+		return User{}, fmt.Errorf("username, display name, role, and password are required")
+	}
+	normalizedRole, err := parseRole(string(role))
+	if err != nil {
+		return User{}, err
+	}
+	passwordSalt, passwordHash, err := hashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+	return s.repository.CreateUser(StoredUser{
+		User: User{
+			ID:          "user_" + uuid.NewString(),
+			Username:    strings.TrimSpace(username),
+			DisplayName: strings.TrimSpace(displayName),
+			Role:        normalizedRole,
+			IsActive:    true,
+			IsBootstrap: false,
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+		},
+		PasswordHash: passwordHash,
+		PasswordSalt: passwordSalt,
+	})
+}
+
+// ResetPassword rotates one user's password.
+func (s *Service) ResetPassword(username, password string) (User, error) {
+	if s.repository == nil {
+		return User{}, fmt.Errorf("native identity store is unavailable")
+	}
+	if strings.TrimSpace(username) == "" || password == "" {
+		return User{}, fmt.Errorf("username and password are required")
+	}
+	passwordSalt, passwordHash, err := hashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+	return s.repository.UpdateUserPassword(strings.TrimSpace(username), passwordHash, passwordSalt)
+}
+
+// SetUserActive flips one user's active state.
+func (s *Service) SetUserActive(username string, active bool) (User, error) {
+	if s.repository == nil {
+		return User{}, fmt.Errorf("native identity store is unavailable")
+	}
+	if strings.TrimSpace(username) == "" {
+		return User{}, fmt.Errorf("username is required")
+	}
+	return s.repository.SetUserActive(strings.TrimSpace(username), active)
+}
+
+// Allowed reports whether the principal is allowed to perform an action at the
+// requested minimum role.
+func Allowed(principal Principal, minimum Role) bool {
+	return roleRank(principal.Role) >= roleRank(minimum)
+}
+
+func capabilitiesForRole(role Role) map[string]bool {
+	return map[string]bool{
+		"view_platform":      roleRank(role) >= roleRank(RoleViewer),
+		"trigger_runs":       roleRank(role) >= roleRank(RoleEditor),
+		"edit_dashboards":    roleRank(role) >= roleRank(RoleEditor),
+		"run_admin_terminal": roleRank(role) >= roleRank(RoleAdmin),
+		"manage_users":       roleRank(role) >= roleRank(RoleAdmin),
 	}
 }
 
@@ -128,4 +386,73 @@ func roleRank(role Role) int {
 	default:
 		return 0
 	}
+}
+
+func (s *Service) bootstrapPrincipal() Principal {
+	if s.bootstrapUser.ID != "" {
+		return Principal{
+			UserID:     s.bootstrapUser.ID,
+			Subject:    s.bootstrapUser.Username,
+			Role:       RoleAdmin,
+			AuthSource: "bootstrap_token",
+		}
+	}
+	return Principal{
+		Subject:    "bootstrap-admin",
+		Role:       RoleAdmin,
+		AuthSource: "bootstrap_token",
+	}
+}
+
+func anonymousPrincipal() Principal {
+	return Principal{Subject: "anonymous", Role: RoleAnonymous, AuthSource: "anonymous"}
+}
+
+func bearerToken(r *http.Request) string {
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if header == "" {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(header, "Bearer"))
+}
+
+func randomToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate session token: %w", err)
+	}
+	return "session_" + hex.EncodeToString(bytes), nil
+}
+
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func hashPassword(password string) (salt string, hashed string, err error) {
+	saltBytes := make([]byte, 16)
+	if _, err := rand.Read(saltBytes); err != nil {
+		return "", "", fmt.Errorf("generate password salt: %w", err)
+	}
+	salt = hex.EncodeToString(saltBytes)
+	return salt, derivePasswordHash(password, salt), nil
+}
+
+func verifyPassword(password, salt, expected string) bool {
+	if salt == "" || expected == "" {
+		return false
+	}
+	actual := derivePasswordHash(password, salt)
+	return subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) == 1
+}
+
+func derivePasswordHash(password, salt string) string {
+	seed := []byte(salt + ":" + password)
+	sum := sha256.Sum256(seed)
+	current := sum[:]
+	for range 120000 {
+		next := sha256.Sum256(current)
+		current = next[:]
+	}
+	return hex.EncodeToString(current)
 }

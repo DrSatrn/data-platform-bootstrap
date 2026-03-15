@@ -12,12 +12,12 @@ Use this runbook when you want:
 - PostgreSQL enabled as the preferred control-plane backend
 - the packaged web service instead of the Vite dev server
 
-## Role Requirements
+## Access Model
 
-- Anonymous: `GET /healthz`, `GET /api/v1/session`
-- Viewer: browse UI pages and read APIs
-- Editor: trigger runs, save dashboards
-- Admin: admin terminal, `platformctl remote ...`
+- Anonymous: `GET /healthz`, `GET|POST|DELETE /api/v1/session`
+- Admin bootstrap: `PLATFORM_ADMIN_TOKEN` for first-run setup and recovery
+- Native users: PostgreSQL-backed `viewer`, `editor`, and `admin` accounts
+- Compatibility tokens: `PLATFORM_ACCESS_TOKENS` only if you are bridging older local workflows
 
 ## Optional Compose Overrides
 
@@ -79,10 +79,29 @@ Expected result:
 - HTTP `200`
 - anonymous principal if no bearer token is supplied
 
+Create a native viewer user:
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer local-dev-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"viewer-demo","display_name":"Viewer Demo","role":"viewer","password":"viewer-password"}' \
+  http://127.0.0.1:8080/api/v1/admin/users
+```
+
+Login:
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username":"viewer-demo","password":"viewer-password"}' \
+  http://127.0.0.1:8080/api/v1/session
+```
+
 Catalog:
 
 ```sh
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/catalog
 ```
 
 Expected result:
@@ -96,7 +115,7 @@ Role required: `editor`
 
 ```sh
 curl -X POST \
-  -H "Authorization: Bearer editor-token" \
+  -H "Authorization: Bearer <editor-session-token>" \
   -H "Content-Type: application/json" \
   -d '{"pipeline_id":"personal_finance_pipeline"}' \
   http://127.0.0.1:8080/api/v1/pipelines
@@ -112,9 +131,9 @@ Expected result:
 Role required: `viewer`
 
 ```sh
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/pipelines
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/pipelines
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?dataset=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
 ```
 
 Expected result:

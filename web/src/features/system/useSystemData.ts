@@ -70,6 +70,7 @@ type LogsPayload = {
 type AuditPayload = {
   events: Array<{
     time: string;
+    actor_user_id?: string;
     actor_subject: string;
     actor_role: string;
     action: string;

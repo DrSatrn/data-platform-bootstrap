@@ -2,11 +2,20 @@
 // whether the stack is healthy and whether data trust signals need attention.
 import { AdminTerminal } from "../components/AdminTerminal";
 import { useAuth } from "../features/auth/useAuth";
+import { useIdentityAdmin } from "../features/system/useIdentityAdmin";
 import { useSystemData } from "../features/system/useSystemData";
+import { useState } from "react";
 
 export function SystemPage() {
   const { session } = useAuth();
   const { health, quality, overview, logs, audit, catalog, error, refreshing, refresh } = useSystemData();
+  const { users, loading: usersLoading, error: usersError, canManageUsers, createUser, setUserActive, resetPassword } = useIdentityAdmin();
+  const [newUsername, setNewUsername] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [newRole, setNewRole] = useState("viewer");
+  const [newPassword, setNewPassword] = useState("");
+  const [identityMessage, setIdentityMessage] = useState<string | null>(null);
+  const [passwordResets, setPasswordResets] = useState<Record<string, string>>({});
 
   if (error) {
     return <section className="panel">System error: {error}</section>;
@@ -23,6 +32,47 @@ export function SystemPage() {
     {} as Record<string, number>
   );
   const persistenceModes = Object.entries(overview.persistence_modes ?? {});
+
+  async function handleCreateUser() {
+    try {
+      await createUser({
+        username: newUsername,
+        display_name: newDisplayName || newUsername,
+        role: newRole,
+        password: newPassword
+      });
+      setIdentityMessage(`Created user ${newUsername}.`);
+      setNewUsername("");
+      setNewDisplayName("");
+      setNewPassword("");
+      setNewRole("viewer");
+    } catch (err) {
+      setIdentityMessage(err instanceof Error ? err.message : "Failed to create user");
+    }
+  }
+
+  async function handleToggleUser(username: string, active: boolean) {
+    try {
+      await setUserActive(username, active);
+      setIdentityMessage(`${active ? "Activated" : "Deactivated"} ${username}.`);
+    } catch (err) {
+      setIdentityMessage(err instanceof Error ? err.message : "Failed to update user");
+    }
+  }
+
+  async function handleResetPassword(username: string) {
+    const nextPassword = passwordResets[username]?.trim();
+    if (!nextPassword) {
+      return;
+    }
+    try {
+      await resetPassword(username, nextPassword);
+      setIdentityMessage(`Reset password for ${username}.`);
+      setPasswordResets((current) => ({ ...current, [username]: "" }));
+    } catch (err) {
+      setIdentityMessage(err instanceof Error ? err.message : "Failed to reset password");
+    }
+  }
 
   return (
     <section className="page-grid">
@@ -164,6 +214,68 @@ export function SystemPage() {
           )}
         </div>
       </article>
+      {canManageUsers ? (
+        <article className="card wide-card">
+          <div className="row-between">
+            <h2>Identity</h2>
+            <span className="badge">{usersLoading ? "loading" : `${users.length} users`}</span>
+          </div>
+          <div className="stack">
+            <div className="subcard">
+              <strong>Create user</strong>
+              <div className="stack">
+                <input className="terminal-input" onChange={(event) => setNewUsername(event.target.value)} placeholder="Username" type="text" value={newUsername} />
+                <input className="terminal-input" onChange={(event) => setNewDisplayName(event.target.value)} placeholder="Display name" type="text" value={newDisplayName} />
+                <select className="terminal-input" onChange={(event) => setNewRole(event.target.value)} value={newRole}>
+                  <option value="viewer">viewer</option>
+                  <option value="editor">editor</option>
+                  <option value="admin">admin</option>
+                </select>
+                <input className="terminal-input" onChange={(event) => setNewPassword(event.target.value)} placeholder="Initial password" type="password" value={newPassword} />
+                <button className="mini-button" onClick={() => void handleCreateUser()} type="button">
+                  Create user
+                </button>
+              </div>
+            </div>
+            {identityMessage ? <p className="muted">{identityMessage}</p> : null}
+            {usersError ? <p className="muted">Identity error: {usersError}</p> : null}
+            {users.map((user) => (
+              <div className="subcard" key={user.id}>
+                <div className="row-between">
+                  <strong>{user.display_name}</strong>
+                  <div className="inline-actions">
+                    <span className="badge">{user.role}</span>
+                    <span className="badge">{user.is_active ? "active" : "inactive"}</span>
+                    {user.is_bootstrap ? <span className="badge">bootstrap</span> : null}
+                  </div>
+                </div>
+                <p className="muted">{user.username}</p>
+                {!user.is_bootstrap ? (
+                  <div className="stack">
+                    <input
+                      className="terminal-input"
+                      onChange={(event) => setPasswordResets((current) => ({ ...current, [user.username]: event.target.value }))}
+                      placeholder={`New password for ${user.username}`}
+                      type="password"
+                      value={passwordResets[user.username] ?? ""}
+                    />
+                    <div className="inline-actions">
+                      <button className="mini-button" onClick={() => void handleResetPassword(user.username)} type="button">
+                        Reset password
+                      </button>
+                      <button className="mini-button" onClick={() => void handleToggleUser(user.username, !user.is_active)} type="button">
+                        {user.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="muted">Bootstrap admin access is controlled by `PLATFORM_ADMIN_TOKEN`.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </article>
+      ) : null}
       <AdminTerminal />
     </section>
   );

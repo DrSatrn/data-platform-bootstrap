@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/audit"
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/config"
 	"github.com/streanor/data-platform/backend/internal/manifests"
 	"github.com/streanor/data-platform/backend/internal/metadata"
@@ -29,7 +30,7 @@ import (
 
 const (
 	// FormatVersion makes future format migrations explicit.
-	FormatVersion = "2026-03-15"
+	FormatVersion = "2026-03-15.1"
 )
 
 // QueueSnapshotter describes the optional queue export behavior used during
@@ -48,6 +49,7 @@ type Service struct {
 	reports  reporting.Store
 	audit    audit.Store
 	metadata metadata.Store
+	identity authz.Repository
 }
 
 // BundleResult describes a created backup bundle.
@@ -72,6 +74,7 @@ type BundleCounts struct {
 	Dashboards    int `json:"dashboards"`
 	AuditEvents   int `json:"audit_events"`
 	DataAssets    int `json:"data_assets"`
+	PlatformUsers int `json:"platform_users"`
 	BundleFiles   int `json:"bundle_files"`
 }
 
@@ -113,6 +116,7 @@ func NewService(
 	reports reporting.Store,
 	auditStore audit.Store,
 	metadataStore metadata.Store,
+	identityStore authz.Repository,
 ) *Service {
 	return &Service{
 		cfg:      cfg,
@@ -122,6 +126,7 @@ func NewService(
 		reports:  reports,
 		audit:    auditStore,
 		metadata: metadataStore,
+		identity: identityStore,
 	}
 }
 
@@ -154,6 +159,10 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 	if err != nil {
 		return BundleResult{}, err
 	}
+	users, usersWarning, err := s.loadUsers()
+	if err != nil {
+		return BundleResult{}, err
+	}
 
 	file, err := os.Create(outputPath)
 	if err != nil {
@@ -172,7 +181,7 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 		GeneratedAt:   time.Now().UTC(),
 		Environment:   s.cfg.Environment,
 		ConfigSummary: sanitizeConfig(s.cfg),
-		Warnings:      compactWarnings(assetWarning, queueWarning),
+		Warnings:      compactWarnings(assetWarning, queueWarning, usersWarning),
 	}
 
 	if err := writeJSONExport(tarWriter, &manifest, "exports/pipeline_runs.json", runs, "control_plane_export"); err != nil {
@@ -188,6 +197,9 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 		return BundleResult{}, err
 	}
 	if err := writeJSONExport(tarWriter, &manifest, "exports/data_assets.json", assets, "metadata_export"); err != nil {
+		return BundleResult{}, err
+	}
+	if err := writeJSONExport(tarWriter, &manifest, "exports/platform_users.json", users, "identity_export"); err != nil {
 		return BundleResult{}, err
 	}
 	if err := writeJSONExport(tarWriter, &manifest, "exports/config_summary.json", manifest.ConfigSummary, "config_export"); err != nil {
@@ -225,6 +237,7 @@ func (s *Service) Create(outputPath string) (BundleResult, error) {
 		Dashboards:    len(dashboards),
 		AuditEvents:   len(auditEvents),
 		DataAssets:    len(assets),
+		PlatformUsers: len(users),
 		BundleFiles:   len(manifest.Files),
 	}
 
@@ -298,6 +311,7 @@ func (s *Service) Verify(path string) (BackupManifest, error) {
 		"exports/dashboards.json",
 		"exports/audit_events.json",
 		"exports/data_assets.json",
+		"exports/platform_users.json",
 		"exports/config_summary.json",
 	} {
 		if _, ok := seen[required]; !ok {
@@ -374,6 +388,17 @@ func (s *Service) loadQueueRequests() ([]orchestration.QueueSnapshot, string, er
 		return nil, "", fmt.Errorf("list queue requests for backup: %w", err)
 	}
 	return requests, "", nil
+}
+
+func (s *Service) loadUsers() ([]authz.StoredUser, string, error) {
+	if s.identity == nil {
+		return []authz.StoredUser{}, "identity export unavailable because the native identity store is not configured", nil
+	}
+	users, err := s.identity.ListStoredUsers()
+	if err != nil {
+		return nil, "", fmt.Errorf("list platform users for backup: %w", err)
+	}
+	return users, "", nil
 }
 
 func sanitizeConfig(cfg config.Settings) ConfigExport {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/streanor/data-platform/backend/internal/audit"
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/reporting"
 )
@@ -23,6 +24,7 @@ type ControlPlane struct {
 	Dashboards  reporting.Store
 	Audit       audit.Store
 	Metadata    metadata.Store
+	Identity    authz.Repository
 }
 
 // NewControlPlane opens PostgreSQL and verifies the required control-plane
@@ -37,7 +39,7 @@ func NewControlPlane(ctx context.Context, dsn string) (*ControlPlane, error) {
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
-	requiredTables := []string{"run_snapshots", "queue_requests", "artifact_snapshots", "dashboards", "audit_events", "data_assets", "asset_columns"}
+	requiredTables := []string{"run_snapshots", "queue_requests", "artifact_snapshots", "dashboards", "audit_events", "data_assets", "asset_columns", "platform_users", "platform_sessions"}
 	for _, tableName := range requiredTables {
 		present, err := tableExists(ctx, conn, tableName)
 		if err != nil {
@@ -58,5 +60,6 @@ func NewControlPlane(ctx context.Context, dsn string) (*ControlPlane, error) {
 		Dashboards:  NewDashboardStoreFromConn(conn),
 		Audit:       NewAuditStoreFromConn(conn),
 		Metadata:    NewMetadataStoreFromConn(conn),
+		Identity:    NewIdentityStoreFromConn(conn),
 	}, nil
 }

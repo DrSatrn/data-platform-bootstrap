@@ -41,6 +41,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		principal := h.authz.ResolveRequest(r)
 		if !authz.Allowed(principal, authz.RoleEditor) {
 			_ = h.audit.Append(audit.Event{
+				ActorUserID:  principal.UserID,
 				ActorSubject: principal.Subject,
 				ActorRole:    string(principal.Role),
 				Action:       "save_dashboard",
@@ -61,6 +62,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := h.store.SaveDashboard(dashboard); err != nil {
 			_ = h.audit.Append(audit.Event{
+				ActorUserID:  principal.UserID,
 				ActorSubject: principal.Subject,
 				ActorRole:    string(principal.Role),
 				Action:       "save_dashboard",
@@ -76,6 +78,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = h.audit.Append(audit.Event{
+			ActorUserID:  principal.UserID,
 			ActorSubject: principal.Subject,
 			ActorRole:    string(principal.Role),
 			Action:       "save_dashboard",
@@ -89,6 +92,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		principal := h.authz.ResolveRequest(r)
 		if !authz.Allowed(principal, authz.RoleEditor) {
 			_ = h.audit.Append(audit.Event{
+				ActorUserID:  principal.UserID,
 				ActorSubject: principal.Subject,
 				ActorRole:    string(principal.Role),
 				Action:       "delete_dashboard",
@@ -109,6 +113,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := h.store.DeleteDashboard(dashboardID); err != nil {
 			_ = h.audit.Append(audit.Event{
+				ActorUserID:  principal.UserID,
 				ActorSubject: principal.Subject,
 				ActorRole:    string(principal.Role),
 				Action:       "delete_dashboard",
@@ -124,6 +129,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = h.audit.Append(audit.Event{
+			ActorUserID:  principal.UserID,
 			ActorSubject: principal.Subject,
 			ActorRole:    string(principal.Role),
 			Action:       "delete_dashboard",

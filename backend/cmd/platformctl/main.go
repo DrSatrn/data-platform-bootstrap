@@ -942,8 +942,8 @@ func newBackupService() (*backup.Service, func(), error) {
 	controlPlane, err := db.NewControlPlane(context.Background(), cfg.PostgresDSN)
 	if err == nil {
 		closeFn := func() { _ = controlPlane.Conn.Close() }
-		return backup.NewService(cfg, loader, controlPlane.RunStore, controlPlane.RunQueue, controlPlane.Dashboards, controlPlane.Audit, controlPlane.Metadata), closeFn, nil
+		return backup.NewService(cfg, loader, controlPlane.RunStore, controlPlane.RunQueue, controlPlane.Dashboards, controlPlane.Audit, controlPlane.Metadata, controlPlane.Identity), closeFn, nil
 	}
 
-	return backup.NewService(cfg, loader, runStore, queue, reportStore, auditStore, metadataStore), nil, nil
+	return backup.NewService(cfg, loader, runStore, queue, reportStore, auditStore, metadataStore, nil), nil, nil
 }

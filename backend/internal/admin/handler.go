@@ -46,6 +46,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	principal := h.authz.ResolveRequest(r)
 	if !authz.Allowed(principal, authz.RoleAdmin) {
 		_ = h.audit.Append(audit.Event{
+			ActorUserID:  principal.UserID,
 			ActorSubject: principal.Subject,
 			ActorRole:    string(principal.Role),
 			Action:       "admin_command",
@@ -73,6 +74,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.audit.Append(audit.Event{
+		ActorUserID:  principal.UserID,
 		ActorSubject: principal.Subject,
 		ActorRole:    string(principal.Role),
 		Action:       "admin_command",

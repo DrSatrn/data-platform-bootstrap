@@ -192,6 +192,36 @@ printf "%s" "$budget_payload" | grep -q '"variance_amount"'
 metrics_payload=$(curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/metrics")
 printf "%s" "$metrics_payload" | grep -q '"metrics_savings_rate"'
 
+identity_status=$(curl -s -o /tmp/data-platform-smoke-identity.$$ -w '%{http_code}' -X POST "$API_URL/api/v1/admin/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"smoke-viewer","display_name":"Smoke Viewer","role":"viewer","password":"smoke-password"}')
+
+if [ "$identity_status" -eq 201 ]; then
+  session_payload=$(curl -fsS -X POST "$API_URL/api/v1/session" \
+    -H 'Content-Type: application/json' \
+    -d '{"username":"smoke-viewer","password":"smoke-password"}')
+  session_token=$(printf "%s" "$session_payload" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+  if [ -z "$session_token" ]; then
+    echo "Failed to parse session token from login response" >&2
+    exit 1
+  fi
+
+  curl -fsS -H "Authorization: Bearer ${session_token}" "$API_URL/api/v1/catalog" | grep -q '"mart_budget_vs_actual"'
+  curl -fsS -X DELETE -H "Authorization: Bearer ${session_token}" "$API_URL/api/v1/session" | grep -q '"logged_out"'
+
+  logout_status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${session_token}" "$API_URL/api/v1/catalog")
+  if [ "$logout_status" -ne 403 ]; then
+    echo "Expected logged out session to lose access, got HTTP ${logout_status}" >&2
+    exit 1
+  fi
+else
+  echo "skipping native identity smoke because the host-run stack is using bootstrap-only auth"
+fi
+
+rm -f /tmp/data-platform-smoke-identity.$$
+
 BACKUP_PATH="$DATA_ROOT/backups/localhost-smoke-backup.tar.gz"
 
 (

@@ -84,6 +84,24 @@ curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/artifacts?r
 curl -fsS -H "Authorization: Bearer ${ADMIN_TOKEN}" "$API_URL/api/v1/reports" | grep -q '"finance_overview"'
 curl -fsS "$WEB_URL" | grep -q 'Data Platform'
 
+curl -fsS -X POST "$API_URL/api/v1/admin/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"compose-viewer","display_name":"Compose Viewer","role":"viewer","password":"compose-password"}' >/dev/null
+
+session_payload=$(curl -fsS -X POST "$API_URL/api/v1/session" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"compose-viewer","password":"compose-password"}')
+session_token=$(printf "%s" "$session_payload" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+if [ -z "$session_token" ]; then
+  echo "Failed to parse session token from compose login response" >&2
+  exit 1
+fi
+
+curl -fsS -H "Authorization: Bearer ${session_token}" "$API_URL/api/v1/catalog" | grep -q '"mart_budget_vs_actual"'
+curl -fsS -X DELETE -H "Authorization: Bearer ${session_token}" "$API_URL/api/v1/session" | grep -q '"logged_out"'
+
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl remote --server http://127.0.0.1:8080 status >/dev/null
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl backup create --out /var/lib/platform/data/backups/compose-smoke-backup.tar.gz >/dev/null
 docker compose -f "$COMPOSE_FILE" exec -T api /usr/local/bin/platformctl backup verify --file /var/lib/platform/data/backups/compose-smoke-backup.tar.gz >/dev/null

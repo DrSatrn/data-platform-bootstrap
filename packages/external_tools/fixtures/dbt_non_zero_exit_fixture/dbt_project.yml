@@ -1,0 +1,8 @@
+name: dbt_non_zero_exit_fixture
+version: 1.0.0
+profile: dbt_non_zero_exit_fixture
+
+model-paths:
+  - models
+
+target-path: target

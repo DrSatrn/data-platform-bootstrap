@@ -109,7 +109,7 @@ CLI path:
 
 ```sh
 curl -X POST \
-  -H "Authorization: Bearer editor-token" \
+  -H "Authorization: Bearer <editor-session-token>" \
   -H "Content-Type: application/json" \
   -d '{"pipeline_id":"personal_finance_pipeline"}' \
   http://127.0.0.1:8080/api/v1/pipelines
@@ -118,7 +118,7 @@ curl -X POST \
 Browser path:
 
 1. open `http://127.0.0.1:3000`
-2. paste an `editor` token into the sidebar
+2. sign in as an `editor` user or paste the bootstrap token into the override field
 3. open `Pipelines`
 4. click `Run now`
 
@@ -133,10 +133,10 @@ Expected result:
 Role required: `viewer`
 
 ```sh
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/pipelines
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/pipelines
+curl -H "Authorization: Bearer <viewer-session-token>" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer <viewer-session-token>" "http://127.0.0.1:8080/api/v1/analytics?metric=metrics_category_variance"
 ```
 
 Expected result:
@@ -161,8 +161,8 @@ Expected local files under `var/`:
 2. run stays queued:
    confirm worker logs show queue polling
 3. browser action fails:
-   confirm you used an `editor` token rather than `viewer`
+   confirm you signed in as an `editor` user or used the bootstrap admin token override
 4. admin terminal fails:
-   confirm you used an `admin` token
+   confirm you used an `admin` session or the bootstrap admin token
 5. profile endpoint fails:
    confirm the run has completed and the materialized asset exists

@@ -30,9 +30,9 @@ func (s *AuditStore) Append(event audit.Event) error {
 		return fmt.Errorf("encode audit details: %w", err)
 	}
 	_, err = s.conn.Exec(`
-		insert into audit_events (event_time, actor_subject, actor_role, action, resource, outcome, details)
-		values ($1, $2, $3, $4, $5, $6, $7)
-	`, event.Time, event.ActorSubject, event.ActorRole, event.Action, event.Resource, event.Outcome, details)
+		insert into audit_events (event_time, actor_user_id, actor_subject, actor_role, action, resource, outcome, details)
+		values ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, event.Time, event.ActorUserID, event.ActorSubject, event.ActorRole, event.Action, event.Resource, event.Outcome, details)
 	if err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
 	}
@@ -41,7 +41,7 @@ func (s *AuditStore) Append(event audit.Event) error {
 
 func (s *AuditStore) ListRecent(limit int) ([]audit.Event, error) {
 	rows, err := s.conn.Query(`
-		select event_time, actor_subject, actor_role, action, resource, outcome, details
+		select event_time, actor_user_id, actor_subject, actor_role, action, resource, outcome, details
 		from audit_events
 		order by event_time desc
 		limit $1
@@ -57,7 +57,7 @@ func (s *AuditStore) ListRecent(limit int) ([]audit.Event, error) {
 			event   audit.Event
 			details []byte
 		)
-		if err := rows.Scan(&event.Time, &event.ActorSubject, &event.ActorRole, &event.Action, &event.Resource, &event.Outcome, &details); err != nil {
+		if err := rows.Scan(&event.Time, &event.ActorUserID, &event.ActorSubject, &event.ActorRole, &event.Action, &event.Resource, &event.Outcome, &details); err != nil {
 			return nil, fmt.Errorf("scan audit event: %w", err)
 		}
 		if len(details) > 0 {

@@ -1,6 +1,7 @@
 // Package admin provides a command-oriented management surface for the web
-// portal and remote CLI. The commands are intentionally product-specific and
-// read-only in this first iteration.
+// portal and remote CLI. The commands are intentionally product-specific so the
+// platform can expose high-value operational workflows without generic shell
+// access.
 package admin
 
 import (
@@ -36,6 +37,7 @@ type Service struct {
 	loader    manifests.Loader
 	store     orchestration.Store
 	control   *orchestration.ControlService
+	identity  *authz.Service
 	quality   *quality.Service
 	reports   reporting.Store
 	artifacts *storage.Service
@@ -49,6 +51,7 @@ func NewService(
 	loader manifests.Loader,
 	store orchestration.Store,
 	control *orchestration.ControlService,
+	identity *authz.Service,
 	quality *quality.Service,
 	reports reporting.Store,
 	artifacts *storage.Service,
@@ -60,6 +63,7 @@ func NewService(
 		loader:    loader,
 		store:     store,
 		control:   control,
+		identity:  identity,
 		quality:   quality,
 		reports:   reports,
 		artifacts: artifacts,
@@ -95,6 +99,11 @@ func (s *Service) Execute(command string, actor authz.Principal) Result {
 			"logs [limit]",
 			"trigger <pipeline_id>",
 			"artifacts <run_id>",
+			"users",
+			"user create <username> <role> <password> [display_name]",
+			"user password <username> <password>",
+			"user activate <username>",
+			"user deactivate <username>",
 			"backups",
 			"backup create",
 			"backup verify <bundle-name-or-path>",
@@ -302,6 +311,86 @@ func (s *Service) Execute(command string, actor authz.Principal) Result {
 			}}
 		default:
 			result = Result{Command: command, Success: false, Output: []string{"usage: backup create | backup verify <bundle-name-or-path>"}}
+		}
+	case "users":
+		if s.identity == nil {
+			result = Result{Command: command, Success: false, Output: []string{"native identity store is unavailable"}}
+			break
+		}
+		users, err := s.identity.ListUsers()
+		if err != nil {
+			result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+			break
+		}
+		if len(users) == 0 {
+			result = Result{Command: command, Success: true, Output: []string{"no platform users recorded yet"}}
+			break
+		}
+		lines := make([]string, 0, len(users))
+		for _, user := range users {
+			lines = append(lines, fmt.Sprintf("%s | role=%s | active=%t | bootstrap=%t", user.Username, user.Role, user.IsActive, user.IsBootstrap))
+		}
+		result = Result{Command: command, Success: true, Output: lines}
+	case "user":
+		if s.identity == nil {
+			result = Result{Command: command, Success: false, Output: []string{"native identity store is unavailable"}}
+			break
+		}
+		if len(args) == 0 {
+			result = Result{Command: command, Success: false, Output: []string{"usage: user create|password|activate|deactivate ..."}}
+			break
+		}
+		switch args[0] {
+		case "create":
+			if len(args) < 4 {
+				result = Result{Command: command, Success: false, Output: []string{"usage: user create <username> <role> <password> [display_name]"}}
+				break
+			}
+			displayName := args[1]
+			if len(args) > 4 {
+				displayName = strings.Join(args[4:], " ")
+			}
+			user, err := s.identity.CreateUser(args[1], displayName, authz.Role(args[2]), args[3])
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{fmt.Sprintf("created user %s with role %s", user.Username, user.Role)}}
+		case "password":
+			if len(args) < 3 {
+				result = Result{Command: command, Success: false, Output: []string{"usage: user password <username> <password>"}}
+				break
+			}
+			user, err := s.identity.ResetPassword(args[1], args[2])
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{fmt.Sprintf("reset password for %s", user.Username)}}
+		case "activate":
+			if len(args) < 2 {
+				result = Result{Command: command, Success: false, Output: []string{"usage: user activate <username>"}}
+				break
+			}
+			user, err := s.identity.SetUserActive(args[1], true)
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{fmt.Sprintf("activated %s", user.Username)}}
+		case "deactivate":
+			if len(args) < 2 {
+				result = Result{Command: command, Success: false, Output: []string{"usage: user deactivate <username>"}}
+				break
+			}
+			user, err := s.identity.SetUserActive(args[1], false)
+			if err != nil {
+				result = Result{Command: command, Success: false, Output: []string{err.Error()}}
+				break
+			}
+			result = Result{Command: command, Success: true, Output: []string{fmt.Sprintf("deactivated %s", user.Username)}}
+		default:
+			result = Result{Command: command, Success: false, Output: []string{"usage: user create|password|activate|deactivate ..."}}
 		}
 	default:
 		result = Result{Command: command, Success: false, Output: []string{

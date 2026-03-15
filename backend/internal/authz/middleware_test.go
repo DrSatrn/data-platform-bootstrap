@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestRequireRoleRejectsAnonymousRequests(t *testing.T) {
-	service, err := NewService("admin-token", "viewer-token:viewer:alice")
+	service, err := NewService("admin-token", "viewer-token:viewer:alice", nil, time.Hour)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -27,7 +28,7 @@ func TestRequireRoleRejectsAnonymousRequests(t *testing.T) {
 }
 
 func TestRequireRoleAllowsViewerRequests(t *testing.T) {
-	service, err := NewService("admin-token", "viewer-token:viewer:alice")
+	service, err := NewService("admin-token", "viewer-token:viewer:alice", nil, time.Hour)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}

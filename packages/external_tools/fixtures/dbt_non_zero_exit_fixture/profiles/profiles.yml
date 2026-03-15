@@ -1,0 +1,6 @@
+dbt_non_zero_exit_fixture:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../../../../var/duckdb/platform.duckdb

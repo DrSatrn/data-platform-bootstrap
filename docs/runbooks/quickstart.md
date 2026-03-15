@@ -50,9 +50,15 @@ Use this table instead of guessing:
 - Editor: manual pipeline triggers and dashboard create/update/delete
 - Admin: admin terminal and `platformctl remote ...`
 
-If you only want to browse the product, use a `viewer` token. If you want to
-trigger runs or edit dashboards, use an `editor` token. Use `admin` only for
-the terminal and remote CLI path.
+The normal path is:
+
+- use `PLATFORM_ADMIN_TOKEN` only to bootstrap or recover the environment
+- create native users once PostgreSQL is available
+- sign in through `/api/v1/session` or the browser login form
+- use the returned session token for day-to-day access
+
+If PostgreSQL is unavailable, host-run mode falls back to bootstrap-token-only
+auth and will skip the native session smoke checks.
 
 ## First Success Path: Smoke
 
@@ -124,6 +130,25 @@ Quick verification:
 ```sh
 curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/v1/session
+```
+
+Bootstrap a viewer user in packaged mode:
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer local-dev-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"viewer-demo","display_name":"Viewer Demo","role":"viewer","password":"viewer-password"}' \
+  http://127.0.0.1:8080/api/v1/admin/users
+```
+
+Then sign in:
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username":"viewer-demo","password":"viewer-password"}' \
+  http://127.0.0.1:8080/api/v1/session
 ```
 
 After you sign in with a viewer-or-higher token, open the System page and

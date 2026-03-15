@@ -7,16 +7,20 @@ let mockAuth = {
   token: "viewer-token",
   setToken: vi.fn(),
   clearToken: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
   session: {
-    principal: { subject: "alice", role: "viewer" },
+    principal: { subject: "alice", role: "viewer", auth_source: "session" },
     capabilities: {
       view_platform: true,
       trigger_runs: false,
       edit_dashboards: false,
-      run_admin_terminal: false
+      run_admin_terminal: false,
+      manage_users: false
     }
   },
-  loading: false
+  loading: false,
+  error: null
 };
 
 vi.mock("../features/auth/useAuth", () => ({
@@ -37,6 +41,6 @@ describe("App", () => {
     const html = renderToStaticMarkup(<App />);
     expect(html).toContain("alice");
     expect(html).toContain("viewer");
-    expect(html).toContain("Viewer is required for product pages");
+    expect(html).toContain("Native sessions are the normal path");
   });
 });

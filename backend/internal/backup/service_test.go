@@ -134,6 +134,7 @@ func TestCreateAndVerifyBackup(t *testing.T) {
 		reportStore,
 		auditStore,
 		metadataStub{assets: []metadata.DataAsset{{ID: "mart_test", Name: "Test", Layer: "mart"}}},
+		nil,
 	)
 
 	result, err := service.Create(filepath.Join(root, "backup.tar.gz"))
@@ -249,6 +250,7 @@ func TestRestoreBackupRebuildsFilesystemRoots(t *testing.T) {
 		reporting.NewMemoryStore(),
 		audit.NewMemoryStore(),
 		metadataStub{assets: []metadata.DataAsset{{ID: "mart_budget_vs_actual", Name: "Budget vs Actual", Layer: "mart"}}},
+		nil,
 	)
 
 	bundlePath := filepath.Join(root, "backup.tar.gz")

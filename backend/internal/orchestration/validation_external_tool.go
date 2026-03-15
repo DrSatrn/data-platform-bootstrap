@@ -36,10 +36,16 @@ func validateJob(job Job) error {
 	if len(spec.Artifacts) == 0 {
 		return fmt.Errorf("external_tool.artifacts must declare at least one artifact")
 	}
+	seenArtifacts := make(map[string]struct{}, len(spec.Artifacts))
 	for index, artifact := range spec.Artifacts {
 		if !isRepoRelativeRef(artifact.Path) {
 			return fmt.Errorf("external_tool.artifacts[%d].path must be relative", index)
 		}
+		cleanPath := filepath.Clean(strings.TrimSpace(artifact.Path))
+		if _, exists := seenArtifacts[cleanPath]; exists {
+			return fmt.Errorf("external_tool.artifacts[%d].path duplicates %q", index, cleanPath)
+		}
+		seenArtifacts[cleanPath] = struct{}{}
 	}
 
 	switch strings.ToLower(strings.TrimSpace(spec.Tool)) {

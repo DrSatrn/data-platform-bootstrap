@@ -43,13 +43,15 @@ What that does:
 
 ## Access Model Summary
 
-- Anonymous: `GET /healthz`, `GET /api/v1/session`
+- Anonymous: `GET /healthz`, `GET|POST|DELETE /api/v1/session`
+- Bootstrap admin: `PLATFORM_ADMIN_TOKEN` for first-run admin and recovery
 - Viewer: read APIs and read-only product pages
 - Editor: manual run triggers and dashboard writes
-- Admin: admin terminal and `platformctl remote ...`
+- Admin: admin terminal, user management, and `platformctl remote ...`
 
-If a command uses `platformctl remote`, it is admin-only because it goes
-through the admin terminal endpoint.
+Normal operation should use native users plus `/api/v1/session` login. If a
+command uses `platformctl remote`, it is admin-only because it goes through
+the admin terminal endpoint.
 
 ## Control-Plane Source Of Truth
 
@@ -173,6 +175,25 @@ Trigger a pipeline:
 ```sh
 cd backend
 go run ./cmd/platformctl remote --token <token> trigger personal_finance_pipeline
+```
+
+Create a native user:
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer local-dev-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"operator","display_name":"Operator","role":"editor","password":"operator-password"}' \
+  http://127.0.0.1:8080/api/v1/admin/users
+```
+
+Sign in and get a session token:
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username":"operator","password":"operator-password"}' \
+  http://127.0.0.1:8080/api/v1/session
 ```
 
 List artifacts for a run:
@@ -318,7 +339,8 @@ Be explicit about current limits:
 
 - restore automation is not implemented yet
 - scheduler semantics are not a full cron engine
-- auth is lightweight token-based RBAC, not a full identity system
+- native identity now lives in PostgreSQL-backed users and sessions, but the
+  bootstrap admin token is still the recovery path when PostgreSQL is absent
 - the platform proves one strong domain slice, not many
 - reporting UX is real but not yet fully polished
 - restore automation is still not built on top of the backup bundle format

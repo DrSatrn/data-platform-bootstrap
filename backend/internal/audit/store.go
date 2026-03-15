@@ -16,6 +16,7 @@ import (
 // Event describes one auditable platform action.
 type Event struct {
 	Time         time.Time      `json:"time"`
+	ActorUserID  string         `json:"actor_user_id,omitempty"`
 	ActorSubject string         `json:"actor_subject"`
 	ActorRole    string         `json:"actor_role"`
 	Action       string         `json:"action"`

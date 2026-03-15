@@ -68,29 +68,33 @@ is unavailable. The live source-of-truth breakdown is exposed in
 
 ## Access Control
 
-The platform now supports lightweight bearer-token RBAC for self-hosted use:
+The platform now has a native identity and session model:
 
-- anonymous can access only `GET /healthz` and `GET /api/v1/session`
+- anonymous can access only `GET /healthz` and `GET|POST|DELETE /api/v1/session`
+- database-backed `viewer`, `editor`, and `admin` users authenticate with
+  username/password and receive a bearer session token
 - `viewer` can access read-only product APIs and pages
 - `editor` can trigger runs and modify saved dashboards
-- `admin` can use the admin terminal and all editor actions
+- `admin` can use the admin terminal, manage users, and perform all editor
+  actions
 
-Configuration:
+Bootstrap and compatibility:
 
-- `PLATFORM_ADMIN_TOKEN` remains supported and maps to the `admin` role
-- `PLATFORM_ACCESS_TOKENS` adds extra tokens in `token:role:subject` format,
-  comma-separated
+- `PLATFORM_ADMIN_TOKEN` remains supported as the first-run bootstrap and
+  emergency admin path
+- `PLATFORM_ACCESS_TOKENS` is now compatibility-only and should not be the
+  normal operating model
 
-Example:
+Normal flow:
 
-```bash
-PLATFORM_ACCESS_TOKENS=viewer-token:viewer:alice,editor-token:editor:bob
-```
+1. start the stack
+2. use the bootstrap admin token to create users from the System page or
+   `POST /api/v1/admin/users`
+3. sign in through the browser or `POST /api/v1/session`
+4. use the returned session bearer token for API and UI access
 
-The browser UI stores one bearer token locally and uses `/api/v1/session` to
-discover capabilities. Product pages now require at least `viewer`, so an
-anonymous browser session will see only health/session access until a token is
-provided.
+If PostgreSQL is unavailable, the platform falls back to bootstrap-token-only
+auth because the native identity store lives in the preferred control plane.
 
 ## Audit Trail
 
@@ -117,11 +121,14 @@ The platform now includes a first-party backup/export path built in-repo:
 Each backup bundle is a portable `.tar.gz` archive containing:
 
 - control-plane JSON exports for runs, queue state, dashboards, audit events,
-  metadata assets, and sanitized config
+  metadata assets, native users, and sanitized config
 - materialized local data and run artifacts when present
 - the DuckDB file
 - repo-managed manifest and dashboard snapshots
 - a checksummed `manifest.json`
+
+Native users are restored with their hashed credentials. Active login sessions
+are intentionally cleared on restore so operators sign in again cleanly.
 
 Use:
 

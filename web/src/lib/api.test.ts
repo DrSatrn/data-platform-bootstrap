@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deleteJSON, fetchJSON, postJSON } from "./api";
+import { deleteJSON, fetchJSON, patchJSON, postJSON } from "./api";
 
 describe("api helpers", () => {
   afterEach(() => {
@@ -52,5 +52,29 @@ describe("api helpers", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(deleteJSON("/api/v1/reports?id=dashboard_1", "viewer-token")).rejects.toThrow("editor role required");
+  });
+
+  it("patchJSON sends method, content type, body, and auth header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ updated: true })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const payload = await patchJSON<{ updated: boolean }, { username: string; action: string }>(
+      "/api/v1/admin/users",
+      { username: "alice", action: "set_active" },
+      "admin-token"
+    );
+
+    expect(payload.updated).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/admin/users", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin-token"
+      },
+      body: JSON.stringify({ username: "alice", action: "set_active" })
+    });
   });
 });

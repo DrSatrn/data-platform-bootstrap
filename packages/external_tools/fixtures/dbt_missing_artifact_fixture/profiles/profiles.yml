@@ -1,0 +1,6 @@
+dbt_missing_artifact_fixture:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../../../../var/duckdb/platform.duckdb

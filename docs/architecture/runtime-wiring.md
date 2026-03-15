@@ -24,7 +24,7 @@ Purpose:
 
 - serves the control-plane HTTP API
 - exposes metadata, analytics, reporting, quality, health, audit, logs, and
-  admin-terminal endpoints
+  admin-terminal, session, and user-management endpoints
 - accepts manual pipeline trigger requests
 
 Listens on:
@@ -47,12 +47,15 @@ Reads:
 - dashboard definitions
 - local materialized data
 - control-plane state from PostgreSQL when available, otherwise filesystem
+- native users and sessions from PostgreSQL when available, otherwise the
+  bootstrap admin token only
 
 Writes:
 
 - queued run requests
 - run snapshots
 - audit events
+- platform users and session rows when the native identity store is available
 - dashboard changes
 - metadata projection at startup and on scheduler refresh when PostgreSQL-backed
   metadata is enabled
@@ -205,6 +208,8 @@ Current normalized tables include:
 - `audit_events`
 - `data_assets`
 - `asset_columns`
+- `platform_users`
+- `platform_sessions`
 
 These are the current bridge between the local-first runtime and a more
 enterprise-style control plane.
@@ -237,11 +242,16 @@ This is the runtime contract the docs and System page should agree on.
   source of truth is PostgreSQL projection tables
   manifests are projected on startup and scheduler refresh, then used as fallback
   only if the projection is empty or PostgreSQL is unavailable
+- identity:
+  source of truth is PostgreSQL `platform_users` and `platform_sessions`
+  `PLATFORM_ADMIN_TOKEN` remains a bootstrap override and recovery path
 
 ### When PostgreSQL is not enabled
 
 - runs, queue, dashboards, audit, and artifacts all operate from filesystem-backed stores
 - metadata reads directly from repo-managed manifests
+- identity falls back to bootstrap-admin-token-only access because the native
+  session store is unavailable without PostgreSQL
 - the product remains runnable, but the preferred normalized control-plane path is not active
 
 ## Layer Map

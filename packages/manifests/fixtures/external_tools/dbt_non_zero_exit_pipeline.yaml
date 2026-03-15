@@ -1,0 +1,23 @@
+id: fixture_dbt_non_zero_exit_pipeline
+name: Fixture DBT Non-Zero Exit Pipeline
+description: Draft fixture manifest that points at a dbt project variant designed to fail during execution.
+owner: platform-team
+tags:
+  - fixture
+  - external-tool
+  - dbt
+jobs:
+  - id: run_failing_dbt
+    name: Run Failing DBT Fixture
+    type: external_tool
+    timeout: 2m
+    external_tool:
+      tool: dbt
+      action: build
+      project_ref: packages/external_tools/fixtures/dbt_non_zero_exit_fixture
+      config_ref: packages/external_tools/fixtures/dbt_non_zero_exit_fixture/profiles
+      profile: dbt_non_zero_exit_fixture
+      target: dev
+      artifacts:
+        - path: target/run_results.json
+          required: true

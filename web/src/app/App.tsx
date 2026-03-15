@@ -22,11 +22,27 @@ const routes: Array<{ id: Route; label: string }> = [
 
 export function App() {
   const [route, setRoute] = useState<Route>("dashboard");
-  const { token, setToken, clearToken, session, loading } = useAuth();
+  const { token, setToken, clearToken, login, logout, session, loading, error } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     document.title = `Data Platform | ${routes.find((item) => item.id === route)?.label}`;
   }, [route]);
+
+  async function handleLogin() {
+    if (!username.trim() || !password) {
+      return;
+    }
+    setLoggingIn(true);
+    try {
+      await login(username.trim(), password);
+      setPassword("");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
 
   return (
     <div className="shell">
@@ -43,8 +59,30 @@ export function App() {
             </p>
             <input
               className="terminal-input"
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Username"
+              type="text"
+              value={username}
+            />
+            <input
+              className="terminal-input"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Password"
+              type="password"
+              value={password}
+            />
+            <div className="inline-actions">
+              <button className="mini-button" onClick={() => void handleLogin()} type="button">
+                {loggingIn ? "Signing in..." : "Sign in"}
+              </button>
+              <button className="mini-button" onClick={() => void logout()} type="button">
+                Sign out
+              </button>
+            </div>
+            <input
+              className="terminal-input"
               onChange={(event) => setToken(event.target.value)}
-              placeholder="Bearer token for editor/admin actions"
+              placeholder="Bootstrap/admin bearer token override"
               type="password"
               value={token}
             />
@@ -54,8 +92,9 @@ export function App() {
               </button>
               <span className="badge">{session?.principal.role ?? "anonymous"}</span>
             </div>
+            {error ? <p className="muted">Auth error: {error}</p> : null}
             <p className="muted">
-              Viewer is required for product pages. Editor enables run triggers and dashboard saves. Admin enables the terminal and `platformctl remote`.
+              Native sessions are the normal path. The bootstrap token remains available for first-run recovery and emergency admin access.
             </p>
           </div>
         </div>

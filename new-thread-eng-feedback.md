@@ -150,10 +150,10 @@ Checklist:
 
 ## Workstream 2: Identity and Auth Native System
 Checklist:
-- [ ] Replace static `PLATFORM_ACCESS_TOKENS` with a SQLite/Postgres-backed Identity/User store.
-- [ ] Update `/api/v1/session` to support real session management (login/logout).
-- [ ] Expand the Audit trail to reference database-backed user IDs, not just static subjects.
-- [ ] Ensure backward compatibility with `PLATFORM_ADMIN_TOKEN` for bootstrapping.
+- [x] Replace static `PLATFORM_ACCESS_TOKENS` with a SQLite/Postgres-backed Identity/User store.
+- [x] Update `/api/v1/session` to support real session management (login/logout).
+- [x] Expand the Audit trail to reference database-backed user IDs, not just static subjects.
+- [x] Ensure backward compatibility with `PLATFORM_ADMIN_TOKEN` for bootstrapping.
 
 ## Workstream 3: Deep Postgres Normalization
 Checklist:

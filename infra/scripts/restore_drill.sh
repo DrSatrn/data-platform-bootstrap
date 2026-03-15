@@ -23,7 +23,25 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 if [ -z "$BUNDLE_PATH" ]; then
-  BUNDLE_PATH=$(find "$ROOT_DIR/var/backups" -maxdepth 1 -name '*.tar.gz' -print | sort | tail -n 1 || true)
+  for candidate in $(find "$ROOT_DIR/var/backups" -maxdepth 1 -name '*.tar.gz' -print | sort -r); do
+    if (
+      cd "$ROOT_DIR/backend"
+      env \
+        PLATFORM_MANIFEST_ROOT="$ROOT_DIR/packages/manifests" \
+        PLATFORM_DASHBOARD_ROOT="$ROOT_DIR/packages/dashboards" \
+        PLATFORM_SQL_ROOT="$ROOT_DIR/packages/sql" \
+        PLATFORM_PYTHON_TASK_ROOT="$ROOT_DIR/packages/python" \
+        PLATFORM_PYTHON_BINARY=python3 \
+        PLATFORM_SAMPLE_DATA_ROOT="$ROOT_DIR/packages/sample_data" \
+        PLATFORM_MIGRATIONS_ROOT="$ROOT_DIR/infra/migrations" \
+        GOCACHE="$GOCACHE_DIR" \
+        GOMODCACHE="$GOMODCACHE_DIR" \
+        go run ./cmd/platformctl backup verify --file "$candidate" >/dev/null 2>&1
+    ); then
+      BUNDLE_PATH="$candidate"
+      break
+    fi
+  done
 fi
 
 if [ -z "$BUNDLE_PATH" ] || [ ! -f "$BUNDLE_PATH" ]; then

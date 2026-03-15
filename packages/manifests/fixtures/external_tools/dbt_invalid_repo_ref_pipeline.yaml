@@ -1,0 +1,23 @@
+id: fixture_dbt_invalid_repo_ref_pipeline
+name: Fixture DBT Invalid Repo Ref Pipeline
+description: Draft fixture manifest that demonstrates an invalid repo-relative project reference.
+owner: platform-team
+tags:
+  - fixture
+  - external-tool
+  - invalid-spec
+jobs:
+  - id: run_invalid_ref_dbt
+    name: Run Invalid Ref DBT Fixture
+    type: external_tool
+    timeout: 2m
+    external_tool:
+      tool: dbt
+      action: build
+      project_ref: ../outside_repo/dbt_project
+      config_ref: packages/external_tools/dbt_finance_demo/profiles
+      profile: dbt_finance_demo
+      target: dev
+      artifacts:
+        - path: target/run_results.json
+          required: true

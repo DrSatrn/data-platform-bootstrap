@@ -85,6 +85,7 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 	principal := h.authz.ResolveRequest(r)
 	if !authz.Allowed(principal, authz.RoleEditor) {
 		_ = h.audit.Append(audit.Event{
+			ActorUserID:  principal.UserID,
 			ActorSubject: principal.Subject,
 			ActorRole:    string(principal.Role),
 			Action:       "trigger_pipeline",
@@ -110,6 +111,7 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 	run, err := h.control.TriggerPipeline(context.Background(), payload.PipelineID, "manual_api")
 	if err != nil {
 		_ = h.audit.Append(audit.Event{
+			ActorUserID:  principal.UserID,
 			ActorSubject: principal.Subject,
 			ActorRole:    string(principal.Role),
 			Action:       "trigger_pipeline",
@@ -126,6 +128,7 @@ func (h *PipelineHandler) handleTrigger(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	_ = h.audit.Append(audit.Event{
+		ActorUserID:  principal.UserID,
 		ActorSubject: principal.Subject,
 		ActorRole:    string(principal.Role),
 		Action:       "trigger_pipeline",

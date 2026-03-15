@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/streanor/data-platform/backend/internal/audit"
+	"github.com/streanor/data-platform/backend/internal/authz"
 	"github.com/streanor/data-platform/backend/internal/db"
 	"github.com/streanor/data-platform/backend/internal/metadata"
 	"github.com/streanor/data-platform/backend/internal/orchestration"
@@ -330,8 +331,12 @@ func restorePostgresControlPlane(options RestoreOptions, extractRoot string) (po
 	if err != nil {
 		return postgresRestoreResult{}, err
 	}
+	users, err := readRestoreJSON[[]authz.StoredUser](extractRoot, "exports/platform_users.json")
+	if err != nil {
+		return postgresRestoreResult{}, err
+	}
 
-	requeued, warnings, err := restorePostgresState(ctx, conn, runs, queueRequests, dashboards, auditEvents, assets)
+	requeued, warnings, err := restorePostgresState(ctx, conn, runs, queueRequests, dashboards, auditEvents, assets, users)
 	if err != nil {
 		return postgresRestoreResult{}, err
 	}
@@ -363,6 +368,7 @@ func restorePostgresState(
 	dashboards []reporting.Dashboard,
 	auditEvents []audit.Event,
 	assets []metadata.DataAsset,
+	users []authz.StoredUser,
 ) (int, []string, error) {
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -371,6 +377,8 @@ func restorePostgresState(
 	defer tx.Rollback()
 
 	for _, statement := range []string{
+		`delete from platform_sessions`,
+		`delete from platform_users where is_bootstrap = false`,
 		`delete from artifact_snapshots`,
 		`delete from queue_requests`,
 		`delete from run_snapshots`,
@@ -453,9 +461,9 @@ func restorePostgresState(
 			event.Time = time.Now().UTC()
 		}
 		if _, err := tx.ExecContext(ctx, `
-			insert into audit_events (event_time, actor_subject, actor_role, action, resource, outcome, details)
-			values ($1, $2, $3, $4, $5, $6, $7::jsonb)
-		`, event.Time, event.ActorSubject, event.ActorRole, event.Action, event.Resource, event.Outcome, string(details)); err != nil {
+			insert into audit_events (event_time, actor_user_id, actor_subject, actor_role, action, resource, outcome, details)
+			values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+		`, event.Time, event.ActorUserID, event.ActorSubject, event.ActorRole, event.Action, event.Resource, event.Outcome, string(details)); err != nil {
 			return 0, nil, fmt.Errorf("restore audit event %s: %w", event.Action, err)
 		}
 	}
@@ -503,6 +511,42 @@ func restorePostgresState(
 				return 0, nil, fmt.Errorf("restore metadata column %s.%s: %w", asset.ID, column.Name, err)
 			}
 		}
+	}
+
+	for _, user := range users {
+		if _, err := tx.ExecContext(ctx, `
+			insert into platform_users (
+				id, username, display_name, role, password_hash, password_salt,
+				is_active, is_bootstrap, created_at, updated_at
+			)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			on conflict (id) do update set
+				username = excluded.username,
+				display_name = excluded.display_name,
+				role = excluded.role,
+				password_hash = excluded.password_hash,
+				password_salt = excluded.password_salt,
+				is_active = excluded.is_active,
+				is_bootstrap = excluded.is_bootstrap,
+				created_at = excluded.created_at,
+				updated_at = excluded.updated_at
+		`,
+			user.ID,
+			user.Username,
+			user.DisplayName,
+			string(user.Role),
+			user.PasswordHash,
+			user.PasswordSalt,
+			user.IsActive,
+			user.IsBootstrap,
+			user.CreatedAt,
+			user.UpdatedAt,
+		); err != nil {
+			return 0, nil, fmt.Errorf("restore platform user %s: %w", user.Username, err)
+		}
+	}
+	if len(users) > 0 {
+		warnings = append(warnings, "native users were restored, but active login sessions were intentionally cleared so operators must sign in again")
 	}
 
 	if err := tx.Commit(); err != nil {

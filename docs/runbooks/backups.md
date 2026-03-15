@@ -194,9 +194,9 @@ Run these checks after restart:
 
 ```sh
 curl http://127.0.0.1:8080/healthz
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/catalog
-curl -H "Authorization: Bearer viewer-token" http://127.0.0.1:8080/api/v1/reports
-curl -H "Authorization: Bearer viewer-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
+curl -H "Authorization: Bearer local-dev-admin-token" http://127.0.0.1:8080/api/v1/catalog
+curl -H "Authorization: Bearer local-dev-admin-token" http://127.0.0.1:8080/api/v1/reports
+curl -H "Authorization: Bearer local-dev-admin-token" "http://127.0.0.1:8080/api/v1/catalog/profile?asset_id=mart_budget_vs_actual"
 ```
 
 Expected success result:
