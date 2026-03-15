@@ -172,7 +172,7 @@ The platform now includes first-party operational features owned by this reposit
 - a browser-based admin terminal in the management portal
 - a `platformctl remote ...` command that connects to the running app from any local terminal
 - saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
-- browser-based dashboard management with create, duplicate, edit, delete, reorder, and live widget preview flows
+- browser-based dashboard management with create, duplicate, edit, delete, reorder, report owner/audience metadata, dashboard-wide default filters, and saved preset flows
 - first-party line and bar chart widgets rendered without external BI or charting products
 - a semantic metrics browser page backed by repo-managed metric manifests
 - Python-backed dataset profile cards in the Datasets page so operators can

@@ -217,9 +217,12 @@ This is the runtime contract the docs and System page should agree on.
 
 - runs:
   source of truth is PostgreSQL `run_snapshots`
+  `updated_at` is touched on each run save by the preferred store
   filesystem remains a write mirror and fallback bootstrap path
 - queue:
   source of truth is PostgreSQL `queue_requests`
+  `claimed_at` and `completed_at` are written by the queue repository at claim
+  and completion time
   filesystem queue is fallback only
 - artifacts:
   source of truth for bytes is the filesystem artifact root

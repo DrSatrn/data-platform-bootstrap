@@ -66,18 +66,15 @@ The next highest-leverage gap is platform hardening:
 
 ## Latest Completed Workstep
 
-- Exposed subsystem source-of-truth details through `/api/v1/system/overview`
-  so operators can see which storage backend is authoritative for runs, queue,
-  artifacts, dashboards, audit, and metadata in the current runtime.
-- Added router-level auth regression tests that prove viewer/admin enforcement
-  for catalog, analytics, artifacts, audit, logs, system overview, and admin
-  terminal endpoints.
-- Tightened the operator docs so the control-plane story is explicit rather
-  than implied, including the System page `Source Of Truth` card and clearer
-  control-plane ownership notes in the runtime manual.
-- Extended host-run configuration to include explicit external-tool defaults in
-  the typed config layer and local `.env` example without widening feature
-  breadth.
+- Expanded the reporting contract so dashboards now carry owner, tags,
+  audience intent, dashboard-wide default filters, and saved presets.
+- Wired dashboard presets through the React reporting surface so widget
+  hydration honors dashboard context before widget-level filters.
+- Extended the persisted dashboard stores, dashboard manifests, and validation
+  path so the richer report definition survives filesystem and PostgreSQL-backed
+  persistence paths.
+- Updated operator and contributor docs so the richer dashboard/report shape is
+  documented alongside the implementation.
 
 ## Deferred / Prompt-Requiring Tests
 

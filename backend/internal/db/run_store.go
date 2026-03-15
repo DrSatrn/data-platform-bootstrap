@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/streanor/data-platform/backend/internal/orchestration"
 )
@@ -43,6 +44,12 @@ func NewRunStore(ctx context.Context, dsn string) (*RunStore, error) {
 // SavePipelineRun persists a run snapshot into the PostgreSQL snapshot table.
 func (s *RunStore) SavePipelineRun(run orchestration.PipelineRun) error {
 	ctx := context.Background()
+	if run.StartedAt.IsZero() {
+		run.StartedAt = time.Now().UTC()
+	}
+	// Keep PostgreSQL save semantics aligned with the local filesystem store so
+	// the preferred control-plane path always advances `updated_at` on writes.
+	run.UpdatedAt = time.Now().UTC()
 	payload, err := json.Marshal(run)
 	if err != nil {
 		return fmt.Errorf("encode run snapshot %s: %w", run.ID, err)

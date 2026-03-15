@@ -29,7 +29,27 @@ export type DashboardDefinition = {
   id: string;
   name: string;
   description: string;
+  owner?: string;
+  tags?: string[];
+  shared_role?: string;
+  default_filters?: {
+    from_month?: string;
+    to_month?: string;
+    category?: string;
+  };
+  presets?: DashboardPreset[];
   widgets: DashboardWidget[];
+};
+
+export type DashboardPreset = {
+  id: string;
+  name: string;
+  description?: string;
+  filters?: {
+    from_month?: string;
+    to_month?: string;
+    category?: string;
+  };
 };
 
 type ReportsPayload = {
@@ -53,10 +73,17 @@ export type DashboardData = {
   error: string | null;
   saveError: string | null;
   selectedDashboardID: string | null;
+  selectedPresetID: string | null;
   selectDashboard: (dashboardID: string) => void;
+  selectPreset: (presetID: string) => void;
   startEditing: () => void;
   cancelEditing: () => void;
-  updateDraft: (field: "name" | "description", value: string) => void;
+  updateDraft: (field: "name" | "description" | "owner" | "shared_role" | "tags", value: string) => void;
+  updateDashboardFilter: (field: "from_month" | "to_month" | "category", value: string) => void;
+  addPreset: () => void;
+  removePreset: (presetID: string) => void;
+  updatePreset: (presetID: string, field: "name" | "description", value: string) => void;
+  updatePresetFilter: (presetID: string, field: "from_month" | "to_month" | "category", value: string) => void;
   updateWidget: (widgetID: string, field: keyof DashboardWidget, value: string | number) => void;
   updateWidgetFilter: (widgetID: string, field: "from_month" | "to_month" | "category", value: string) => void;
   addWidget: () => void;
@@ -83,6 +110,7 @@ export function useDashboardData(): DashboardData {
   const { loading, token, session } = useAuth();
   const [dashboards, setDashboards] = useState<DashboardDefinition[]>([]);
   const [selectedDashboardID, setSelectedDashboardID] = useState<string | null>(null);
+  const [selectedPresetID, setSelectedPresetID] = useState<string | null>(null);
   const [widgetData, setWidgetData] = useState<Record<string, QueryPayload["query"]>>({});
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -95,6 +123,10 @@ export function useDashboardData(): DashboardData {
     [dashboards, selectedDashboardID]
   );
   const previewDashboard = isEditing && draft ? draft : dashboard;
+  const selectedPreset = useMemo(
+    () => previewDashboard?.presets?.find((preset) => preset.id === selectedPresetID) ?? null,
+    [previewDashboard, selectedPresetID]
+  );
 
   useEffect(() => {
     if (loading) {
@@ -119,13 +151,16 @@ export function useDashboardData(): DashboardData {
       return;
     }
     void hydrateDashboard(previewDashboard);
-  }, [previewDashboard, session]);
+  }, [previewDashboard, selectedPreset, session]);
 
   async function loadDashboards(preferredID?: string) {
     try {
       const reports = await fetchJSON<ReportsPayload>("/api/v1/reports");
       setDashboards(reports.dashboards);
-      setSelectedDashboardID((current) => preferredID ?? current ?? reports.dashboards[0]?.id ?? null);
+      const nextDashboardID = preferredID ?? selectedDashboardID ?? reports.dashboards[0]?.id ?? null;
+      setSelectedDashboardID(nextDashboardID);
+      const nextDashboard = reports.dashboards.find((item) => item.id === nextDashboardID) ?? reports.dashboards[0] ?? null;
+      setSelectedPresetID(nextDashboard?.presets?.[0]?.id ?? null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown dashboard error");
@@ -146,14 +181,19 @@ export function useDashboardData(): DashboardData {
           if (widget.limit) {
             params.set("limit", String(widget.limit));
           }
-          if (widget.filters?.from_month) {
-            params.set("from_month", widget.filters.from_month);
+          const mergedFilters = {
+            ...(activeDashboard.default_filters ?? {}),
+            ...(selectedPreset?.filters ?? {}),
+            ...(widget.filters ?? {})
+          };
+          if (mergedFilters.from_month) {
+            params.set("from_month", mergedFilters.from_month);
           }
-          if (widget.filters?.to_month) {
-            params.set("to_month", widget.filters.to_month);
+          if (mergedFilters.to_month) {
+            params.set("to_month", mergedFilters.to_month);
           }
-          if (widget.filters?.category) {
-            params.set("category", widget.filters.category);
+          if (mergedFilters.category) {
+            params.set("category", mergedFilters.category);
           }
 
           const query = await fetchJSON<QueryPayload>(`/api/v1/analytics?${params.toString()}`);
@@ -169,9 +209,15 @@ export function useDashboardData(): DashboardData {
 
   function selectDashboard(dashboardID: string) {
     setSelectedDashboardID(dashboardID);
+    const nextDashboard = dashboards.find((item) => item.id === dashboardID) ?? null;
+    setSelectedPresetID(nextDashboard?.presets?.[0]?.id ?? null);
     setIsEditing(false);
     setDraft(null);
     setSaveError(null);
+  }
+
+  function selectPreset(presetID: string) {
+    setSelectedPresetID(presetID || null);
   }
 
   function startEditing() {
@@ -194,6 +240,11 @@ export function useDashboardData(): DashboardData {
       id: `dashboard_${Date.now()}`,
       name: "New Dashboard",
       description: "Describe the purpose of this dashboard.",
+      owner: session?.principal.subject ?? "platform-team",
+      tags: ["custom"],
+      shared_role: "viewer",
+      default_filters: {},
+      presets: [],
       widgets: [emptyWidget()]
     };
     setDraft(nextDashboard);
@@ -209,6 +260,14 @@ export function useDashboardData(): DashboardData {
       ...JSON.parse(JSON.stringify(dashboard)),
       id: `${dashboard.id}_copy_${Date.now()}`,
       name: `${dashboard.name} Copy`,
+      owner: dashboard.owner,
+      tags: [...(dashboard.tags ?? [])],
+      shared_role: dashboard.shared_role,
+      default_filters: { ...(dashboard.default_filters ?? {}) },
+      presets: (dashboard.presets ?? []).map((preset) => ({
+        ...JSON.parse(JSON.stringify(preset)),
+        id: `${preset.id}_copy_${Date.now()}`
+      })),
       widgets: dashboard.widgets.map((widget) => ({
         ...JSON.parse(JSON.stringify(widget)),
         id: `${widget.id}_copy_${Date.now()}`
@@ -219,8 +278,105 @@ export function useDashboardData(): DashboardData {
     setSaveError(null);
   }
 
-  function updateDraft(field: "name" | "description", value: string) {
-    setDraft((current) => (current ? { ...current, [field]: value } : current));
+  function updateDraft(field: "name" | "description" | "owner" | "shared_role" | "tags", value: string) {
+    setDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      if (field === "tags") {
+        return {
+          ...current,
+          tags: value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+        };
+      }
+      return { ...current, [field]: value };
+    });
+  }
+
+  function updateDashboardFilter(field: "from_month" | "to_month" | "category", value: string) {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            default_filters: {
+              ...(current.default_filters ?? {}),
+              [field]: value
+            }
+          }
+        : current
+    );
+  }
+
+  function addPreset() {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            presets: [
+              ...(current.presets ?? []),
+              {
+                id: `preset_${Date.now()}`,
+                name: "New Preset",
+                description: "Describe when this preset should be used.",
+                filters: {}
+              }
+            ]
+          }
+        : current
+    );
+  }
+
+  function removePreset(presetID: string) {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            presets: (current.presets ?? []).filter((preset) => preset.id !== presetID)
+          }
+        : current
+    );
+  }
+
+  function updatePreset(presetID: string, field: "name" | "description", value: string) {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            presets: (current.presets ?? []).map((preset) =>
+              preset.id === presetID
+                ? {
+                    ...preset,
+                    [field]: value
+                  }
+                : preset
+            )
+          }
+        : current
+    );
+  }
+
+  function updatePresetFilter(presetID: string, field: "from_month" | "to_month" | "category", value: string) {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            presets: (current.presets ?? []).map((preset) =>
+              preset.id === presetID
+                ? {
+                    ...preset,
+                    filters: {
+                      ...(preset.filters ?? {}),
+                      [field]: value
+                    }
+                  }
+                : preset
+            )
+          }
+        : current
+    );
   }
 
   function updateWidget(widgetID: string, field: keyof DashboardWidget, value: string | number) {
@@ -373,10 +529,17 @@ export function useDashboardData(): DashboardData {
     error,
     saveError,
     selectedDashboardID,
+    selectedPresetID,
     selectDashboard,
+    selectPreset,
     startEditing,
     cancelEditing,
     updateDraft,
+    updateDashboardFilter,
+    addPreset,
+    removePreset,
+    updatePreset,
+    updatePresetFilter,
     updateWidget,
     updateWidgetFilter,
     addWidget,

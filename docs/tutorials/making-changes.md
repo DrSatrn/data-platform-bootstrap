@@ -84,6 +84,14 @@ Usually change:
 - frontend dashboard feature files under `web/src/features/dashboard/`
 - `web/src/pages/DashboardPage.tsx`
 
+Current dashboard manifests and API payloads can also include:
+
+- `owner`
+- `tags`
+- `shared_role`
+- `default_filters`
+- `presets`
+
 ### Add a new admin terminal command
 
 Usually change:

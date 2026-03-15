@@ -41,11 +41,25 @@ func NewMultiStore(primary, secondary Store) Store {
 
 // Dashboard summarizes a saved internal reporting view.
 type Dashboard struct {
-	ID          string            `json:"id" yaml:"id"`
-	Name        string            `json:"name" yaml:"name"`
-	Description string            `json:"description" yaml:"description"`
-	Widgets     []DashboardWidget `json:"widgets" yaml:"widgets"`
-	UpdatedAt   time.Time         `json:"updated_at,omitempty"`
+	ID             string            `json:"id" yaml:"id"`
+	Name           string            `json:"name" yaml:"name"`
+	Description    string            `json:"description" yaml:"description"`
+	Owner          string            `json:"owner,omitempty" yaml:"owner,omitempty"`
+	Tags           []string          `json:"tags,omitempty" yaml:"tags,omitempty"`
+	SharedRole     string            `json:"shared_role,omitempty" yaml:"shared_role,omitempty"`
+	DefaultFilters WidgetQuery       `json:"default_filters,omitempty" yaml:"default_filters,omitempty"`
+	Presets        []DashboardPreset `json:"presets,omitempty" yaml:"presets,omitempty"`
+	Widgets        []DashboardWidget `json:"widgets" yaml:"widgets"`
+	UpdatedAt      time.Time         `json:"updated_at,omitempty"`
+}
+
+// DashboardPreset captures one saved dashboard-wide filter bundle so operators
+// can switch reporting context without editing individual widgets each time.
+type DashboardPreset struct {
+	ID          string      `json:"id" yaml:"id"`
+	Name        string      `json:"name" yaml:"name"`
+	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
+	Filters     WidgetQuery `json:"filters,omitempty" yaml:"filters,omitempty"`
 }
 
 // DashboardWidget defines one reporting element powered by a constrained
@@ -294,6 +308,22 @@ func validateDashboard(dashboard Dashboard) error {
 			return fmt.Errorf("dashboard %s widget %s must reference a dataset or metric", dashboard.ID, widget.ID)
 		}
 	}
+	if dashboard.SharedRole != "" && !slices.Contains([]string{"viewer", "editor", "admin"}, dashboard.SharedRole) {
+		return fmt.Errorf("dashboard %s shared_role must be viewer, editor, or admin", dashboard.ID)
+	}
+	presetIDs := map[string]struct{}{}
+	for _, preset := range dashboard.Presets {
+		if preset.ID == "" {
+			return fmt.Errorf("dashboard %s contains a preset without an id", dashboard.ID)
+		}
+		if preset.Name == "" {
+			return fmt.Errorf("dashboard %s preset %s is missing a name", dashboard.ID, preset.ID)
+		}
+		if _, duplicate := presetIDs[preset.ID]; duplicate {
+			return fmt.Errorf("dashboard %s contains duplicate preset id %s", dashboard.ID, preset.ID)
+		}
+		presetIDs[preset.ID] = struct{}{}
+	}
 	return nil
 }
 
@@ -309,6 +339,28 @@ func defaultDashboards() []Dashboard {
 			ID:          "finance_overview",
 			Name:        "Finance Overview",
 			Description: "Tracks savings rate, cashflow, category spend, and budget variance.",
+			Owner:       "platform-team",
+			Tags:        []string{"finance", "operations", "default"},
+			SharedRole:  "viewer",
+			Presets: []DashboardPreset{
+				{
+					ID:          "current_quarter",
+					Name:        "Current Quarter",
+					Description: "Focuses the dashboard on the current-quarter reporting window.",
+					Filters: WidgetQuery{
+						FromMonth: "2026-01",
+						ToMonth:   "2026-03",
+					},
+				},
+				{
+					ID:          "food_focus",
+					Name:        "Food Category",
+					Description: "Highlights food spend and variance for category-level review.",
+					Filters: WidgetQuery{
+						Category: "Food",
+					},
+				},
+			},
 			Widgets: []DashboardWidget{
 				{ID: "savings_rate_kpi", Name: "Savings Rate", Type: "kpi", MetricRef: "metrics_savings_rate", ValueField: "savings_rate"},
 				{ID: "cashflow_table", Name: "Monthly Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},

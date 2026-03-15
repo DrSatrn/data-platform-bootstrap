@@ -60,8 +60,13 @@ func (s *DashboardStore) ListDashboards() ([]reporting.Dashboard, error) {
 func (s *DashboardStore) SaveDashboard(dashboard reporting.Dashboard) error {
 	dashboard.UpdatedAt = time.Now().UTC()
 	definition, err := json.Marshal(map[string]any{
-		"widgets":    dashboard.Widgets,
-		"updated_at": dashboard.UpdatedAt,
+		"owner":           dashboard.Owner,
+		"tags":            dashboard.Tags,
+		"shared_role":     dashboard.SharedRole,
+		"default_filters": dashboard.DefaultFilters,
+		"presets":         dashboard.Presets,
+		"widgets":         dashboard.Widgets,
+		"updated_at":      dashboard.UpdatedAt,
 	})
 	if err != nil {
 		return fmt.Errorf("encode dashboard definition: %w", err)
@@ -95,12 +100,22 @@ func hydrateDashboardDefinition(dashboard *reporting.Dashboard, definition []byt
 		return nil
 	}
 	var payload struct {
-		Widgets   []reporting.DashboardWidget `json:"widgets"`
-		UpdatedAt time.Time                   `json:"updated_at"`
+		Owner          string                      `json:"owner"`
+		Tags           []string                    `json:"tags"`
+		SharedRole     string                      `json:"shared_role"`
+		DefaultFilters reporting.WidgetQuery       `json:"default_filters"`
+		Presets        []reporting.DashboardPreset `json:"presets"`
+		Widgets        []reporting.DashboardWidget `json:"widgets"`
+		UpdatedAt      time.Time                   `json:"updated_at"`
 	}
 	if err := json.Unmarshal(definition, &payload); err != nil {
 		return fmt.Errorf("decode dashboard definition: %w", err)
 	}
+	dashboard.Owner = payload.Owner
+	dashboard.Tags = payload.Tags
+	dashboard.SharedRole = payload.SharedRole
+	dashboard.DefaultFilters = payload.DefaultFilters
+	dashboard.Presets = payload.Presets
 	dashboard.Widgets = payload.Widgets
 	dashboard.UpdatedAt = payload.UpdatedAt
 	return nil

@@ -259,6 +259,12 @@ Reporting/dashboard issues:
 - [DashboardPage.tsx](/Users/streanor/Documents/Playground/data-platform/web/src/pages/DashboardPage.tsx)
 - [MetricsPage.tsx](/Users/streanor/Documents/Playground/data-platform/web/src/pages/MetricsPage.tsx)
 
+Current reporting runtime behavior:
+
+- dashboards carry owner, tags, and shared-role intent metadata
+- dashboard-wide default filters and saved presets now shape widget hydration
+- widget-level filters still apply, but they layer on top of dashboard context
+
 RBAC/audit issues:
 
 - [service.go](/Users/streanor/Documents/Playground/data-platform/backend/internal/authz/service.go)

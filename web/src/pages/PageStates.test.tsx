@@ -182,17 +182,19 @@ describe("operator page states", () => {
     mockDashboardState = {
       ...mockDashboardState,
       dashboards: [{ id: "finance_overview", name: "Finance Overview", description: "desc", widgets: [] }],
-      dashboard: { id: "finance_overview", name: "Finance Overview", description: "desc", widgets: [] },
+      dashboard: { id: "finance_overview", name: "Finance Overview", description: "desc", presets: [], widgets: [] },
       draft: {
         id: "finance_overview",
         name: "Finance Overview",
         description: "desc",
+        presets: [],
         widgets: [{ id: "savings_rate_kpi", name: "Savings Rate", type: "kpi", metric_ref: "metrics_savings_rate" }]
       },
       isEditing: true
     };
     const html = renderToStaticMarkup(<DashboardPage />);
     expect(html).toContain("Dashboard Editor");
+    expect(html).toContain("Preset Library");
     expect(html).toContain("Save dashboard");
   });
 

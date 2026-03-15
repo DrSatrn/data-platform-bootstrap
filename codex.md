@@ -54,13 +54,13 @@ Important current architectural direction
 Rolling Workstep Log
 
 Latest completed workstep
-	•	Exposed subsystem source-of-truth details through `/api/v1/system/overview`, including runs, queue, artifacts, dashboards, audit, and metadata.
-	•	Added router-level auth regression tests that verify viewer/admin enforcement for catalog, analytics, artifacts, audit, logs, system overview, and the admin terminal.
-	•	Tightened the docs around control-plane ownership so operators can confirm the current runtime mode from the System page instead of inferring it from logs.
-	•	Extended typed host-run config and `.env.example` with explicit external-tool runtime defaults while keeping the control plane Go-owned.
+	•	Expanded the reporting contract so dashboards now carry owner, tags, audience intent, dashboard-wide default filters, and saved presets.
+	•	Wired the React dashboard surface to apply dashboard-wide filters and selected presets before widget-level query filters.
+	•	Extended filesystem and PostgreSQL-backed dashboard persistence so the richer reporting definitions survive normal saves and reloads.
+	•	Updated dashboard manifests, operator docs, and contributor docs so the richer report asset shape is explicit instead of implied.
 
 Next workstep to execute
-	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer report sharing/layout workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.
+	•	Keep pushing toward a more deployable self-hosted product with deeper PostgreSQL normalization, richer reporting layout and sharing workflows, fuller Python runtime coverage for bounded data tasks, restore automation built on top of the backup bundles, and broader benchmark/load validation coverage.
 
 Session Close Handoff
 

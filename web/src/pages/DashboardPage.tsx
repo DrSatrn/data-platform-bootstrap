@@ -27,10 +27,17 @@ export function DashboardPage() {
     error,
     saveError,
     selectedDashboardID,
+    selectedPresetID,
     selectDashboard,
+    selectPreset,
     startEditing,
     cancelEditing,
     updateDraft,
+    updateDashboardFilter,
+    addPreset,
+    removePreset,
+    updatePreset,
+    updatePresetFilter,
     updateWidget,
     updateWidgetFilter,
     addWidget,
@@ -130,8 +137,70 @@ export function DashboardPage() {
         {!session?.capabilities.edit_dashboards ? (
           <p className="muted">Editor token required to create or modify saved dashboards.</p>
         ) : null}
+        <div className="inline-actions">
+          {activeDashboard?.shared_role ? <span className="badge">shared with {activeDashboard.shared_role}+</span> : null}
+          {activeDashboard?.owner ? <span className="badge">owner {activeDashboard.owner}</span> : null}
+          {(activeDashboard?.tags ?? []).map((tag) => (
+            <span className="badge" key={tag}>
+              {tag}
+            </span>
+          ))}
+        </div>
         {saveError ? <p className="muted">Save error: {saveError}</p> : null}
       </div>
+
+      <article className="card wide-card">
+        <div className="row-between">
+          <h3>Report Context</h3>
+          <div className="inline-actions">
+            <select
+              className="terminal-input compact-input"
+              onChange={(event) => selectPreset(event.target.value)}
+              value={selectedPresetID ?? ""}
+            >
+              <option value="">No preset</option>
+              {(activeDashboard?.presets ?? []).map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="muted">Dashboard-wide filters apply before widget-specific filters so teams can reuse one saved layout across multiple reporting contexts.</p>
+        <div className="form-grid">
+          <label className="stack">
+            <span className="muted">Default from month</span>
+            <input
+              className="terminal-input"
+              disabled={!isEditing}
+              onChange={(event) => updateDashboardFilter("from_month", event.target.value)}
+              placeholder="YYYY-MM"
+              value={activeDashboard?.default_filters?.from_month ?? ""}
+            />
+          </label>
+          <label className="stack">
+            <span className="muted">Default to month</span>
+            <input
+              className="terminal-input"
+              disabled={!isEditing}
+              onChange={(event) => updateDashboardFilter("to_month", event.target.value)}
+              placeholder="YYYY-MM"
+              value={activeDashboard?.default_filters?.to_month ?? ""}
+            />
+          </label>
+          <label className="stack">
+            <span className="muted">Default category</span>
+            <input
+              className="terminal-input"
+              disabled={!isEditing}
+              onChange={(event) => updateDashboardFilter("category", event.target.value)}
+              placeholder="Food"
+              value={activeDashboard?.default_filters?.category ?? ""}
+            />
+          </label>
+        </div>
+      </article>
 
       {isEditing && draft ? (
         <article className="card wide-card">
@@ -164,6 +233,85 @@ export function DashboardPage() {
                 value={draft.description}
               />
             </label>
+            <label className="stack">
+              <span className="muted">Owner</span>
+              <input className="terminal-input" onChange={(event) => updateDraft("owner", event.target.value)} value={draft.owner ?? ""} />
+            </label>
+            <label className="stack">
+              <span className="muted">Shared role</span>
+              <select className="terminal-input" onChange={(event) => updateDraft("shared_role", event.target.value)} value={draft.shared_role ?? "viewer"}>
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <label className="stack wide-field">
+              <span className="muted">Tags</span>
+              <input
+                className="terminal-input"
+                onChange={(event) => updateDraft("tags", event.target.value)}
+                value={(draft.tags ?? []).join(", ")}
+              />
+            </label>
+          </div>
+          <div className="row-between">
+            <h4>Preset Library</h4>
+            <button className="mini-button" disabled={!session?.capabilities.edit_dashboards} onClick={addPreset} type="button">
+              Add preset
+            </button>
+          </div>
+          <div className="stack">
+            {(draft.presets ?? []).map((preset) => (
+              <div className="subcard" key={preset.id}>
+                <div className="row-between">
+                  <strong>{preset.name}</strong>
+                  <button className="mini-button" disabled={!session?.capabilities.edit_dashboards} onClick={() => removePreset(preset.id)} type="button">
+                    Remove preset
+                  </button>
+                </div>
+                <div className="form-grid">
+                  <label className="stack">
+                    <span className="muted">Preset name</span>
+                    <input className="terminal-input" onChange={(event) => updatePreset(preset.id, "name", event.target.value)} value={preset.name} />
+                  </label>
+                  <label className="stack wide-field">
+                    <span className="muted">Description</span>
+                    <input
+                      className="terminal-input"
+                      onChange={(event) => updatePreset(preset.id, "description", event.target.value)}
+                      value={preset.description ?? ""}
+                    />
+                  </label>
+                  <label className="stack">
+                    <span className="muted">From month</span>
+                    <input
+                      className="terminal-input"
+                      onChange={(event) => updatePresetFilter(preset.id, "from_month", event.target.value)}
+                      placeholder="YYYY-MM"
+                      value={preset.filters?.from_month ?? ""}
+                    />
+                  </label>
+                  <label className="stack">
+                    <span className="muted">To month</span>
+                    <input
+                      className="terminal-input"
+                      onChange={(event) => updatePresetFilter(preset.id, "to_month", event.target.value)}
+                      placeholder="YYYY-MM"
+                      value={preset.filters?.to_month ?? ""}
+                    />
+                  </label>
+                  <label className="stack">
+                    <span className="muted">Category</span>
+                    <input
+                      className="terminal-input"
+                      onChange={(event) => updatePresetFilter(preset.id, "category", event.target.value)}
+                      placeholder="Food"
+                      value={preset.filters?.category ?? ""}
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
           </div>
           <div className="stack">
             {draft.widgets.map((widget, index) => (

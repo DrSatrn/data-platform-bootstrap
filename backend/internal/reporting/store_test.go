@@ -18,6 +18,16 @@ func TestFileStoreSeedsFromDashboardManifest(t *testing.T) {
 	manifest := `id: finance_overview
 name: Finance Overview
 description: Test dashboard
+owner: platform-team
+shared_role: viewer
+tags:
+  - finance
+presets:
+  - id: current_quarter
+    name: Current Quarter
+    filters:
+      from_month: "2026-01"
+      to_month: "2026-03"
 widgets:
   - id: savings_rate
     name: Savings Rate
@@ -43,6 +53,12 @@ widgets:
 	if dashboards[0].ID != "finance_overview" {
 		t.Fatalf("unexpected dashboard id: %s", dashboards[0].ID)
 	}
+	if dashboards[0].Owner != "platform-team" || dashboards[0].SharedRole != "viewer" {
+		t.Fatalf("expected dashboard metadata to be preserved, got %+v", dashboards[0])
+	}
+	if len(dashboards[0].Presets) != 1 || dashboards[0].Presets[0].ID != "current_quarter" {
+		t.Fatalf("expected presets to be loaded, got %+v", dashboards[0].Presets)
+	}
 }
 
 func TestFileStoreSaveDashboardPersists(t *testing.T) {
@@ -60,6 +76,12 @@ func TestFileStoreSaveDashboardPersists(t *testing.T) {
 		ID:          "team_ops",
 		Name:        "Team Ops",
 		Description: "Tracks operator-facing metrics.",
+		Owner:       "platform-team",
+		SharedRole:  "viewer",
+		Tags:        []string{"ops", "team"},
+		Presets: []DashboardPreset{
+			{ID: "last_30_days", Name: "Last 30 Days", Filters: WidgetQuery{FromMonth: "2026-02", ToMonth: "2026-03"}},
+		},
 		Widgets: []DashboardWidget{
 			{ID: "cashflow", Name: "Cashflow", Type: "table", DatasetRef: "mart_monthly_cashflow"},
 		},
@@ -79,6 +101,9 @@ func TestFileStoreSaveDashboardPersists(t *testing.T) {
 	for _, dashboard := range dashboards {
 		if dashboard.ID == "team_ops" {
 			found = true
+			if dashboard.Owner != "platform-team" || len(dashboard.Presets) != 1 {
+				t.Fatalf("expected persisted dashboard metadata, got %+v", dashboard)
+			}
 		}
 	}
 	if !found {

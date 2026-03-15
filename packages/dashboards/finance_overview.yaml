@@ -3,6 +3,24 @@
 id: finance_overview
 name: Finance Overview
 description: Monitors savings rate, cashflow, and budget variance from curated datasets.
+owner: platform-team
+tags:
+  - finance
+  - operations
+  - default
+shared_role: viewer
+presets:
+  - id: current_quarter
+    name: Current Quarter
+    description: Focus the dashboard on the current-quarter reporting window.
+    filters:
+      from_month: "2026-01"
+      to_month: "2026-03"
+  - id: food_focus
+    name: Food Category
+    description: Highlight food spend and variance for category-level review.
+    filters:
+      category: Food
 widgets:
   - id: savings_rate_kpi
     name: Savings Rate
