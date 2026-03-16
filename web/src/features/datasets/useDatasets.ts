@@ -83,6 +83,24 @@ type DatasetPayload = {
   }>;
 };
 
+type RawAsset = Omit<Asset, "source_refs" | "quality_check_refs" | "documentation_refs"> & {
+  source_refs?: string[] | null;
+  quality_check_refs?: string[] | null;
+  documentation_refs?: string[] | null;
+};
+
+type RawAssetProfile = Omit<AssetProfile, "columns"> & {
+  columns: Array<
+    Omit<AssetProfile["columns"][number], "sample_values"> & {
+      sample_values?: string[] | null;
+    }
+  >;
+};
+
+type RawDatasetPayload = Omit<DatasetPayload, "assets"> & {
+  assets: RawAsset[];
+};
+
 type AssetUpdatePayload = {
   asset_id: string;
   owner?: string;
@@ -117,11 +135,15 @@ export function useDatasets() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   function loadCatalog() {
-    return fetchJSON<DatasetPayload>("/api/v1/catalog").then((payload) => {
-      setData(payload);
+    return fetchJSON<RawDatasetPayload>("/api/v1/catalog").then((payload) => {
+      const normalized = {
+        ...payload,
+        assets: payload.assets.map(normalizeAsset)
+      };
+      setData(normalized);
       setError(null);
-      setSelectedAssetID((current) => current ?? payload.assets[0]?.id ?? null);
-      return payload;
+      setSelectedAssetID((current) => current ?? normalized.assets[0]?.id ?? null);
+      return normalized;
     });
   }
 
@@ -156,8 +178,8 @@ export function useDatasets() {
 
     setProfileLoading(true);
     setProfileError(null);
-    fetchJSON<AssetProfile>(`/api/v1/catalog/profile?asset_id=${encodeURIComponent(selectedAssetID)}`)
-      .then((payload) => setProfile(payload))
+    fetchJSON<RawAssetProfile>(`/api/v1/catalog/profile?asset_id=${encodeURIComponent(selectedAssetID)}`)
+      .then((payload) => setProfile(normalizeProfile(payload)))
       .catch((err) => {
         setProfile(null);
         setProfileError(err instanceof Error ? err.message : "Unknown dataset profile error");
@@ -267,4 +289,23 @@ export function useDatasets() {
 
 function isCuratedQueryTarget(assetID: string) {
   return assetID.startsWith("mart_") || assetID.startsWith("metrics_");
+}
+
+function normalizeAsset(asset: RawAsset): Asset {
+  return {
+    ...asset,
+    source_refs: asset.source_refs ?? [],
+    quality_check_refs: asset.quality_check_refs ?? [],
+    documentation_refs: asset.documentation_refs ?? []
+  };
+}
+
+function normalizeProfile(profile: RawAssetProfile): AssetProfile {
+  return {
+    ...profile,
+    columns: profile.columns.map((column) => ({
+      ...column,
+      sample_values: column.sample_values ?? []
+    }))
+  };
 }

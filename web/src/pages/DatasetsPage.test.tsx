@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAuth = {
   session: {
@@ -9,96 +9,100 @@ const mockAuth = {
   }
 };
 
-let mockDatasetState: any = {
-  data: {
-    summary: {
-      total_assets: 1,
-      documented_columns: 2,
-      total_columns: 2,
-      assets_missing_docs: 0,
-      assets_missing_quality: 0
+function createDatasetState() {
+  return {
+    data: {
+      summary: {
+        total_assets: 1,
+        documented_columns: 2,
+        total_columns: 2,
+        assets_missing_docs: 0,
+        assets_missing_quality: 0
+      },
+      assets: [
+        {
+          id: "mart_monthly_cashflow",
+          name: "Monthly Cashflow",
+          layer: "mart",
+          kind: "table",
+          description: "Curated mart",
+          owner: "finance",
+          source_refs: [],
+          quality_check_refs: [],
+          documentation_refs: [],
+          freshness_status: { state: "fresh", message: "Fresh" },
+          coverage: {
+            documented_columns: 2,
+            total_columns: 2,
+            has_documentation: true,
+            has_quality_checks: true,
+            contains_pii: false
+          },
+          lineage: {
+            upstream: [],
+            downstream: []
+          },
+          columns: [
+            { name: "month", type: "string", description: "Month" },
+            { name: "net_cashflow", type: "number", description: "Cashflow" }
+          ]
+        }
+      ]
     },
-    assets: [
-      {
-        id: "mart_monthly_cashflow",
-        name: "Monthly Cashflow",
-        layer: "mart",
-        kind: "table",
-        description: "Curated mart",
-        owner: "finance",
-        source_refs: [],
-        quality_check_refs: [],
-        documentation_refs: [],
-        freshness_status: { state: "fresh", message: "Fresh" },
-        coverage: {
-          documented_columns: 2,
-          total_columns: 2,
-          has_documentation: true,
-          has_quality_checks: true,
-          contains_pii: false
-        },
-        lineage: {
-          upstream: [],
-          downstream: []
-        },
-        columns: [
-          { name: "month", type: "string", description: "Month" },
-          { name: "net_cashflow", type: "number", description: "Cashflow" }
-        ]
-      }
-    ]
-  },
-  drilldown: null,
-  drilldownError: null,
-  drilldownFilters: {
-    fromMonth: "",
-    toMonth: "",
-    category: "",
-    groupBy: "",
-    drillDimension: "",
-    drillValue: "",
-    sortBy: "",
-    sortDirection: "asc"
-  },
-  drilldownLoading: false,
-  error: null,
-  profile: null,
-  profileError: null,
-  profileLoading: false,
-  saveAnnotations: vi.fn(),
-  saveError: null,
-  savePending: false,
-  selectedAsset: {
-    id: "mart_monthly_cashflow",
-    name: "Monthly Cashflow",
-    layer: "mart",
-    kind: "table",
-    description: "Curated mart",
-    owner: "finance",
-    source_refs: [],
-    quality_check_refs: [],
-    documentation_refs: [],
-    freshness_status: { state: "fresh", message: "Fresh" },
-    coverage: {
-      documented_columns: 2,
-      total_columns: 2,
-      has_documentation: true,
-      has_quality_checks: true,
-      contains_pii: false
+    drilldown: null,
+    drilldownError: null,
+    drilldownFilters: {
+      fromMonth: "",
+      toMonth: "",
+      category: "",
+      groupBy: "",
+      drillDimension: "",
+      drillValue: "",
+      sortBy: "",
+      sortDirection: "asc"
     },
-    lineage: {
-      upstream: [],
-      downstream: []
+    drilldownLoading: false,
+    error: null,
+    profile: null,
+    profileError: null,
+    profileLoading: false,
+    saveAnnotations: vi.fn(),
+    saveError: null,
+    savePending: false,
+    selectedAsset: {
+      id: "mart_monthly_cashflow",
+      name: "Monthly Cashflow",
+      layer: "mart",
+      kind: "table",
+      description: "Curated mart",
+      owner: "finance",
+      source_refs: [],
+      quality_check_refs: [],
+      documentation_refs: [],
+      freshness_status: { state: "fresh", message: "Fresh" },
+      coverage: {
+        documented_columns: 2,
+        total_columns: 2,
+        has_documentation: true,
+        has_quality_checks: true,
+        contains_pii: false
+      },
+      lineage: {
+        upstream: [],
+        downstream: []
+      },
+      columns: [
+        { name: "month", type: "string", description: "Month" },
+        { name: "net_cashflow", type: "number", description: "Cashflow" }
+      ]
     },
-    columns: [
-      { name: "month", type: "string", description: "Month" },
-      { name: "net_cashflow", type: "number", description: "Cashflow" }
-    ]
-  },
-  selectedAssetID: "mart_monthly_cashflow",
-  setSelectedAssetID: vi.fn(),
-  updateDrilldownFilter: vi.fn()
-};
+    selectedAssetID: "mart_monthly_cashflow",
+    setSelectedAssetID: vi.fn(),
+    updateDrilldownFilter: vi.fn()
+  };
+}
+
+let mockDatasetState: any = createDatasetState();
 
 vi.mock("../features/auth/useAuth", () => ({
   useAuth: () => mockAuth
@@ -111,6 +115,10 @@ vi.mock("../features/datasets/useDatasets", () => ({
 import { DatasetsPage } from "./DatasetsPage";
 
 describe("DatasetsPage", () => {
+  beforeEach(() => {
+    mockDatasetState = createDatasetState();
+  });
+
   it("renders without crashing", () => {
     const html = renderToStaticMarkup(<DatasetsPage />);
     expect(html).toContain("Catalog Trust Summary");
@@ -138,5 +146,32 @@ describe("DatasetsPage", () => {
     const html = renderToStaticMarkup(<DatasetsPage />);
     expect(html).toContain("Datasets error");
     expect(html).toContain("Catalog API unavailable");
+  });
+
+  it("renders safely when catalog refs are null", () => {
+    mockDatasetState = {
+      ...mockDatasetState,
+      data: {
+        ...mockDatasetState.data,
+        assets: [
+          {
+            ...mockDatasetState.data.assets[0],
+            source_refs: null,
+            quality_check_refs: null,
+            documentation_refs: null
+          }
+        ]
+      },
+      selectedAsset: {
+        ...mockDatasetState.selectedAsset,
+        source_refs: null,
+        quality_check_refs: null,
+        documentation_refs: null
+      }
+    };
+
+    const html = renderToStaticMarkup(<DatasetsPage />);
+    expect(html).toContain("Monthly Cashflow");
+    expect(html).toContain("None recorded");
   });
 });

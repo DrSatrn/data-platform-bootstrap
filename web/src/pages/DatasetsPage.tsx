@@ -479,7 +479,7 @@ function DatasetDetail({
                       ? `${column.min_value ?? "-"} to ${column.max_value ?? "-"}`
                       : "-"}
                   </td>
-                  <td>{column.sample_values.length > 0 ? column.sample_values.join(", ") : "-"}</td>
+                  <td>{(column.sample_values ?? []).length > 0 ? (column.sample_values ?? []).join(", ") : "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -494,8 +494,8 @@ function buildDraft(asset: Asset) {
   return {
     owner: asset.owner,
     description: asset.description,
-    documentationRefs: asset.documentation_refs.join("\n"),
-    qualityCheckRefs: asset.quality_check_refs.join("\n"),
+    documentationRefs: (asset.documentation_refs ?? []).join("\n"),
+    qualityCheckRefs: (asset.quality_check_refs ?? []).join("\n"),
     columnDescriptions: asset.columns.map((column) => column.description ?? "")
   };
 }
@@ -507,12 +507,13 @@ function splitLines(value: string) {
     .filter(Boolean);
 }
 
-function ReferenceStrip({ label, values }: { label: string; values: string[] }) {
+function ReferenceStrip({ label, values }: { label: string; values?: string[] | null }) {
+  const safeValues = values ?? [];
   return (
     <div className="stack">
       <span className="muted">{label}</span>
       <div className="inline-actions">
-        {(values.length > 0 ? values : ["None recorded"]).map((value) => (
+        {(safeValues.length > 0 ? safeValues : ["None recorded"]).map((value) => (
           <span className="badge" key={value}>
             {value}
           </span>
