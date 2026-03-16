@@ -1,275 +1,31 @@
-# Data Platform
+# 'Data Platform'
 
-This repository contains a local-first, self-hosted data orchestration and analytics platform built as a serious engineering project. The platform combines orchestration, ingestion, transformations, metadata, observability, analytics serving, and an internal reporting interface into one coherent product designed to run well on an Apple Silicon laptop and ARM64 Linux VM.
+### Preamble
+I received a free trial to the new Codex 5.4 model and decided to put it through its paces (sidebar, first time a promotional email has ever convinced me to sign up to ANYTHING).
 
-The implementation intentionally emphasizes teaching value. Code is organized around clear subsystem boundaries, package-level responsibility, explicit runtime behavior, and heavily documented entrypoints so the project can be studied as much as it can be used.
+I didn't need to build a toy webapp or CRUD application as I know for a fact any half-decent coding model can spit one of those out in an afternoon. I wanted to give it something complex and span a large number of features and see how it performs.
 
-## Documentation Map
+> **Disclaimer** Please be aware, this was in no way scientific; it was for my own enjoyment and self directed learning outcomes. Truthfully, I wanted to see how hands-off I could be and still end up with what I had asked for. <br> I am sure that the prompting could have been higher quality, the work organised piece by piece, carefully divvied up between threads. However, that's not why I was here. I'm on holidays for goodness sake! I wanted to watch some tv and have my laptop on the couch prompting away, so that's exactly what I did.
 
-If you are new to the project, use this reading order:
+Despite my lack of vibe coding experience (that feels wrong to say aloud), I do use AI for a number of things; both at work and at home:
 
-1. [README.md](/Users/streanor/Documents/Playground/data-platform/README.md)
-   Product overview and the shortest explanation of what this repo is.
-2. [docs/README.md](/Users/streanor/Documents/Playground/data-platform/docs/README.md)
-   Full documentation map organized by user journey.
-3. [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
-   The canonical first-run document.
-4. [operator-manual.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/operator-manual.md)
-   Day-to-day operating guide.
-5. [making-changes.md](/Users/streanor/Documents/Playground/data-platform/docs/tutorials/making-changes.md)
-   Safe extension path for contributors.
+- lightning fast, natural language search engine (can be wrong, requires fact checking)
+- Generating boilerplate code or snippets in languages I am unfamiliar with
+- Onboarding to large codebases and generating *some* documentation (writing is a love of mine and I would be quite disappointed to move this all to llm word-vomit *)
+- Recipe ideas when I don't know what to eat for dinner
+- Instant crowd source opionins and recomendations (books, tv shows, board games etc)
 
-## Product Goals
+### *The spec*
 
-- Reliable orchestration with schedules, dependencies, retries, audit history, and understandable failure handling.
-- Medallion-style data movement through raw, staging, intermediate, mart, and metrics layers.
-- Metadata-first operation with lineage, ownership, freshness, quality, and documentation coverage.
-- Curated analytics serving rather than direct raw-table access.
-- A custom operational and reporting UI tailored to platform operators and internal analysts.
-- Version-controlled manifests, infra, migrations, dashboards, and documentation.
-- Built-in metrics, logs, diagnostics, and admin tooling owned by this repo instead of outsourced dashboard products.
 
-## Stack
+### The actual product
 
-- Backend and control plane: Go
-- Data execution helpers: Python subprocess hooks where needed
-- Frontend: React + TypeScript
-- Control-plane state: PostgreSQL
-- Analytical execution: DuckDB behind a repo-owned SQL execution adapter
-- Local runtime: Docker Compose with ARM64-friendly defaults
 
-## Current Scope
+### Conclusion
 
-This implementation now covers a more polished v2-style finance slice. The
-platform proves the architecture end to end with ingestion, orchestration,
-transformation, metadata registration, quality checks, analytics serving,
-database-backed saved dashboards, and a richer reporting surface around
-cashflow, category spend, and budget variance.
+I have thoughts about this project. Namely, over the course of 1 night and 1 morning this codebase exploded from 0 to almost **40 thousand** lines of code .... that's absurd.
 
-Recent repo state after the current v1 integration pass:
+I'm not a pro `go-langer` but I am sure the code on a file by file basis is *fine*. However, I have concerns regarding the overall architecture and feature implementation. As you can see from the spec and final prodcut comparisson there were some key misses when you take into account what I actually wanted to DO with the data platform. 
 
-- the web app now has bookmarkable URL routing across the main product pages
-- routed frontend surfaces now include explicit loading/error states plus an
-  error boundary path
-- the dashboard experience has been decomposed into reusable UI components
-- backend automated coverage now extends further into transforms, quality, and
-  integration-oriented skeleton paths
-- GitHub Actions CI now verifies backend tests, manifest validation, frontend
-  build, and frontend tests
-- the earlier `ingestion/` stub has been removed
-
-When PostgreSQL has been migrated and is reachable, the runtime now uses it as
-the primary control plane for run snapshots, queue state, audit, native
-identity, dashboards, and metadata annotations. The filesystem path remains
-the local-first fallback when PostgreSQL is unavailable. The live
-source-of-truth breakdown is exposed in
-`GET /api/v1/system/overview` and rendered in the System page as the
-`Source Of Truth` card.
-
-## Configuration Reality
-
-- Host-run Go binaries now auto-load `.env` and `.env.local` from the repo root
-  or the current working directory.
-- [.env.example](/Users/streanor/Documents/Playground/data-platform/.env.example)
-  is the host-run example and uses local filesystem paths.
-- Compose does not use `.env.example` as its canonical config source.
-- The tracked Compose file has safe defaults already, and optional overrides
-  belong in `.env.compose`.
-
-## Public Repo Safety
-
-- No real secrets, IPs, tokens, or host-specific credentials should ever be committed here.
-- `.env.example` contains placeholders and local-development defaults only.
-- The Compose stack binds the API and web UI to loopback by default and does not publish PostgreSQL externally.
-- The admin terminal is a platform command surface, not arbitrary shell access.
-- If you rotate local tokens or database credentials, keep them in untracked local env files.
-
-## Access Control
-
-The platform now has a native identity and session model:
-
-- anonymous can access only `GET /healthz` and `GET|POST|DELETE /api/v1/session`
-- database-backed `viewer`, `editor`, and `admin` users authenticate with
-  username/password and receive a bearer session token
-- `viewer` can access read-only product APIs and pages
-- `editor` can trigger runs, modify saved dashboards, and update metadata annotations
-- `admin` can use the admin terminal, manage users, and perform all editor
-  actions
-
-Bootstrap and compatibility:
-
-- `PLATFORM_ADMIN_TOKEN` remains supported as the first-run bootstrap and
-  emergency admin path
-- `PLATFORM_ACCESS_TOKENS` is now compatibility-only and should not be the
-  normal operating model
-
-Normal flow:
-
-1. start the stack
-2. use the bootstrap admin token to create users from the System page or
-   `POST /api/v1/admin/users`
-3. sign in through the browser or `POST /api/v1/session`
-4. use the returned session bearer token for API and UI access
-
-If PostgreSQL is unavailable, the platform falls back to bootstrap-token-only
-auth because the native identity store lives in the preferred control plane.
-
-## Audit Trail
-
-Privileged platform actions now write to a first-party append-only audit trail.
-The current audit scope covers:
-
-- manual pipeline triggers
-- dashboard saves and deletes
-- admin terminal command execution
-
-The audit feed is exposed at `/api/v1/system/audit`, shown in the System page,
-and mirrored into PostgreSQL when the DB-backed control plane is available.
-
-## Backups
-
-The platform now includes a first-party backup/export path built in-repo:
-
-- `platformctl backup create`
-- `platformctl backup verify`
-- `platformctl backup list`
-- `platformctl backup restore`
-- admin terminal commands: `backups`, `backup create`, `backup verify <bundle>`
-
-Each backup bundle is a portable `.tar.gz` archive containing:
-
-- control-plane JSON exports for runs, queue state, dashboards, audit events,
-  metadata assets, native users, and sanitized config
-- materialized local data and run artifacts when present
-- the DuckDB file
-- repo-managed manifest and dashboard snapshots
-- a checksummed `manifest.json`
-
-Native users are restored with their hashed credentials. Active login sessions
-are intentionally cleared on restore so operators sign in again cleanly.
-
-Use:
-
-```bash
-make backup
-```
-
-Use:
-
-```bash
-make restore-drill
-```
-
-when you want a safe restore drill without overwriting live state, or:
-
-```bash
-make restore-e2e
-```
-
-when you want the repo-owned end-to-end recovery proof. See
-[backups.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/backups.md)
-for the full recovery procedure.
-
-## Analytical SQL
-
-Curated SQL now lives under [packages/sql](/Users/streanor/Documents/Playground/data-platform/packages/sql). The worker loads landed raw files into DuckDB, materializes curated tables from those SQL files, and the analytics and quality APIs query the same DuckDB-backed layer when it is available.
-
-The finance slice now includes these curated outputs:
-
-- `staging_transactions_enriched`
-- `intermediate_category_monthly_rollup`
-- `mart_monthly_cashflow`
-- `mart_category_spend`
-- `mart_budget_vs_actual`
-- `metrics_savings_rate`
-- `metrics_category_variance`
-
-Because the DuckDB Go driver uses CGO, host builds need working Apple Silicon C
-tooling. On macOS that usually means Xcode Command Line Tools are installed.
-
-The worker now also supports bounded Python subprocess tasks behind the Go
-control plane. The current finance slice uses Python to enrich raw
-transactions into the staging layer before the intermediate and mart layers are
-built, and the metadata catalog now uses a second bounded Python utility to
-profile materialized assets for the Datasets page.
-
-## Built-In Operations Surface
-
-The platform now includes first-party operational features owned by this repository:
-
-- in-process telemetry for request metrics and command history
-- in-process recent log buffer surfaced through the API
-- a system overview API and admin diagnostics page
-- run throughput, failure, queue, and backup inventory summaries surfaced in the System page
-- a browser-based admin terminal in the management portal
-- a `platformctl remote ...` command that connects to the running app from any local terminal
-- saved dashboards seeded from repo-managed dashboard manifests and persisted through the reporting API
-- database-backed metadata annotations editable from the Datasets page when the
-  PostgreSQL control plane is active
-- browser-based dashboard management with create, duplicate, edit, delete, reorder, report owner/audience metadata, dashboard-wide default filters, and saved preset flows
-- explicit widget grid layout metadata with browser-side move and resize controls
-- first-party line and bar chart widgets rendered without external BI or charting products
-- a semantic metrics browser page backed by repo-managed metric manifests
-- Python-backed dataset profile cards in the Datasets page so operators can
-  inspect row counts, observed types, null counts, ranges, and sample values
-- curated dataset drill-down in the Datasets page backed by grouped and filtered
-  analytics queries instead of ad hoc SQL
-
-## Start Here
-
-Use the canonical quickstart instead of guessing between overlapping startup
-docs:
-
-- [quickstart.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/quickstart.md)
-
-The recommended first success path is:
-
-```bash
-make smoke
-```
-
-That verifies the core platform behavior without requiring you to hand-start
-services. After that, use:
-
-- [bootstrap.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/bootstrap.md)
-  for the packaged Compose path
-- [localhost-e2e.md](/Users/streanor/Documents/Playground/data-platform/docs/runbooks/localhost-e2e.md)
-  for the host-run debug path
-
-## Benchmarking
-
-The repo now includes a first-party benchmark command and wrapper script so we
-can start tracking response budgets as the product grows:
-
-```bash
-make benchmark
-```
-
-That writes a timestamped JSON report under `var/benchmarks/` and currently
-covers health, catalog, analytics, reports, system overview, the admin
-terminal status command, a concurrent manual-trigger load burst, queue
-visibility budgets, and scheduler heartbeat freshness.
-
-## Management Console
-
-The web app now includes a real Management route that brings together:
-
-- guided in-app terminal commands backed by the admin API
-- live control-plane posture and queue attention
-- backend-owned `opsview` summaries for external-tool activity
-- runbook docking, evidence surfacing, and follow-up planning in one operator
-  workflow
-
-This is intentionally product-oriented rather than a generic shell surface.
-
-## Localhost Safety Defaults
-
-- API and web bindings are loopback-first by default.
-- PostgreSQL is not published externally by Compose.
-- Example tokens and passwords are placeholders only.
-- The smoke script uses a temporary root under `/tmp` instead of mutating the
-  normal repo-local `var/` tree.
-
-## Important Constraint
-
-`codex.md` was reviewed before starting implementation. The next operational step before the first build should still be to re-check it in case the guidance evolves.
+* N.B I must say, I am quite upset the effect AI has had on writing. This is big enought to be an entirely different topic but I will summarise for lack of brevity. LLMs stole my writing style! I used to make ample use of `italics`, artistic `bolding` and `--` em-dashes. Let alone the vocaburlary and general prose I tent to incorporate.
+It's been taken from me. I face a number of accusations as to my writing being ai generated or ai-adjacent and I do not very much enjoy that.
